@@ -7,10 +7,10 @@ Mohamed — Senior Engineering Manager, AWS Auto Scaling. Infrastructure leader 
 Build a hands-on inference serving system that goes from zero to observable, auto-scaling model serving. Every stage should deepen understanding of how inference infrastructure works — not just make code run.
 
 ## Stages
-1. Ollama: local model serving + manual concurrent load
-2. vLLM: compare behavior vs Ollama, understand continuous batching
-3. Observability: Prometheus metrics (queue depth, TTFT, TBT, P99), Grafana dashboard
-4. Auto-scaling: replica scaling logic triggered by queue depth / P99 thresholds
+1. ✅ Ollama: local model serving + manual concurrent load (Apple M4, 16GB)
+2. vLLM on AWS g4dn.xlarge spot (~$0.16/hr): compare behavior vs Ollama, understand continuous batching
+3. Observability: Prometheus metrics (queue depth, TTFT, TBT, P99), Grafana dashboard (same instance, docker-compose)
+4. Auto-scaling: EKS + Karpenter, GPU node provisioning, scaling based on queue depth / P99 thresholds
 
 ## Explanation Style
 Always map inference concepts to AWS Auto Scaling / distributed systems analogies before explaining them in isolation. Mohamed knows: capacity pools, queue depth, scaling policies, latency SLAs, Spot vs On-Demand, session affinity, consistent hashing, Tier-0 availability patterns.
