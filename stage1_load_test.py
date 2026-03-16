@@ -10,20 +10,24 @@ Sends N concurrent requests to Ollama and measures:
 Usage: python3 stage1_load_test.py
 """
 
-import asyncio
-import aiohttp
 import json
 import time
+import threading
+import requests  # stdlib-friendly; no async timeout issues
 
 # --- Configuration ---
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:7b"
-CONCURRENT_REQUESTS = 5
-# Same prompt for all requests so we can compare apples-to-apples
-PROMPT = "Explain what a load balancer does in exactly 3 sentences."
+CONCURRENT_REQUESTS = 3
+# Short prompt to keep each request fast (~10-20 tokens output).
+# We care about timing patterns, not response quality.
+PROMPT = "What is a load balancer? Answer in one sentence."
+
+# Shared reference time so all threads measure from the same zero point
+global_start = 0.0
 
 
-async def send_request(session: aiohttp.ClientSession, request_id: int) -> dict:
+def send_request(request_id: int) -> dict:
     """Send a single streaming request to Ollama and measure timing."""
 
     payload = {
@@ -36,18 +40,24 @@ async def send_request(session: aiohttp.ClientSession, request_id: int) -> dict:
     tokens = []       # the actual token strings
     request_start = time.perf_counter()
 
-    async with session.post(OLLAMA_URL, json=payload) as resp:
-        # Each line from Ollama is a JSON object with one token
-        async for line in resp.content:
-            chunk = json.loads(line.decode())
+    # stream=True on requests gives us chunked transfer decoding
+    # timeout=(connect, read) — read timeout is per-chunk, but Ollama
+    # holds the connection open while queued, so we set it very high
+    resp = requests.post(OLLAMA_URL, json=payload, stream=True, timeout=(10, 600))
 
-            if chunk.get("response"):
-                token_times.append(time.perf_counter())
-                tokens.append(chunk["response"])
+    # Each line from Ollama is a JSON object with one token
+    for line in resp.iter_lines():
+        if not line:
+            continue
+        chunk = json.loads(line)
 
-            # Ollama signals completion with done=true
-            if chunk.get("done"):
-                break
+        if chunk.get("response"):
+            token_times.append(time.perf_counter())
+            tokens.append(chunk["response"])
+
+        # Ollama signals completion with done=true
+        if chunk.get("done"):
+            break
 
     request_end = time.perf_counter()
 
@@ -79,22 +89,31 @@ async def send_request(session: aiohttp.ClientSession, request_id: int) -> dict:
     }
 
 
-async def run_load_test():
-    """Fire all requests concurrently and collect results."""
+def run_load_test() -> list:
+    """Fire all requests concurrently using threads and collect results."""
     global global_start
     global_start = time.perf_counter()
 
-    # Timeout set high because queued requests may wait a long time
-    timeout = aiohttp.ClientTimeout(total=600)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        # Launch all requests at the same instant
-        tasks = [send_request(session, i) for i in range(CONCURRENT_REQUESTS)]
-        results = await asyncio.gather(*tasks)
+    results = [None] * CONCURRENT_REQUESTS
+    threads = []
+
+    def worker(req_id):
+        results[req_id] = send_request(req_id)
+
+    # Launch all threads at once — they'll all hit Ollama simultaneously
+    for i in range(CONCURRENT_REQUESTS):
+        t = threading.Thread(target=worker, args=(i,))
+        threads.append(t)
+        t.start()
+
+    # Wait for all to complete
+    for t in threads:
+        t.join()
 
     return results
 
 
-def print_results(results: list[dict]):
+def print_results(results):
     """Print a formatted table of results."""
     print(f"\n{'='*80}")
     print(f"Ollama Load Test: {CONCURRENT_REQUESTS} concurrent requests")
@@ -106,6 +125,9 @@ def print_results(results: list[dict]):
           f"{'TTFT':>7}  {'Avg TBT':>8}  {'Total':>7}  {'Tok/s':>6}  {'Tokens':>6}")
     print(f"{'-'*3}  {'-'*7}  {'-'*9}  {'-'*7}  "
           f"{'-'*7}  {'-'*8}  {'-'*7}  {'-'*6}  {'-'*6}")
+
+    # Filter out failed requests (None results from timed-out threads)
+    results = [r for r in results if r is not None]
 
     # Sort by when each request's first token arrived — reveals queuing order
     for r in sorted(results, key=lambda x: x["first_token_time"] or 999):
@@ -123,21 +145,21 @@ def print_results(results: list[dict]):
     print(f"\n--- Summary ---")
     ttfts = [r["ttft_sec"] for r in results if r["ttft_sec"]]
     totals = [r["total_sec"] for r in results]
-    print(f"TTFT  — min: {min(ttfts):.3f}s, max: {max(ttfts):.3f}s, spread: {max(ttfts)-min(ttfts):.3f}s")
-    print(f"Total — min: {min(totals):.3f}s, max: {max(totals):.3f}s, spread: {max(totals)-min(totals):.3f}s")
+    print(f"TTFT  - min: {min(ttfts):.3f}s, max: {max(ttfts):.3f}s, spread: {max(ttfts)-min(ttfts):.3f}s")
+    print(f"Total - min: {min(totals):.3f}s, max: {max(totals):.3f}s, spread: {max(totals)-min(totals):.3f}s")
 
     # The spread tells the story: if requests ran in parallel, spread would be small.
-    # If they queued, spread ≈ (N-1) * avg_request_duration.
+    # If they queued, spread ~ (N-1) * avg_request_duration.
     first_tokens = sorted([r["first_token_time"] for r in results if r["first_token_time"]])
     gaps = [first_tokens[i] - first_tokens[i-1] for i in range(1, len(first_tokens))]
     if gaps:
         print(f"\nGap between consecutive first-tokens: {['%.3fs' % g for g in gaps]}")
         print(f"Average gap: {sum(gaps)/len(gaps):.3f}s")
-        print(f"\nIf this gap ≈ single request duration, requests are queuing (not batching).")
+        print(f"\nIf this gap ~ single request duration, requests are queuing (not batching).")
 
 
 if __name__ == "__main__":
     print("Starting Ollama load test...")
     print(f"Sending {CONCURRENT_REQUESTS} concurrent requests to {MODEL}...")
-    results = asyncio.run(run_load_test())
+    results = run_load_test()
     print_results(results)
