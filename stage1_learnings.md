@@ -59,7 +59,59 @@ Ollama processes requests **one at a time, sequentially**. Concurrent requests q
 
 **Auto Scaling analogy:** KV cache = warm instance pool. Pre-computed state you don't want to recompute on every request.
 
-## What's Next
-- Load test: send concurrent requests, observe queuing behavior
-- Measure TTFT and TBT under load
-- Compare sequential vs concurrent latency to prove Ollama's single-request model
+### Decode Is Memory-Bandwidth Bound
+To generate each output token, the model must:
+1. Read the **entire model weights** (~4.7GB) from memory
+2. Read the **entire KV cache** (grows with each token generated)
+3. Do a relatively small matrix-vector multiply (trivial compute)
+4. Write the new KV entry back to memory
+
+The GPU cores sit idle waiting for data to arrive. Throughput is governed by `model_size / memory_bandwidth`, not FLOPS.
+
+- M4 base memory bandwidth: ~100 GB/s
+- Theoretical max: ~21 tok/s
+- Observed with Ollama (llama.cpp): **0.3-0.4 tok/s** — massive gap due to runtime inefficiency
+
+**Auto Scaling analogy:** Like an application where every request reads a 5GB config from EBS before doing 1ms of CPU work. It's I/O-bound, not CPU-bound. Faster CPUs won't help; faster storage will.
+
+**Key interview insight:** Inference hardware is specced by memory bandwidth (H100 HBM3 = 3.35 TB/s), not just FLOPS. This is why. And it's why batching helps — read the weights once, apply to N requests' tokens simultaneously, amortizing the memory read cost.
+
+### Ollama vs MLX vs vLLM — Different Layers of the Stack
+These three are **not alternatives** — they operate at different layers:
+
+| Layer | Analogy | MLX | Ollama | vLLM |
+|-------|---------|-----|--------|------|
+| **Compute framework** | Nitro hypervisor | ✅ | ❌ (uses llama.cpp) | ❌ (uses CUDA/PyTorch) |
+| **Inference engine** | Application runtime | Can be | llama.cpp | ✅ (batching, PagedAttention) |
+| **Serving layer** | Web server + API | ❌ | ✅ | ✅ |
+
+- **MLX** — Apple's native ML framework for Apple Silicon. Like AWS Nitro: purpose-built for the hardware, eliminates overhead. Uses unified memory natively (no CPU↔GPU copies). Would give ~15-20 tok/s on M4 vs Ollama's 0.3 tok/s.
+- **Ollama** — Convenience wrapper (model downloads, chat templates, API). Like Elastic Beanstalk: easy to deploy, but you don't control the runtime. Uses llama.cpp under the hood, which was designed for CUDA and bolted on Metal support later.
+- **vLLM** — Production inference engine. Solves the problems Stage 1 exposed: sequential processing → continuous batching, memory fragmentation → PagedAttention, no scheduling → preemptive request scheduling. Built for NVIDIA GPUs (CUDA). Like custom fleet management with EC2 Auto Scaling + hand-tuned ALB.
+
+### Why Ollama Is Slow on Apple Silicon
+Ollama uses **llama.cpp**, which was designed for CUDA's split CPU/GPU memory model. Its Metal backend is a bolt-on, not native. This architectural mismatch means it doesn't saturate the M4's memory bandwidth — explaining the 0.3 tok/s vs the ~20 tok/s an MLX-native runtime achieves on the same hardware.
+
+## Load Test Results
+
+### Test: 3 Concurrent Requests
+```
+Req    Start  1st Token      End     TTFT   Avg TBT    Total   Tok/s  Tokens
+  0    0.000     14.568   97.947   14.568    3.2162   97.947     0.3      26
+  1    0.004     99.711  176.355   99.707    2.7607  176.351     0.4      27
+  2    0.005    177.547  277.795  177.542    3.6158  277.790     0.3      28
+```
+
+**Key observations:**
+- All 3 requests sent at t=0 (within 5ms)
+- Gap between consecutive first-tokens: **85s, 78s** — matches single request duration
+- This proves **sequential queuing**: each request waits for the previous to fully complete
+- Request 2's TTFT of 177s is pure queuing delay, not model slowness
+- Tokens/sec consistent across requests (~0.3-0.4) — no degradation, just waiting
+
+**Auto Scaling analogy:** Single-instance target group with no ASG. The "latency" problem isn't processing speed — it's queue depth. Exactly the problem horizontal scaling (or batching) solves.
+
+## What's Next — Stage 2
+- Move to vLLM on a cloud GPU (NVIDIA) to observe continuous batching behavior
+- Same model (Qwen2.5:7B), same load test, different engine
+- Expect to see: parallel request processing, dramatically lower TTFT spread, higher throughput
