@@ -14,7 +14,7 @@ import argparse
 import requests
 
 # --- Configuration ---
-MODEL = "Qwen/Qwen2.5-7B-Instruct"
+MODEL = "Qwen/Qwen2.5-7B-Instruct-AWQ"
 CONCURRENT_REQUESTS = 5  # back to 5 — vLLM should handle these in parallel
 PROMPT = "What is a load balancer? Answer in one sentence."
 
