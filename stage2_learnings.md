@@ -85,6 +85,179 @@ Req    Start  1st Token      End     TTFT   Avg TBT    Total   Tok/s  Tokens
 
 **Auto Scaling analogy:** TTFT = instance launch time (CPU-bound initialization). TBT = per-request latency (I/O-bound, limited by reading state).
 
+## Quantization Deep Dive
+
+### What Is `--dtype half`?
+`dtype` controls the data type for model weights. `half` = FP16 (16-bit floating point, 2 bytes per parameter).
+
+| dtype | Bytes/param | 7B Model Size | Precision |
+|-------|------------|---------------|-----------|
+| float32 | 4 | ~28 GB | Highest |
+| half / float16 | 2 | ~14 GB | Standard for inference |
+| INT8 | 1 | ~7 GB | Slight quality loss |
+| INT4 | 0.5 | ~3.5 GB | More quality loss |
+
+FP16 is the production default — virtually identical quality to FP32 at half the memory.
+
+### AWQ (Activation-Aware Weight Quantization)
+AWQ is a **quantization algorithm** that compresses FP16 weights to INT4 (4-bit). It's smarter than naive rounding:
+
+1. **Profile** — run calibration data through the model, identify which weight channels produce the largest activations (the important ones)
+2. **Scale and quantize** — scale up important channels (preserving precision when rounded to INT4), aggressively quantize the rest
+
+**Auto Scaling analogy:** Like right-sizing instances in a fleet. Profile which services are latency-sensitive (important weights), give them more resources (higher precision), downsize everything else.
+
+Other quantization methods:
+- **GPTQ** — similar 4-bit, uses layer-wise optimization. Older, widely supported.
+- **GGUF/Q4_K_M** — what Ollama uses (llama.cpp). Mixed quantization per layer.
+- **FP8** — 8-bit float, H100 supports natively in hardware. Less compression but zero quality loss.
+
+### AWQ vs AWQ_Marlin
+- **AWQ** = the data format on disk (INT4 weights with scaling factors)
+- **AWQ_Marlin** = the GPU compute kernel that multiplies those INT4 weights with activations at runtime
+
+Same weights, different execution speed. Marlin restructures how INT4 data is read from GPU memory to maximize bandwidth utilization. vLLM logs even told us: "Use quantization=awq_marlin for faster inference."
+
+**Auto Scaling analogy:** Same data in S3, but one path uses a generic instance and the other uses a Graviton-optimized binary. Same input, same output, different throughput.
+
+### HuggingFace Cache = Model Storage
+When vLLM downloads a model from HuggingFace, it stores files in `~/.cache/huggingface/`. There is no separate "install" vs "cache" — the cache IS where the model lives on disk. Clearing it means re-downloading on next launch.
+
+We mounted it as a Docker volume (`-v /home/ubuntu/hf-cache:/root/.cache/huggingface`) to persist across container restarts.
+
+## Quantization Performance Comparison
+
+### Load Test Results: AWQ 4-bit vs AWQ_Marlin 4-bit vs GPTQ Int8
+
+All tests: 5 concurrent requests, same prompt, same hardware (T4 16GB).
+
+| Metric | AWQ 4-bit | AWQ_Marlin 4-bit | GPTQ Int8 |
+|--------|-----------|-----------------|-----------|
+| Model VRAM | ~4 GB | ~4 GB | 8.3 GB |
+| KV cache room | ~10 GB | ~9.3 GB | ~4.2 GB |
+| Tok/s (per request) | 43.8-44.7 | 45.2-45.4 | 26.6-27.6 |
+| TTFT (min) | 0.547s | 0.291s | 0.831s |
+| TTFT spread | 0.176s | 0.015s | 0.017s |
+| Avg TBT | 0.0225s | 0.0221s | 0.0375s |
+| Gap/Total ratio | 0.01 | 0.01 | 0.00 |
+
+**Key insights:**
+- Marlin kernel gives ~3% decode improvement but **47% faster prefill** (TTFT: 0.29s vs 0.55s)
+- INT8 is ~40% slower on decode because model is 2x larger in memory — more data to read per token (memory-bandwidth bound)
+- INT8 uses 2x VRAM for weights, leaving half the room for KV cache = fewer concurrent requests
+- All three batch perfectly (gap/total ≈ 0)
+
+### Quality Benchmark Results (60 questions)
+
+Custom benchmark suite covering 7 categories. Temperature=0 for reproducibility.
+
+| Category | Questions | AWQ INT4 | GPTQ INT8 | INT4 Avg Latency | INT8 Avg Latency |
+|----------|-----------|----------|-----------|-----------------|-----------------|
+| Math Reasoning | 10 | 10/10 | 10/10 | 0.46s | 0.73s |
+| Factual Recall | 10 | 10/10 | 10/10 | 0.43s | 0.68s |
+| Instruction Following | 10 | 10/10 | 10/10 | 0.36s | 0.62s |
+| Code Generation | 5 | 5/5 | 5/5 | 2.84s | 4.14s |
+| MMLU-Style | 10 | 10/10 | 10/10 | 0.23s | 0.39s |
+| GSM8K-Style | 10 | 10/10 | 10/10 | 4.22s | 7.08s |
+| HumanEval-Style | 5 | 5/5 | 5/5 | 5.39s | 7.77s |
+| **OVERALL** | **60** | **60/60 (100%)** | **60/60 (100%)** | **0.77s** | **2.58s** |
+
+**Note:** Q54 (train meeting time) flagged as a likely false positive in both runs — substring scorer matched despite potentially wrong answer. Real score may be 59/60 for both.
+
+**Conclusion:** At 7B scale with modern quantization (AWQ/GPTQ), INT4 and INT8 are quality-equivalent on practical tasks. INT4 is ~60% faster with 2x more KV cache headroom. Quality degradation from 4-bit shows up on smaller models (1-3B), extreme quantization (2-bit), or adversarial evaluations.
+
+### How Teams Measure Model Quality
+- **Benchmarks:** MMLU (general knowledge), HumanEval (code), GSM8K (math), HellaSwag (common sense), TruthfulQA (factual accuracy)
+- **Perplexity:** statistical measure of how "surprised" the model is by expected text. <1% increase = generally considered lossless
+- **Human eval:** run on domain-specific tasks, have humans judge quality. Benchmarks don't always capture domain-specific regressions
+
+## vLLM Features: Default vs Opt-In
+
+### Enabled by Default (server-side, not per-request)
+| Feature | What It Does |
+|---------|-------------|
+| PagedAttention | Virtual memory paging for KV cache — core architecture |
+| Continuous batching | Add/remove requests from batch at every decode step |
+| Chunked prefill | Break long prefills into chunks, interleave with decode |
+| Prefix caching | Reuse KV cache when requests share prompt prefixes |
+| Dynamic memory allocation | KV pages allocated on demand, freed on completion |
+
+These are **engine-level features**, not per-request options. The client doesn't ask for batching — same way an HTTP client doesn't ask an ALB to load-balance.
+
+### Opt-In Features (require flags)
+| Feature | Flag | When to Use |
+|---------|------|-------------|
+| Tensor parallelism | `--tensor-parallel-size N` | Model too large for one GPU |
+| Pipeline parallelism | `--pipeline-parallel-size N` | Very large models across GPUs |
+| Speculative decoding | `--speculative-model <small>` | Latency-sensitive single-request |
+| Quantization | `--quantization awq/gptq/fp8` | Memory-constrained GPUs |
+| LoRA serving | `--enable-lora` | Multi-tenant fine-tuned adapters |
+| CUDA graphs | Default on, `--enforce-eager` disables | Disable for debugging/OOM |
+| Guided decoding | Per-request `response_format` | Force JSON schema/regex output |
+
+**Auto Scaling analogy:** PagedAttention and continuous batching = kernel scheduler and virtual memory (always on). Tensor parallelism = multi-AZ deployment (configured based on capacity needs).
+
+## Calculating Max Concurrent Requests
+
+### Step 1: VRAM budget for KV cache
+```
+Total VRAM - Model Weights - vLLM Overhead = KV Cache Budget
+16GB       - 4GB (AWQ)    - ~1.5GB         = ~10.5GB
+```
+
+### Step 2: KV cache per request (Qwen2.5-7B, FP16 KV)
+```
+KV per token = 2 (K+V) × 28 layers × 128 head_dim × 28 num_kv_heads × 2 bytes
+             = ~401 KB per token
+
+At max context (2048 tokens):
+             = 401KB × 2048 = ~802 MB per request
+```
+
+### Step 3: Theoretical max
+```
+Max concurrent = 10.5GB / 802MB ≈ 13 requests at full context
+```
+
+PagedAttention improves this in practice — pages allocated on demand, so a 200-token request uses ~80MB, not 802MB.
+
+### Other limiting factors
+| Factor | How It Limits |
+|--------|--------------|
+| KV cache memory | Hard ceiling — OOM if exceeded |
+| Memory bandwidth | Soft ceiling — more batched requests = more KV reads per step = higher latency per token |
+| Compute (prefill) | Burst of new requests hitting prefill can bottleneck GPU FLOPS |
+| Scheduler overhead | CPU overhead per request per step, matters at hundreds of concurrent |
+
+**Production answer:** Don't calculate theoretically — load test and measure where latency becomes unacceptable. Same as determining ASG max-size.
+
+## The Inference Tradeoff Diamond
+
+The traditional "golden triangle" (cost / latency / quality) is incomplete. Concurrency is a first-class dimension.
+
+```
+        Quality
+          ▲
+         / \
+        /   \
+   Cost ◄─────► Latency
+        \   /
+         \ /
+          ▼
+      Concurrency
+```
+
+Why concurrency doesn't fold into the other three:
+1. **Hard limits that don't trade off smoothly** — KV cache creates a cliff at N concurrent requests. N is fine, N+1 causes preemption/rejection.
+2. **Independent scaling signal** — in Stage 4, we'll scale on queue depth (pending requests exceeding capacity), not just latency or cost.
+3. **A system can be within cost and latency SLA but unable to handle a traffic spike** — that's a concurrency problem, not a cost or latency problem.
+
+Every knob affects all four:
+- More quantization → lower quality, lower cost, lower latency, **higher concurrency**
+- Bigger GPU → higher cost, lower latency, same quality, higher concurrency
+- More replicas → higher cost, same per-request latency, same quality, higher concurrency
+- Longer context → same quality, higher latency, same cost, **lower concurrency**
+
 ## What's Next — Stage 3
 - Add Prometheus metrics: queue depth, TTFT, TBT, P99 latency, throughput, GPU utilization
 - Grafana dashboard on the same instance (docker-compose)

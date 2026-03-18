@@ -1,0 +1,144 @@
+{
+  "metadata": {
+    "date": "2026-03-18",
+    "instance": "g4dn.xlarge",
+    "gpu": "NVIDIA T4 16GB",
+    "gpu_memory_bandwidth_gbps": 320,
+    "region": "us-east-1f",
+    "vllm_version": "0.17.1",
+    "base_model": "Qwen/Qwen2.5-7B-Instruct",
+    "max_model_len": 2048,
+    "prompt": "What is a load balancer? Answer in one sentence."
+  },
+  "load_tests": {
+    "ollama_local_m4": {
+      "engine": "Ollama",
+      "hardware": "Apple M4 16GB unified",
+      "model": "qwen2.5:7b (Q4_K_M)",
+      "concurrent_requests": 3,
+      "requests": [
+        {"id": 0, "start": 0.000, "first_token": 14.568, "end": 97.947, "ttft": 14.568, "avg_tbt": 3.2162, "total": 97.947, "tok_s": 0.3, "tokens": 26},
+        {"id": 1, "start": 0.004, "first_token": 99.711, "end": 176.355, "ttft": 99.707, "avg_tbt": 2.7607, "total": 176.351, "tok_s": 0.4, "tokens": 27},
+        {"id": 2, "start": 0.005, "first_token": 177.547, "end": 277.795, "ttft": 177.542, "avg_tbt": 3.6158, "total": 277.790, "tok_s": 0.3, "tokens": 28}
+      ],
+      "summary": {
+        "ttft_min": 14.568, "ttft_max": 177.542, "ttft_spread": 162.974,
+        "total_min": 97.947, "total_max": 277.790, "total_spread": 179.843,
+        "avg_gap_between_first_tokens": 81.489,
+        "gap_total_ratio": 1.0
+      }
+    },
+    "vllm_awq_4bit": {
+      "engine": "vLLM",
+      "hardware": "NVIDIA T4 16GB",
+      "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      "quantization": "awq",
+      "model_vram_gb": 4.0,
+      "kv_cache_room_gb": 10.0,
+      "concurrent_requests": 5,
+      "requests": [
+        {"id": 0, "start": 0.001, "first_token": 0.707, "end": 1.423, "ttft": 0.706, "avg_tbt": 0.0224, "total": 1.422, "tok_s": 44.7, "tokens": 32},
+        {"id": 1, "start": 0.001, "first_token": 0.724, "end": 1.422, "ttft": 0.723, "avg_tbt": 0.0225, "total": 1.421, "tok_s": 44.4, "tokens": 31},
+        {"id": 2, "start": 0.183, "first_token": 0.741, "end": 1.289, "ttft": 0.557, "avg_tbt": 0.0228, "total": 1.106, "tok_s": 43.8, "tokens": 24},
+        {"id": 3, "start": 0.190, "first_token": 0.741, "end": 1.424, "ttft": 0.551, "avg_tbt": 0.0226, "total": 1.234, "tok_s": 44.0, "tokens": 30},
+        {"id": 4, "start": 0.194, "first_token": 0.741, "end": 1.422, "ttft": 0.547, "avg_tbt": 0.0227, "total": 1.228, "tok_s": 44.1, "tokens": 30}
+      ],
+      "summary": {
+        "ttft_min": 0.547, "ttft_max": 0.723, "ttft_spread": 0.176,
+        "total_min": 1.106, "total_max": 1.422, "total_spread": 0.316,
+        "avg_gap_between_first_tokens": 0.009,
+        "gap_total_ratio": 0.01
+      }
+    },
+    "vllm_awq_marlin_4bit": {
+      "engine": "vLLM",
+      "hardware": "NVIDIA T4 16GB",
+      "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      "quantization": "awq_marlin",
+      "model_vram_gb": 4.0,
+      "kv_cache_room_gb": 9.3,
+      "concurrent_requests": 5,
+      "requests": [
+        {"id": 0, "start": 0.001, "first_token": 0.291, "end": 0.952, "ttft": 0.291, "avg_tbt": 0.0221, "total": 0.952, "tok_s": 45.4, "tokens": 30},
+        {"id": 1, "start": 0.001, "first_token": 0.293, "end": 0.809, "ttft": 0.293, "avg_tbt": 0.0220, "total": 0.809, "tok_s": 45.2, "tokens": 23},
+        {"id": 2, "start": 0.002, "first_token": 0.295, "end": 0.939, "ttft": 0.293, "avg_tbt": 0.0221, "total": 0.937, "tok_s": 45.3, "tokens": 29},
+        {"id": 3, "start": 0.002, "first_token": 0.297, "end": 0.951, "ttft": 0.295, "avg_tbt": 0.0220, "total": 0.949, "tok_s": 45.4, "tokens": 30},
+        {"id": 4, "start": 0.003, "first_token": 0.306, "end": 0.951, "ttft": 0.303, "avg_tbt": 0.0221, "total": 0.948, "tok_s": 45.2, "tokens": 29}
+      ],
+      "summary": {
+        "ttft_min": 0.291, "ttft_max": 0.303, "ttft_spread": 0.015,
+        "total_min": 0.809, "total_max": 0.952, "total_spread": 0.143,
+        "avg_gap_between_first_tokens": 0.009,
+        "gap_total_ratio": 0.01
+      }
+    },
+    "vllm_gptq_int8": {
+      "engine": "vLLM",
+      "hardware": "NVIDIA T4 16GB",
+      "model": "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int8",
+      "quantization": "gptq",
+      "model_vram_gb": 8.3,
+      "kv_cache_room_gb": 4.2,
+      "concurrent_requests": 5,
+      "requests": [
+        {"id": 0, "start": 0.000, "first_token": 0.848, "end": 2.079, "ttft": 0.848, "avg_tbt": 0.0363, "total": 2.079, "tok_s": 27.6, "tokens": 34},
+        {"id": 1, "start": 0.001, "first_token": 0.846, "end": 2.078, "ttft": 0.845, "avg_tbt": 0.0375, "total": 2.076, "tok_s": 26.8, "tokens": 33},
+        {"id": 2, "start": 0.003, "first_token": 0.848, "end": 1.899, "ttft": 0.845, "avg_tbt": 0.0388, "total": 1.896, "tok_s": 26.6, "tokens": 28},
+        {"id": 3, "start": 0.013, "first_token": 0.848, "end": 2.044, "ttft": 0.835, "avg_tbt": 0.0374, "total": 2.030, "tok_s": 26.8, "tokens": 32},
+        {"id": 4, "start": 0.018, "first_token": 0.849, "end": 1.899, "ttft": 0.831, "avg_tbt": 0.0388, "total": 1.881, "tok_s": 26.7, "tokens": 28}
+      ],
+      "summary": {
+        "ttft_min": 0.831, "ttft_max": 0.848, "ttft_spread": 0.017,
+        "total_min": 1.881, "total_max": 2.079, "total_spread": 0.198,
+        "avg_gap_between_first_tokens": 0.001,
+        "gap_total_ratio": 0.00
+      }
+    }
+  },
+  "quality_benchmarks": {
+    "awq_int4": {
+      "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      "quantization": "awq_marlin",
+      "bits": 4,
+      "categories": {
+        "Math Reasoning":        {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.46},
+        "Factual Recall":        {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.43},
+        "Instruction Following": {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.36},
+        "Code Generation":       {"pass": 5,  "total": 5,  "accuracy": 100.0, "avg_latency_s": 2.84},
+        "MMLU-Style":            {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.23},
+        "GSM8K-Style":           {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 4.22},
+        "HumanEval-Style":       {"pass": 5,  "total": 5,  "accuracy": 100.0, "avg_latency_s": 5.39}
+      },
+      "overall": {"pass": 60, "total": 60, "accuracy": 100.0, "avg_latency_s": 0.77}
+    },
+    "gptq_int8": {
+      "model": "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int8",
+      "quantization": "gptq",
+      "bits": 8,
+      "categories": {
+        "Math Reasoning":        {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.73},
+        "Factual Recall":        {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.68},
+        "Instruction Following": {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.62},
+        "Code Generation":       {"pass": 5,  "total": 5,  "accuracy": 100.0, "avg_latency_s": 4.14},
+        "MMLU-Style":            {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 0.39},
+        "GSM8K-Style":           {"pass": 10, "total": 10, "accuracy": 100.0, "avg_latency_s": 7.08},
+        "HumanEval-Style":       {"pass": 5,  "total": 5,  "accuracy": 100.0, "avg_latency_s": 7.77}
+      },
+      "overall": {"pass": 60, "total": 60, "accuracy": 100.0, "avg_latency_s": 2.58}
+    },
+    "notes": "Q54 (train meeting time) flagged as likely false positive in both runs. Real score may be 59/60 for both."
+  },
+  "comparison_summary": {
+    "quantization_speed": {
+      "description": "INT8 latency penalty vs INT4 (Marlin) per benchmark category",
+      "Math Reasoning": "+59%",
+      "Factual Recall": "+58%",
+      "Instruction Following": "+72%",
+      "Code Generation": "+46%",
+      "MMLU-Style": "+70%",
+      "GSM8K-Style": "+68%",
+      "HumanEval-Style": "+44%",
+      "Overall": "+60%"
+    }
+  }
+}
