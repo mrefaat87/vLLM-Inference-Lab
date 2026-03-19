@@ -1,0 +1,31 @@
+{
+  "baseline": {
+    "single_request": {
+      "factual": {
+        "ttft_avg": 0.264,
+        "total_avg": 4.543,
+        "tok_s_avg": 46.7,
+        "trials": 5
+      },
+      "creative": {
+        "ttft_avg": 0.1922,
+        "total_avg": 4.492,
+        "tok_s_avg": 46.5,
+        "trials": 5
+      },
+      "code": {
+        "ttft_avg": 0.1881,
+        "total_avg": 4.499,
+        "tok_s_avg": 46.4,
+        "trials": 5
+      }
+    },
+    "concurrent_5": {
+      "successes": 5,
+      "failures": 0,
+      "ttft_p50": 0.2073,
+      "per_request_tok_s_avg": 44.5,
+      "system_tok_s": 212.4
+    }
+  }
+}

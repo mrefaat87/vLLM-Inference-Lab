@@ -1,0 +1,12 @@
+{
+  "lora_compatible_with_awq": false,
+  "finding": "LoRA serving with AWQ-quantized base model has two blockers on T4",
+  "issues": [
+    "OOM at gpu_memory_utilization=0.9 — LoRA workspace buffers need ~200MB extra VRAM",
+    "Public LoRA adapters trained on FP16 base are not compatible with AWQ base model",
+    "Reduced gpu_memory_utilization=0.85 fixes OOM but adapter format mismatch remains"
+  ],
+  "attempted_adapter": "cgxjdzz/Qwen-2.5-7B-Instruct-novel-lora",
+  "error": "Loading lora failed: No adapter found for cgxjdzz/Qwen-2.5-7B-Instruct-novel-lora",
+  "recommendation": "Use FP16 base model (Qwen2.5-3B-Instruct fits on T4) or train custom LoRA on AWQ base"
+}

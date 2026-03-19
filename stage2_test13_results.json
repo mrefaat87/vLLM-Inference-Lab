@@ -1,0 +1,17 @@
+{
+  "recompute": {
+    "concurrency": 42,
+    "wall_start": "2026-03-19 18:07:14",
+    "wall_duration_sec": 281.8,
+    "successes": 42,
+    "failures": 0,
+    "ttft_p50": 11.6636,
+    "ttft_p99": 11.8676,
+    "ttft_max": 11.8676,
+    "total_p50": 281.662,
+    "total_p99": 281.785,
+    "total_max": 281.785,
+    "avg_tok_per_sec": 5.6,
+    "system_tok_s": 193.3
+  }
+}

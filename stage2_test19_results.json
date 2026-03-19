@@ -1,0 +1,9 @@
+{
+  "finding": "Speculative decoding is not supported in vLLM V1 engine (v0.17.1)",
+  "flags_tested": ["--speculative-model", "--num-speculative-tokens"],
+  "error": "unrecognized arguments: --speculative-model Qwen/Qwen2.5-0.5B-Instruct --num-speculative-tokens 5",
+  "yaml_config_also_fails": true,
+  "v1_engine_note": "V1 engine does not expose speculative decoding CLI flags. The SpeculativeConfig class exists in the codebase but is not wired to the serve CLI.",
+  "recommendation": "Use vLLM V0 engine or wait for V1 speculative support in future vLLM release",
+  "baseline_data": "See stage2_test18_results.json for baseline (no spec) measurements"
+}
