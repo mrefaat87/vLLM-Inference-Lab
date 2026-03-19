@@ -1,0 +1,62 @@
+Unable to find image 'python:3.11-slim' locally
+3.11-slim: Pulling from library/python
+7524aba74b8c: Pulling fs layer
+e35b92e2619d: Pulling fs layer
+ec781dee3f47: Pulling fs layer
+6944007a5b45: Pulling fs layer
+17b31eed700b: Download complete
+7524aba74b8c: Download complete
+6944007a5b45: Download complete
+e35b92e2619d: Download complete
+d9800d30f6cd: Download complete
+ec781dee3f47: Download complete
+6944007a5b45: Pull complete
+ec781dee3f47: Pull complete
+7524aba74b8c: Pull complete
+e35b92e2619d: Pull complete
+Digest: sha256:6d98ca198cea726f2c86da2699594339a7b7ff08e49728797b4ed6e3b5c3b62a
+Status: Downloaded newer image for python:3.11-slim
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 13 files:  54%|█████▍    | 7/13 [00:54<00:46,  7.76s/it]Fetching 13 files: 100%|██████████| 13/13 [00:54<00:00,  4.18s/it]
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files:  70%|███████   | 7/10 [00:06<00:02,  1.03it/s]Fetching 10 files: 100%|██████████| 10/10 [00:06<00:00,  1.47it/s]
+---DISK---
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       146G  120G   26G  83% /
+---GPU---
+Thu Mar 19 19:33:37 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Tesla T4                       On  |   00000000:00:1E.0 Off |                    0 |
+| N/A   22C    P8              9W /   70W |       0MiB /  15360MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+---DOCKER-IMAGES---
+IMAGE                      ID             DISK USAGE   CONTENT SIZE   EXTRA
+python:3.11-slim           6d98ca198cea        188MB         47.7MB        
+vllm/vllm-openai:latest    0dc46f74eb0e       30.2GB         9.27GB        
+vllm/vllm-openai:v0.17.1   0dc46f74eb0e       30.2GB         9.27GB        
+---HF-CACHE---
+954M	/home/ubuntu/hf-cache/hub/models--Qwen--Qwen2.5-0.5B-Instruct
+5.2G	/home/ubuntu/hf-cache/hub/models--Qwen--Qwen2.5-7B-Instruct-AWQ
+8.3G	/home/ubuntu/hf-cache/hub/models--Qwen--Qwen2.5-7B-Instruct-GPTQ-Int8
+27G	/home/ubuntu/hf-cache/hub/models--cgxjdzz--Qwen-2.5-7B-Instruct-novel-lora
+---UPTIME---
+WARNING: This output is designed for human readability. For machine-readable output, please use --format.
+ 19:33:37 up 16:18,  0 users,  load average: 0.00, 0.00, 0.04

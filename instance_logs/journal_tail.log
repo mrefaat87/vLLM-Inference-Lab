@@ -1,0 +1,100 @@
+Mar 19 19:33:34 ip-172-31-76-25 systemd[1]: Finished User Runtime Directory /run/user/1000.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[1]: Starting User Manager for UID 1000...
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: pam_unix(systemd-user:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Queued start job for default target Main User Target.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Created slice User Application Slice.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Reached target Paths.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Reached target Timers.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Starting D-Bus User Message Bus Socket...
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on GnuPG network certificate management daemon.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on GnuPG cryptographic agent and passphrase cache (restricted).
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on GnuPG cryptographic agent (ssh-agent emulation).
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on GnuPG cryptographic agent and passphrase cache.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on debconf communication socket.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on REST API socket for snapd user session agent.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Listening on D-Bus User Message Bus Socket.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Reached target Sockets.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Reached target Basic System.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Reached target Main User Target.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[53649]: Startup finished in 67ms.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[1]: Started User Manager for UID 1000.
+Mar 19 19:33:34 ip-172-31-76-25 systemd[1]: Started Session 344 of User ubuntu.
+Mar 19 19:33:35 ip-172-31-76-25 sshd[53754]: Received disconnect from 24.87.135.164 port 56928:11: disconnected by user
+Mar 19 19:33:35 ip-172-31-76-25 sshd[53754]: Disconnected from user ubuntu 24.87.135.164 port 56928
+Mar 19 19:33:35 ip-172-31-76-25 sshd[53646]: pam_unix(sshd:session): session closed for user ubuntu
+Mar 19 19:33:35 ip-172-31-76-25 systemd[1]: session-344.scope: Deactivated successfully.
+Mar 19 19:33:35 ip-172-31-76-25 systemd-logind[535]: Session 344 logged out. Waiting for processes to exit.
+Mar 19 19:33:35 ip-172-31-76-25 systemd-logind[535]: Removed session 344.
+Mar 19 19:33:37 ip-172-31-76-25 sshd[53765]: Accepted publickey for ubuntu from 24.87.135.164 port 56929 ssh2: RSA SHA256:ub2PWnTxv/AXgvBXHAAJHgfhCq9Cg15iLWbQuFrMVPw
+Mar 19 19:33:37 ip-172-31-76-25 sshd[53765]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Mar 19 19:33:37 ip-172-31-76-25 systemd-logind[535]: New session 346 of user ubuntu.
+Mar 19 19:33:37 ip-172-31-76-25 systemd[1]: Started Session 346 of User ubuntu.
+Mar 19 19:33:38 ip-172-31-76-25 sshd[53813]: Received disconnect from 24.87.135.164 port 56929:11: disconnected by user
+Mar 19 19:33:38 ip-172-31-76-25 sshd[53813]: Disconnected from user ubuntu 24.87.135.164 port 56929
+Mar 19 19:33:38 ip-172-31-76-25 sshd[53765]: pam_unix(sshd:session): session closed for user ubuntu
+Mar 19 19:33:38 ip-172-31-76-25 systemd[1]: session-346.scope: Deactivated successfully.
+Mar 19 19:33:38 ip-172-31-76-25 systemd-logind[535]: Session 346 logged out. Waiting for processes to exit.
+Mar 19 19:33:38 ip-172-31-76-25 systemd-logind[535]: Removed session 346.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: Stopping User Manager for UID 1000...
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Stopped target Main User Target.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Stopped target Basic System.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Stopped target Paths.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Stopped target Sockets.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Stopped target Timers.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed D-Bus User Message Bus Socket.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed GnuPG network certificate management daemon.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed GnuPG cryptographic agent and passphrase cache (restricted).
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed GnuPG cryptographic agent (ssh-agent emulation).
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed GnuPG cryptographic agent and passphrase cache.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed debconf communication socket.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Closed REST API socket for snapd user session agent.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Removed slice User Application Slice.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Reached target Shutdown.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Finished Exit the Session.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[53649]: Reached target Exit the Session.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: user@1000.service: Deactivated successfully.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: Stopped User Manager for UID 1000.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: Stopping User Runtime Directory /run/user/1000...
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: run-user-1000.mount: Deactivated successfully.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: user-runtime-dir@1000.service: Deactivated successfully.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: Stopped User Runtime Directory /run/user/1000.
+Mar 19 19:33:48 ip-172-31-76-25 systemd[1]: Removed slice User Slice of UID 1000.
+Mar 19 19:33:54 ip-172-31-76-25 sshd[53833]: Accepted publickey for ubuntu from 24.87.135.164 port 56937 ssh2: RSA SHA256:ub2PWnTxv/AXgvBXHAAJHgfhCq9Cg15iLWbQuFrMVPw
+Mar 19 19:33:54 ip-172-31-76-25 sshd[53833]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Created slice User Slice of UID 1000.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Starting User Runtime Directory /run/user/1000...
+Mar 19 19:33:54 ip-172-31-76-25 systemd-logind[535]: New session 347 of user ubuntu.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Finished User Runtime Directory /run/user/1000.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Starting User Manager for UID 1000...
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: pam_unix(systemd-user:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Queued start job for default target Main User Target.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Created slice User Application Slice.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Reached target Paths.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Reached target Timers.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Starting D-Bus User Message Bus Socket...
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on GnuPG network certificate management daemon.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on GnuPG cryptographic agent and passphrase cache (restricted).
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on GnuPG cryptographic agent (ssh-agent emulation).
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on GnuPG cryptographic agent and passphrase cache.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on debconf communication socket.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on REST API socket for snapd user session agent.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Listening on D-Bus User Message Bus Socket.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Reached target Sockets.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Reached target Basic System.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Reached target Main User Target.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[53836]: Startup finished in 79ms.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Started User Manager for UID 1000.
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: Started Session 347 of User ubuntu.
+Mar 19 19:33:54 ip-172-31-76-25 sshd[53889]: Received disconnect from 24.87.135.164 port 56937:11: disconnected by user
+Mar 19 19:33:54 ip-172-31-76-25 sshd[53889]: Disconnected from user ubuntu 24.87.135.164 port 56937
+Mar 19 19:33:54 ip-172-31-76-25 sshd[53833]: pam_unix(sshd:session): session closed for user ubuntu
+Mar 19 19:33:54 ip-172-31-76-25 systemd[1]: session-347.scope: Deactivated successfully.
+Mar 19 19:33:54 ip-172-31-76-25 systemd-logind[535]: Session 347 logged out. Waiting for processes to exit.
+Mar 19 19:33:54 ip-172-31-76-25 systemd-logind[535]: Removed session 347.
+Mar 19 19:33:55 ip-172-31-76-25 sshd[53893]: Accepted publickey for ubuntu from 24.87.135.164 port 56938 ssh2: RSA SHA256:ub2PWnTxv/AXgvBXHAAJHgfhCq9Cg15iLWbQuFrMVPw
+Mar 19 19:33:55 ip-172-31-76-25 sshd[53893]: pam_unix(sshd:session): session opened for user ubuntu(uid=1000) by (uid=0)
+Mar 19 19:33:55 ip-172-31-76-25 systemd-logind[535]: New session 349 of user ubuntu.
+Mar 19 19:33:55 ip-172-31-76-25 systemd[1]: Started Session 349 of User ubuntu.
