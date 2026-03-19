@@ -1,0 +1,61 @@
+{
+  "duration_minutes": 10,
+  "wall_start": "2026-03-19 11:21:25",
+  "wall_end": "2026-03-19 11:31:55",
+  "total_requests": 4128,
+  "successes": 1553,
+  "failures": 2575,
+  "overall": {
+    "ttft_p50": 0.3008,
+    "ttft_p99": 6.7851,
+    "ttft_max": 9.789,
+    "total_p50": 6.806,
+    "total_p99": 27.079,
+    "total_max": 32.294,
+    "system_tok_s_avg": 284.3,
+    "failure_rate_pct": 62.38
+  },
+  "by_type": {
+    "short": {
+      "count": 608,
+      "failures": 974,
+      "ttft_p50": 0.3014,
+      "ttft_p99": 6.3535,
+      "total_p50": 4.196,
+      "total_p99": 15.464
+    },
+    "medium": {
+      "count": 431,
+      "failures": 715,
+      "ttft_p50": 0.3047,
+      "ttft_p99": 7.8093,
+      "total_p50": 8.786,
+      "total_p99": 26.431
+    },
+    "long": {
+      "count": 191,
+      "failures": 358,
+      "ttft_p50": 0.2976,
+      "ttft_p99": 4.8793,
+      "total_p50": 12.857,
+      "total_p99": 32.189
+    },
+    "json": {
+      "count": 131,
+      "failures": 215,
+      "ttft_p50": 0.3001,
+      "ttft_p99": 1.9544,
+      "total_p50": 8.55,
+      "total_p99": 24.61,
+      "schema_valid_pct": 74.8
+    },
+    "multi_turn": {
+      "count": 192,
+      "failures": 313,
+      "ttft_p50": 0.2977,
+      "ttft_p99": 1.9654,
+      "total_p50": 4.959,
+      "total_p99": 18.505
+    }
+  }
+}

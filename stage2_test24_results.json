@@ -1,0 +1,250 @@
+{
+  "single_conversations": [
+    {
+      "topic": "system_design",
+      "turns": [
+        {
+          "turn": 1,
+          "input_tokens_approx": 27,
+          "output_tokens": 150,
+          "ttft_sec": 0.2321,
+          "total_sec": 3.447,
+          "tok_s": 46.7,
+          "cumulative_context_tokens": 177
+        },
+        {
+          "turn": 2,
+          "input_tokens_approx": 209,
+          "output_tokens": 150,
+          "ttft_sec": 0.2046,
+          "total_sec": 3.436,
+          "tok_s": 46.4,
+          "cumulative_context_tokens": 359
+        },
+        {
+          "turn": 3,
+          "input_tokens_approx": 382,
+          "output_tokens": 150,
+          "ttft_sec": 0.1931,
+          "total_sec": 3.435,
+          "tok_s": 46.3,
+          "cumulative_context_tokens": 532
+        },
+        {
+          "turn": 4,
+          "input_tokens_approx": 547,
+          "output_tokens": 150,
+          "ttft_sec": 0.1935,
+          "total_sec": 3.443,
+          "tok_s": 46.2,
+          "cumulative_context_tokens": 697
+        },
+        {
+          "turn": 5,
+          "input_tokens_approx": 704,
+          "output_tokens": 150,
+          "ttft_sec": 0.203,
+          "total_sec": 3.461,
+          "tok_s": 46.0,
+          "cumulative_context_tokens": 854
+        }
+      ]
+    },
+    {
+      "topic": "debugging",
+      "turns": [
+        {
+          "turn": 1,
+          "input_tokens_approx": 36,
+          "output_tokens": 149,
+          "ttft_sec": 0.1983,
+          "total_sec": 3.427,
+          "tok_s": 46.2,
+          "cumulative_context_tokens": 185
+        },
+        {
+          "turn": 2,
+          "input_tokens_approx": 210,
+          "output_tokens": 150,
+          "ttft_sec": 0.1922,
+          "total_sec": 3.436,
+          "tok_s": 46.2,
+          "cumulative_context_tokens": 360
+        },
+        {
+          "turn": 3,
+          "input_tokens_approx": 390,
+          "output_tokens": 150,
+          "ttft_sec": 0.2074,
+          "total_sec": 3.461,
+          "tok_s": 46.1,
+          "cumulative_context_tokens": 540
+        },
+        {
+          "turn": 4,
+          "input_tokens_approx": 575,
+          "output_tokens": 150,
+          "ttft_sec": 0.1971,
+          "total_sec": 3.461,
+          "tok_s": 46.0,
+          "cumulative_context_tokens": 725
+        }
+      ]
+    },
+    {
+      "topic": "scaling",
+      "turns": [
+        {
+          "turn": 1,
+          "input_tokens_approx": 32,
+          "output_tokens": 150,
+          "ttft_sec": 0.1995,
+          "total_sec": 3.438,
+          "tok_s": 46.3,
+          "cumulative_context_tokens": 182
+        },
+        {
+          "turn": 2,
+          "input_tokens_approx": 192,
+          "output_tokens": 150,
+          "ttft_sec": 0.193,
+          "total_sec": 3.446,
+          "tok_s": 46.1,
+          "cumulative_context_tokens": 342
+        },
+        {
+          "turn": 3,
+          "input_tokens_approx": 370,
+          "output_tokens": 150,
+          "ttft_sec": 0.1937,
+          "total_sec": 3.451,
+          "tok_s": 46.1,
+          "cumulative_context_tokens": 520
+        },
+        {
+          "turn": 4,
+          "input_tokens_approx": 543,
+          "output_tokens": 150,
+          "ttft_sec": 0.1897,
+          "total_sec": 3.457,
+          "tok_s": 45.9,
+          "cumulative_context_tokens": 693
+        }
+      ]
+    },
+    {
+      "topic": "security",
+      "turns": [
+        {
+          "turn": 1,
+          "input_tokens_approx": 33,
+          "output_tokens": 150,
+          "ttft_sec": 0.1899,
+          "total_sec": 3.432,
+          "tok_s": 46.3,
+          "cumulative_context_tokens": 183
+        },
+        {
+          "turn": 2,
+          "input_tokens_approx": 196,
+          "output_tokens": 150,
+          "ttft_sec": 0.1879,
+          "total_sec": 3.438,
+          "tok_s": 46.2,
+          "cumulative_context_tokens": 346
+        },
+        {
+          "turn": 3,
+          "input_tokens_approx": 354,
+          "output_tokens": 150,
+          "ttft_sec": 0.1992,
+          "total_sec": 3.455,
+          "tok_s": 46.1,
+          "cumulative_context_tokens": 504
+        },
+        {
+          "turn": 4,
+          "input_tokens_approx": 526,
+          "output_tokens": 150,
+          "ttft_sec": 0.1981,
+          "total_sec": 3.462,
+          "tok_s": 46.0,
+          "cumulative_context_tokens": 676
+        }
+      ]
+    },
+    {
+      "topic": "observability",
+      "turns": [
+        {
+          "turn": 1,
+          "input_tokens_approx": 32,
+          "output_tokens": 150,
+          "ttft_sec": 0.1975,
+          "total_sec": 3.435,
+          "tok_s": 46.3,
+          "cumulative_context_tokens": 182
+        },
+        {
+          "turn": 2,
+          "input_tokens_approx": 205,
+          "output_tokens": 150,
+          "ttft_sec": 0.1944,
+          "total_sec": 3.447,
+          "tok_s": 46.1,
+          "cumulative_context_tokens": 355
+        },
+        {
+          "turn": 3,
+          "input_tokens_approx": 362,
+          "output_tokens": 150,
+          "ttft_sec": 0.1907,
+          "total_sec": 3.448,
+          "tok_s": 46.0,
+          "cumulative_context_tokens": 512
+        },
+        {
+          "turn": 4,
+          "input_tokens_approx": 518,
+          "output_tokens": 150,
+          "ttft_sec": 0.192,
+          "total_sec": 3.457,
+          "tok_s": 45.9,
+          "cumulative_context_tokens": 668
+        }
+      ]
+    }
+  ],
+  "concurrent_5_conversations": {
+    "wall_start": "2026-03-19 10:52:29",
+    "wall_duration_sec": 23.9,
+    "conversations": 5,
+    "turn_stats": {
+      "turn_1": {
+        "ttft_p50": 0.228,
+        "tok_s_avg": 42.2,
+        "count": 5
+      },
+      "turn_2": {
+        "ttft_p50": 0.2809,
+        "tok_s_avg": 41.7,
+        "count": 5
+      },
+      "turn_3": {
+        "ttft_p50": 0.275,
+        "tok_s_avg": 41.4,
+        "count": 5
+      },
+      "turn_4": {
+        "ttft_p50": 0.2808,
+        "tok_s_avg": 40.9,
+        "count": 5
+      },
+      "turn_5": {
+        "ttft_p50": 0.203,
+        "tok_s_avg": 45.9,
+        "count": 1
+      }
+    }
+  }
+}

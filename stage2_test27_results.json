@@ -1,0 +1,94 @@
+{
+  "stages": [
+    {
+      "stage": 1,
+      "name": "comfortable",
+      "rps": 4,
+      "duration_sec": 60,
+      "wall_start": "2026-03-19 11:13:53",
+      "total_requests": 240,
+      "successes": 240,
+      "failures": 0,
+      "error_types": {},
+      "wall_duration_sec": 62.4,
+      "ttft_p50": 0.2331,
+      "ttft_p99": 8.5822,
+      "ttft_max": 8.9362,
+      "total_p50": 2.926,
+      "total_p99": 13.413,
+      "total_max": 13.717,
+      "system_tok_s": 384.7
+    },
+    {
+      "stage": 2,
+      "name": "moderate",
+      "rps": 8,
+      "duration_sec": 60,
+      "wall_start": "2026-03-19 11:14:55",
+      "total_requests": 480,
+      "successes": 480,
+      "failures": 0,
+      "error_types": {},
+      "wall_duration_sec": 63.0,
+      "ttft_p50": 0.2554,
+      "ttft_p99": 0.2787,
+      "ttft_max": 0.284,
+      "total_p50": 3.906,
+      "total_p99": 3.934,
+      "total_max": 3.936,
+      "system_tok_s": 761.5
+    },
+    {
+      "stage": 3,
+      "name": "heavy",
+      "rps": 14,
+      "duration_sec": 60,
+      "wall_start": "2026-03-19 11:15:58",
+      "total_requests": 840,
+      "successes": 450,
+      "failures": 390,
+      "error_types": {
+        "no_tokens": 8,
+        "500": 59,
+        "connection_refused": 2,
+        "timeout": 321
+      },
+      "wall_duration_sec": 70.0,
+      "ttft_p50": 0.4352,
+      "ttft_p99": 0.8613,
+      "ttft_max": 0.9094,
+      "total_p50": 10.766,
+      "total_p99": 18.303,
+      "total_max": 18.583,
+      "system_tok_s": 479.7
+    },
+    {
+      "stage": 4,
+      "name": "overload",
+      "rps": 20,
+      "duration_sec": 60,
+      "wall_start": "2026-03-19 11:17:08",
+      "total_requests": 1200,
+      "successes": 0,
+      "failures": 1200,
+      "error_types": {
+        "timeout": 1200
+      },
+      "wall_duration_sec": 70.0
+    },
+    {
+      "stage": 5,
+      "name": "recovery",
+      "rps": 4,
+      "duration_sec": 60,
+      "wall_start": "2026-03-19 11:18:18",
+      "total_requests": 240,
+      "successes": 0,
+      "failures": 240,
+      "error_types": {
+        "timeout": 240
+      },
+      "wall_duration_sec": 69.8
+    }
+  ]
+}

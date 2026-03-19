@@ -1,0 +1,81 @@
+{
+  "serial": {
+    "unguided": {
+      "mode": "unguided",
+      "valid_json_count": 0,
+      "schema_match_count": 0,
+      "ttft_avg": 0.1948,
+      "total_avg": 4.275,
+      "tok_s_avg": 45.9,
+      "avg_tokens_generated": 187.4,
+      "wall_start": "2026-03-19 10:45:32",
+      "successes": 20,
+      "failures": 0
+    },
+    "json_mode": {
+      "mode": "json_mode",
+      "valid_json_count": 20,
+      "schema_match_count": 20,
+      "ttft_avg": 0.2421,
+      "total_avg": 4.133,
+      "tok_s_avg": 45.9,
+      "avg_tokens_generated": 178.6,
+      "wall_start": "2026-03-19 10:47:16",
+      "successes": 20,
+      "failures": 0
+    },
+    "strict_schema": {
+      "mode": "strict_schema",
+      "valid_json_count": 20,
+      "schema_match_count": 20,
+      "ttft_avg": 0.1962,
+      "total_avg": 5.013,
+      "tok_s_avg": 45.9,
+      "avg_tokens_generated": 220.9,
+      "wall_start": "2026-03-19 10:49:18",
+      "successes": 20,
+      "failures": 0
+    }
+  },
+  "concurrent": {
+    "unguided": {
+      "mode": "unguided",
+      "valid_json_count": 0,
+      "schema_match_count": 0,
+      "ttft_p50": 0.2711,
+      "ttft_p99": 0.2796,
+      "total_p50": 5.262,
+      "total_p99": 5.655,
+      "system_tok_s": 324.6,
+      "wall_start": "2026-03-19 10:45:35",
+      "successes": 10,
+      "failures": 0
+    },
+    "json_mode": {
+      "mode": "json_mode",
+      "valid_json_count": 10,
+      "schema_match_count": 10,
+      "ttft_p50": 0.5484,
+      "ttft_p99": 0.5536,
+      "total_p50": 5.658,
+      "total_p99": 6.313,
+      "system_tok_s": 283.0,
+      "wall_start": "2026-03-19 10:47:19",
+      "successes": 10,
+      "failures": 0
+    },
+    "strict_schema": {
+      "mode": "strict_schema",
+      "valid_json_count": 10,
+      "schema_match_count": 10,
+      "ttft_p50": 0.2537,
+      "ttft_p99": 0.2882,
+      "total_p50": 6.867,
+      "total_p99": 7.708,
+      "system_tok_s": 302.8,
+      "wall_start": "2026-03-19 10:49:21",
+      "successes": 10,
+      "failures": 0
+    }
+  }
+}
