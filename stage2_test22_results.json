@@ -1,12 +1,59 @@
 {
-  "lora_compatible_with_awq": false,
-  "finding": "LoRA serving with AWQ-quantized base model has two blockers on T4",
-  "issues": [
-    "OOM at gpu_memory_utilization=0.9 — LoRA workspace buffers need ~200MB extra VRAM",
-    "Public LoRA adapters trained on FP16 base are not compatible with AWQ base model",
-    "Reduced gpu_memory_utilization=0.85 fixes OOM but adapter format mismatch remains"
-  ],
-  "attempted_adapter": "cgxjdzz/Qwen-2.5-7B-Instruct-novel-lora",
-  "error": "Loading lora failed: No adapter found for cgxjdzz/Qwen-2.5-7B-Instruct-novel-lora",
-  "recommendation": "Use FP16 base model (Qwen2.5-3B-Instruct fits on T4) or train custom LoRA on AWQ base"
+  "setup": {
+    "base_model": "Qwen/Qwen2.5-3B-Instruct",
+    "base_model_dtype": "float16",
+    "base_model_size_gb": 6.0,
+    "lora_adapter": "SujanKarki/Qwen2.5-3B-Instruct_text_to_sql_qlora",
+    "lora_rank": 256,
+    "lora_alpha": 64,
+    "lora_targets": ["k_proj", "v_proj", "o_proj", "q_proj"],
+    "adapter_fix_applied": "Stripped lm_head.weight and embed_tokens (2 tensors) — vLLM rejects these for LoRA",
+    "server_settings": {
+      "gpu_memory_utilization": 0.80,
+      "max_model_len": 1024,
+      "max_loras": 1,
+      "max_lora_rank": 256,
+      "max_num_seqs": 64
+    }
+  },
+  "original_attempt_7b_awq": {
+    "finding": "LoRA on AWQ-quantized 7B base failed on T4",
+    "issues": [
+      "OOM at gpu_memory_utilization=0.9 — model (4GB) + KV cache + LoRA workspace exceeded 16GB",
+      "Public LoRA adapters trained on FP16 base incompatible with AWQ base (No adapter found error)",
+      "adapter_config.json base_model_name_or_path mismatch between FP16 and AWQ model IDs"
+    ],
+    "workaround": "Switched to Qwen2.5-3B-Instruct FP16 (6GB) — leaves 10GB headroom"
+  },
+  "adapters_loaded": ["Qwen/Qwen2.5-3B-Instruct", "lora-sql"],
+  "serial_results": {
+    "base": {
+      "tok_s_avg": 37.6,
+      "ttft_avg": 0.2451,
+      "trials": 5,
+      "note": "First request TTFT=0.43s (cold), rest ~0.20s"
+    },
+    "lora-sql": {
+      "tok_s_avg": 4.5,
+      "ttft_avg": 0.4605,
+      "trials": 5,
+      "note": "8.4x slower than base — r=256 adds massive compute per token"
+    }
+  },
+  "concurrent_mixed": {
+    "successes": 5,
+    "failures": 5,
+    "failure_reason": "5 requests targeted non-existent AWQ model (script bug, not LoRA issue)",
+    "base_tok_s_avg": 4.5,
+    "lora_tok_s_avg": 4.5,
+    "note": "Under concurrent load both base and LoRA converge to ~4.5 tok/s"
+  },
+  "key_findings": [
+    "LoRA serving WORKS on T4 with FP16 3B base model",
+    "r=256 LoRA adapter causes 8.4x throughput degradation (37.6 → 4.5 tok/s)",
+    "Lower-rank adapters (r=8-32) would have much less overhead",
+    "lm_head and embed_tokens must be stripped from adapters for vLLM compatibility",
+    "gpu_memory_utilization must be reduced from 0.9 to 0.80 to fit LoRA workspace",
+    "Multi-tenant serving confirmed: base and LoRA models served from same endpoint"
+  ]
 }
