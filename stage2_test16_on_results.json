@@ -1,0 +1,70 @@
+{
+  "chunked_on": {
+    "trials": [
+      {
+        "bg_tokens": 300,
+        "bg_tbt_before_ms": 20.62,
+        "bg_tbt_during_ms": 34.48,
+        "bg_tbt_after_ms": 21.74,
+        "tbt_spike_ratio": 1.67,
+        "bomb_ttft_sec": 1.0502,
+        "bomb_inject_time": 1.0095,
+        "n_before": 29,
+        "n_during": 58,
+        "n_after": 212
+      },
+      {
+        "bg_tokens": 300,
+        "bg_tbt_before_ms": 21.45,
+        "bg_tbt_during_ms": 21.78,
+        "bg_tbt_after_ms": 21.76,
+        "tbt_spike_ratio": 1.02,
+        "bomb_ttft_sec": 0.2403,
+        "bomb_inject_time": 1.007,
+        "n_before": 38,
+        "n_during": 91,
+        "n_after": 170
+      },
+      {
+        "bg_tokens": 277,
+        "bg_tbt_before_ms": 21.47,
+        "bg_tbt_during_ms": 21.8,
+        "bg_tbt_after_ms": 21.79,
+        "tbt_spike_ratio": 1.02,
+        "bomb_ttft_sec": 0.2248,
+        "bomb_inject_time": 1.0067,
+        "n_before": 37,
+        "n_during": 92,
+        "n_after": 147
+      },
+      {
+        "bg_tokens": 300,
+        "bg_tbt_before_ms": 21.46,
+        "bg_tbt_during_ms": 21.83,
+        "bg_tbt_after_ms": 21.8,
+        "tbt_spike_ratio": 1.02,
+        "bomb_ttft_sec": 0.2504,
+        "bomb_inject_time": 1.0051,
+        "n_before": 37,
+        "n_during": 92,
+        "n_after": 170
+      },
+      {
+        "bg_tokens": 300,
+        "bg_tbt_before_ms": 21.43,
+        "bg_tbt_during_ms": 21.82,
+        "bg_tbt_after_ms": 21.81,
+        "tbt_spike_ratio": 1.02,
+        "bomb_ttft_sec": 0.2272,
+        "bomb_inject_time": 1.0605,
+        "n_before": 37,
+        "n_during": 92,
+        "n_after": 170
+      }
+    ],
+    "avg_tbt_before_ms": 21.29,
+    "avg_tbt_during_ms": 24.34,
+    "avg_tbt_after_ms": 21.78,
+    "avg_spike_ratio": 1.15
+  }
+}
