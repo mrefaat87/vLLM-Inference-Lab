@@ -1,0 +1,320 @@
+[
+  {
+    "max_model_len": 512,
+    "max_concurrency_reported": 249,
+    "cliff_results": [
+      {
+        "concurrency": 10,
+        "wall_start": "2026-03-19 16:58:58",
+        "wall_duration_sec": 11.4,
+        "successes": 10,
+        "failures": 0,
+        "system_tok_s": 26.3,
+        "ttft_p50": 10.609,
+        "total_p50": 11.345
+      },
+      {
+        "concurrency": 20,
+        "wall_start": "2026-03-19 16:59:13",
+        "wall_duration_sec": 1.4,
+        "successes": 20,
+        "failures": 0,
+        "system_tok_s": 423.7,
+        "ttft_p50": 0.3732,
+        "total_p50": 1.37
+      },
+      {
+        "concurrency": 40,
+        "wall_start": "2026-03-19 16:59:17",
+        "wall_duration_sec": 1.9,
+        "successes": 40,
+        "failures": 0,
+        "system_tok_s": 644.0,
+        "ttft_p50": 0.4964,
+        "total_p50": 1.759
+      },
+      {
+        "concurrency": 60,
+        "wall_start": "2026-03-19 16:59:22",
+        "wall_duration_sec": 2.4,
+        "successes": 60,
+        "failures": 0,
+        "system_tok_s": 765.1,
+        "ttft_p50": 0.571,
+        "total_p50": 2.178
+      },
+      {
+        "concurrency": 80,
+        "wall_start": "2026-03-19 16:59:27",
+        "wall_duration_sec": 3.2,
+        "successes": 80,
+        "failures": 0,
+        "system_tok_s": 769.1,
+        "ttft_p50": 0.603,
+        "total_p50": 2.982
+      },
+      {
+        "concurrency": 100,
+        "wall_start": "2026-03-19 16:59:34",
+        "wall_duration_sec": 3.7,
+        "successes": 100,
+        "failures": 0,
+        "system_tok_s": 817.6,
+        "ttft_p50": 0.8567,
+        "total_p50": 3.544
+      },
+      {
+        "concurrency": 120,
+        "wall_start": "2026-03-19 16:59:40",
+        "wall_duration_sec": 4.2,
+        "successes": 120,
+        "failures": 0,
+        "system_tok_s": 877.6,
+        "ttft_p50": 0.7817,
+        "total_p50": 3.927
+      },
+      {
+        "concurrency": 150,
+        "wall_start": "2026-03-19 16:59:47",
+        "wall_duration_sec": 5.2,
+        "successes": 150,
+        "failures": 0,
+        "system_tok_s": 862.6,
+        "ttft_p50": 0.8255,
+        "total_p50": 4.88
+      },
+      {
+        "concurrency": 200,
+        "wall_start": "2026-03-19 16:59:56",
+        "wall_duration_sec": 6.6,
+        "successes": 200,
+        "failures": 0,
+        "system_tok_s": 896.9,
+        "ttft_p50": 1.4565,
+        "total_p50": 6.138
+      },
+      {
+        "concurrency": 250,
+        "wall_start": "2026-03-19 17:00:05",
+        "wall_duration_sec": 5.5,
+        "successes": 107,
+        "failures": 143,
+        "system_tok_s": 38.4,
+        "ttft_p50": 0.6562,
+        "total_p50": 5.411
+      }
+    ]
+  },
+  {
+    "max_model_len": 1024,
+    "max_concurrency_reported": 124,
+    "cliff_results": [
+      {
+        "concurrency": 10,
+        "wall_start": "2026-03-19 17:02:15",
+        "wall_duration_sec": 11.5,
+        "successes": 10,
+        "failures": 0,
+        "system_tok_s": 24.4,
+        "ttft_p50": 10.6753,
+        "total_p50": 11.445
+      },
+      {
+        "concurrency": 20,
+        "wall_start": "2026-03-19 17:02:30",
+        "wall_duration_sec": 1.4,
+        "successes": 20,
+        "failures": 0,
+        "system_tok_s": 418.9,
+        "ttft_p50": 0.3752,
+        "total_p50": 1.359
+      },
+      {
+        "concurrency": 40,
+        "wall_start": "2026-03-19 17:02:34",
+        "wall_duration_sec": 1.9,
+        "successes": 40,
+        "failures": 0,
+        "system_tok_s": 643.0,
+        "ttft_p50": 0.4813,
+        "total_p50": 1.753
+      },
+      {
+        "concurrency": 60,
+        "wall_start": "2026-03-19 17:02:39",
+        "wall_duration_sec": 2.3,
+        "successes": 60,
+        "failures": 0,
+        "system_tok_s": 782.5,
+        "ttft_p50": 0.6565,
+        "total_p50": 2.178
+      },
+      {
+        "concurrency": 80,
+        "wall_start": "2026-03-19 17:02:44",
+        "wall_duration_sec": 3.1,
+        "successes": 80,
+        "failures": 0,
+        "system_tok_s": 765.9,
+        "ttft_p50": 0.7374,
+        "total_p50": 2.9
+      },
+      {
+        "concurrency": 100,
+        "wall_start": "2026-03-19 17:02:51",
+        "wall_duration_sec": 3.7,
+        "successes": 100,
+        "failures": 0,
+        "system_tok_s": 807.7,
+        "ttft_p50": 0.7003,
+        "total_p50": 3.464
+      },
+      {
+        "concurrency": 120,
+        "wall_start": "2026-03-19 17:02:57",
+        "wall_duration_sec": 4.2,
+        "successes": 120,
+        "failures": 0,
+        "system_tok_s": 869.4,
+        "ttft_p50": 0.6677,
+        "total_p50": 3.878
+      },
+      {
+        "concurrency": 150,
+        "wall_start": "2026-03-19 17:03:04",
+        "wall_duration_sec": 5.2,
+        "successes": 150,
+        "failures": 0,
+        "system_tok_s": 864.1,
+        "ttft_p50": 0.9161,
+        "total_p50": 4.895
+      },
+      {
+        "concurrency": 200,
+        "wall_start": "2026-03-19 17:03:13",
+        "wall_duration_sec": 6.7,
+        "successes": 200,
+        "failures": 0,
+        "system_tok_s": 901.6,
+        "ttft_p50": 1.4954,
+        "total_p50": 6.186
+      },
+      {
+        "concurrency": 250,
+        "wall_start": "2026-03-19 17:03:22",
+        "wall_duration_sec": 5.7,
+        "successes": 189,
+        "failures": 61,
+        "system_tok_s": 66.1,
+        "ttft_p50": 1.0564,
+        "total_p50": 5.549
+      }
+    ]
+  },
+  {
+    "max_model_len": 4096,
+    "max_concurrency_reported": 31,
+    "cliff_results": [
+      {
+        "concurrency": 10,
+        "wall_start": "2026-03-19 17:05:20",
+        "wall_duration_sec": 11.4,
+        "successes": 10,
+        "failures": 0,
+        "system_tok_s": 26.3,
+        "ttft_p50": 10.5128,
+        "total_p50": 11.338
+      },
+      {
+        "concurrency": 20,
+        "wall_start": "2026-03-19 17:05:34",
+        "wall_duration_sec": 1.4,
+        "successes": 20,
+        "failures": 0,
+        "system_tok_s": 425.7,
+        "ttft_p50": 0.3542,
+        "total_p50": 1.354
+      },
+      {
+        "concurrency": 40,
+        "wall_start": "2026-03-19 17:05:39",
+        "wall_duration_sec": 1.9,
+        "successes": 40,
+        "failures": 0,
+        "system_tok_s": 626.8,
+        "ttft_p50": 0.5603,
+        "total_p50": 1.814
+      },
+      {
+        "concurrency": 60,
+        "wall_start": "2026-03-19 17:05:44",
+        "wall_duration_sec": 2.4,
+        "successes": 60,
+        "failures": 0,
+        "system_tok_s": 772.9,
+        "ttft_p50": 0.6273,
+        "total_p50": 2.185
+      },
+      {
+        "concurrency": 80,
+        "wall_start": "2026-03-19 17:05:49",
+        "wall_duration_sec": 3.2,
+        "successes": 80,
+        "failures": 0,
+        "system_tok_s": 761.4,
+        "ttft_p50": 0.5358,
+        "total_p50": 2.986
+      },
+      {
+        "concurrency": 100,
+        "wall_start": "2026-03-19 17:05:55",
+        "wall_duration_sec": 3.8,
+        "successes": 100,
+        "failures": 0,
+        "system_tok_s": 816.3,
+        "ttft_p50": 0.6106,
+        "total_p50": 3.513
+      },
+      {
+        "concurrency": 120,
+        "wall_start": "2026-03-19 17:06:02",
+        "wall_duration_sec": 4.2,
+        "successes": 120,
+        "failures": 0,
+        "system_tok_s": 877.0,
+        "ttft_p50": 0.9724,
+        "total_p50": 3.925
+      },
+      {
+        "concurrency": 150,
+        "wall_start": "2026-03-19 17:06:09",
+        "wall_duration_sec": 5.3,
+        "successes": 150,
+        "failures": 0,
+        "system_tok_s": 859.6,
+        "ttft_p50": 0.9284,
+        "total_p50": 4.946
+      },
+      {
+        "concurrency": 200,
+        "wall_start": "2026-03-19 17:06:18",
+        "wall_duration_sec": 6.7,
+        "successes": 200,
+        "failures": 0,
+        "system_tok_s": 897.3,
+        "ttft_p50": 1.6347,
+        "total_p50": 6.218
+      },
+      {
+        "concurrency": 250,
+        "wall_start": "2026-03-19 17:06:27",
+        "wall_duration_sec": 5.7,
+        "successes": 120,
+        "failures": 130,
+        "system_tok_s": 45.5,
+        "ttft_p50": 0.7387,
+        "total_p50": 5.503
+      }
+    ]
+  }
+]
