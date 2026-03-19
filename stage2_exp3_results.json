@@ -1,0 +1,141 @@
+{
+  "test1_split_comparison": [
+    {
+      "label": "Heavy input",
+      "input": 900,
+      "output": 100,
+      "prefill_sec": 0.4116,
+      "decode_sec": 2.2011,
+      "total_sec": 2.6127,
+      "tokens_out": 100.0,
+      "decode_tok_s": 45.4,
+      "trials": 3
+    },
+    {
+      "label": "Balanced",
+      "input": 500,
+      "output": 500,
+      "prefill_sec": 0.1936,
+      "decode_sec": 11.2828,
+      "total_sec": 11.4764,
+      "tokens_out": 500.0,
+      "decode_tok_s": 44.3,
+      "trials": 3
+    },
+    {
+      "label": "Heavy output",
+      "input": 100,
+      "output": 900,
+      "prefill_sec": 0.2172,
+      "decode_sec": 15.3607,
+      "total_sec": 15.5779,
+      "tokens_out": 686.3,
+      "decode_tok_s": 44.7,
+      "trials": 3
+    }
+  ],
+  "test2a_cost_per_input_token": [
+    {
+      "input_tokens": 50,
+      "cost_per_input_token_ms": 3.624,
+      "prefill_sec": 0.1812,
+      "decode_sec": 1.0638,
+      "total_sec": 1.2451,
+      "tokens_out": 50.0,
+      "decode_tok_s": 47.0,
+      "trials": 3
+    },
+    {
+      "input_tokens": 200,
+      "cost_per_input_token_ms": 0.9095,
+      "prefill_sec": 0.1819,
+      "decode_sec": 1.0703,
+      "total_sec": 1.2522,
+      "tokens_out": 50.0,
+      "decode_tok_s": 46.7,
+      "trials": 3
+    },
+    {
+      "input_tokens": 500,
+      "cost_per_input_token_ms": 0.3858,
+      "prefill_sec": 0.1929,
+      "decode_sec": 1.0703,
+      "total_sec": 1.2632,
+      "tokens_out": 50.0,
+      "decode_tok_s": 46.7,
+      "trials": 3
+    },
+    {
+      "input_tokens": 1000,
+      "cost_per_input_token_ms": 0.2048,
+      "prefill_sec": 0.2048,
+      "decode_sec": 1.0813,
+      "total_sec": 1.2862,
+      "tokens_out": 50.0,
+      "decode_tok_s": 46.3,
+      "trials": 3
+    }
+  ],
+  "test2b_cost_per_output_token": [
+    {
+      "output_tokens": 50,
+      "cost_per_output_token_ms": 21.14,
+      "prefill_sec": 0.1805,
+      "decode_sec": 1.057,
+      "total_sec": 1.2375,
+      "tokens_out": 50.0,
+      "decode_tok_s": 47.3,
+      "trials": 3
+    },
+    {
+      "output_tokens": 200,
+      "cost_per_output_token_ms": 21.6615,
+      "prefill_sec": 0.1821,
+      "decode_sec": 4.3323,
+      "total_sec": 4.5144,
+      "tokens_out": 200.0,
+      "decode_tok_s": 46.2,
+      "trials": 3
+    },
+    {
+      "output_tokens": 500,
+      "cost_per_output_token_ms": 21.8196,
+      "prefill_sec": 0.1866,
+      "decode_sec": 10.9098,
+      "total_sec": 11.0964,
+      "tokens_out": 500.0,
+      "decode_tok_s": 45.8,
+      "trials": 3
+    },
+    {
+      "output_tokens": 1000,
+      "cost_per_output_token_ms": 21.9454,
+      "prefill_sec": 0.1801,
+      "decode_sec": 20.9359,
+      "total_sec": 21.116,
+      "tokens_out": 954.0,
+      "decode_tok_s": 45.6,
+      "trials": 3
+    }
+  ],
+  "test3_throughput": {
+    "prefill_throughput_tok_s": 4982.6,
+    "decode_throughput_tok_s": 45.5,
+    "prefill_result": {
+      "prefill_sec": 0.2007,
+      "decode_sec": 0.1926,
+      "total_sec": 0.3932,
+      "tokens_out": 10.0,
+      "decode_tok_s": 51.9,
+      "trials": 3
+    },
+    "decode_result": {
+      "prefill_sec": 0.185,
+      "decode_sec": 21.9642,
+      "total_sec": 22.1492,
+      "tokens_out": 1000.0,
+      "decode_tok_s": 45.5,
+      "trials": 3
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "test_a_vary_input": [
+    {
+      "input_tokens_target": 10,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.3155,
+      "avg_decode_time_sec": 1.0344,
+      "avg_total_sec": 1.3499,
+      "avg_tok_s": 48.4,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.2117,
+      "avg_decode_time_sec": 1.2411,
+      "avg_total_sec": 1.4528,
+      "avg_tok_s": 41.3,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 100,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.2156,
+      "avg_decode_time_sec": 1.0888,
+      "avg_total_sec": 1.3043,
+      "avg_tok_s": 45.9,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 200,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.2312,
+      "avg_decode_time_sec": 1.1026,
+      "avg_total_sec": 1.3338,
+      "avg_tok_s": 45.4,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 500,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.2744,
+      "avg_decode_time_sec": 1.1073,
+      "avg_total_sec": 1.3818,
+      "avg_tok_s": 45.2,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 1000,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.3091,
+      "avg_decode_time_sec": 1.113,
+      "avg_total_sec": 1.4221,
+      "avg_tok_s": 44.9,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    }
+  ],
+  "test_b_vary_output": [
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 10,
+      "avg_ttft_sec": 0.2091,
+      "avg_decode_time_sec": 0.2038,
+      "avg_total_sec": 0.413,
+      "avg_tok_s": 49.1,
+      "avg_tokens_out": 10.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 50,
+      "avg_ttft_sec": 0.2221,
+      "avg_decode_time_sec": 1.1033,
+      "avg_total_sec": 1.3255,
+      "avg_tok_s": 45.3,
+      "avg_tokens_out": 50.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 100,
+      "avg_ttft_sec": 0.2048,
+      "avg_decode_time_sec": 2.2225,
+      "avg_total_sec": 2.4273,
+      "avg_tok_s": 45.0,
+      "avg_tokens_out": 100.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 200,
+      "avg_ttft_sec": 0.218,
+      "avg_decode_time_sec": 3.5702,
+      "avg_total_sec": 3.7882,
+      "avg_tok_s": 44.5,
+      "avg_tokens_out": 159.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 500,
+      "avg_ttft_sec": 0.2227,
+      "avg_decode_time_sec": 3.1323,
+      "avg_total_sec": 3.355,
+      "avg_tok_s": 44.4,
+      "avg_tokens_out": 139.0,
+      "trials": 3
+    },
+    {
+      "input_tokens_target": 50,
+      "output_tokens_target": 1000,
+      "avg_ttft_sec": 0.2183,
+      "avg_decode_time_sec": 3.8032,
+      "avg_total_sec": 4.0214,
+      "avg_tok_s": 44.3,
+      "avg_tokens_out": 168.3,
+      "trials": 3
+    }
+  ]
+}
