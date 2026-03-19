@@ -1,0 +1,34 @@
+{
+  "prefix_off": {
+    "serial": {
+      "cold_ttft_avg": 0.5101,
+      "warm_ttft_avg": 0.442,
+      "speedup_ratio": 1.15,
+      "per_request_ttft": {
+        "req_1": 0.5101,
+        "req_2": 0.4637,
+        "req_3": 0.4562,
+        "req_4": 0.4186,
+        "req_5": 0.4463,
+        "req_6": 0.4727,
+        "req_7": 0.4404,
+        "req_8": 0.4314,
+        "req_9": 0.4336,
+        "req_10": 0.4155
+      },
+      "trials": 3
+    },
+    "concurrent_10": {
+      "wall_start": "2026-03-19 16:39:25",
+      "successes": 30,
+      "failures": 0,
+      "ttft_p50": 2.5552,
+      "ttft_p99": 11.7373,
+      "ttft_max": 11.7373,
+      "total_p50": 6.784,
+      "total_p99": 15.894,
+      "total_max": 15.894,
+      "trials": 3
+    }
+  }
+}
