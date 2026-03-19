@@ -1,0 +1,143 @@
+[
+  {
+    "max_num_batched_tokens": 512,
+    "isolated_large_prompt_ttft_sec": 0.5551,
+    "spike_results": [
+      {
+        "bg_total": 4.529,
+        "bomb_ttft": 0.2586
+      },
+      {
+        "bg_total": 4.53,
+        "bomb_ttft": 0.2308
+      },
+      {
+        "bg_total": 4.256,
+        "bomb_ttft": 0.242
+      }
+    ],
+    "concurrent_results": [
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 10.6417,
+        "ttft_p99": 10.6606,
+        "total_p50": 11.76,
+        "total_p99": 13.445,
+        "wall_sec": 13.5
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.2993,
+        "ttft_p99": 0.4046,
+        "total_p50": 1.5,
+        "total_p99": 3.206,
+        "wall_sec": 3.2
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.3125,
+        "ttft_p99": 0.4238,
+        "total_p50": 1.499,
+        "total_p99": 3.222,
+        "wall_sec": 3.2
+      }
+    ]
+  },
+  {
+    "max_num_batched_tokens": 2048,
+    "isolated_large_prompt_ttft_sec": 0.5798,
+    "spike_results": [
+      {
+        "bg_total": 4.522,
+        "bomb_ttft": 0.2611
+      },
+      {
+        "bg_total": 4.524,
+        "bomb_ttft": 0.2365
+      },
+      {
+        "bg_total": 4.532,
+        "bomb_ttft": 0.2543
+      }
+    ],
+    "concurrent_results": [
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 10.2025,
+        "ttft_p99": 10.2203,
+        "total_p50": 11.327,
+        "total_p99": 13.017,
+        "wall_sec": 13.0
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.3435,
+        "ttft_p99": 0.4149,
+        "total_p50": 1.511,
+        "total_p99": 3.224,
+        "wall_sec": 3.3
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.3703,
+        "ttft_p99": 0.3949,
+        "total_p50": 1.515,
+        "total_p99": 3.196,
+        "wall_sec": 3.2
+      }
+    ]
+  },
+  {
+    "max_num_batched_tokens": 4096,
+    "isolated_large_prompt_ttft_sec": 0.5466,
+    "spike_results": [
+      {
+        "bg_total": 4.534,
+        "bomb_ttft": 0.2629
+      },
+      {
+        "bg_total": 4.538,
+        "bomb_ttft": 0.2397
+      },
+      {
+        "bg_total": 4.534,
+        "bomb_ttft": 0.2557
+      }
+    ],
+    "concurrent_results": [
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 10.7402,
+        "ttft_p99": 10.756,
+        "total_p50": 11.871,
+        "total_p99": 13.565,
+        "wall_sec": 13.6
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.3158,
+        "ttft_p99": 0.406,
+        "total_p50": 1.502,
+        "total_p99": 3.214,
+        "wall_sec": 3.2
+      },
+      {
+        "successes": 20,
+        "failures": 0,
+        "ttft_p50": 0.3065,
+        "ttft_p99": 0.4027,
+        "total_p50": 1.498,
+        "total_p99": 3.171,
+        "wall_sec": 3.2
+      }
+    ]
+  }
+]

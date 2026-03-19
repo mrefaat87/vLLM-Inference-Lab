@@ -1,0 +1,28 @@
+{
+  "local_ebs": {
+    "trials": [
+      {
+        "trial": 1,
+        "wall_start": "2026-03-19 17:23:27",
+        "docker_to_healthy_sec": 94.8,
+        "docker_to_first_response_sec": 95.2,
+        "first_request_ttft_sec": 0.388
+      },
+      {
+        "trial": 2,
+        "wall_start": "2026-03-19 17:25:06",
+        "docker_to_healthy_sec": 94.7,
+        "docker_to_first_response_sec": 95.1,
+        "first_request_ttft_sec": 0.391
+      },
+      {
+        "trial": 3,
+        "wall_start": "2026-03-19 17:26:46",
+        "docker_to_healthy_sec": 93.7,
+        "docker_to_first_response_sec": 94.2,
+        "first_request_ttft_sec": 0.492
+      }
+    ],
+    "avg_cold_start_sec": 94.4
+  }
+}
