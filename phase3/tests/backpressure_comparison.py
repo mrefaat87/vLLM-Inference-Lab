@@ -793,7 +793,23 @@ def patch_worker_config(
         if result.returncode != 0:
             print(f"  ERROR: kubectl set env failed: {result.stderr}")
             return False
-        print(f"  Deployment patched. Waiting for rollout...")
+        print(f"  Deployment patched. Forcing rollout restart...")
+
+        # WHY rollout restart after set env: kubectl set env updates the
+        # deployment spec, but with maxSurge=0 on a single GPU node, the old
+        # pod may keep serving from a stale ReplicaSet. rollout restart forces
+        # the pod to be recreated with the new env vars. Discovered in the
+        # first 7B sweep where predictive/adaptive runs silently ran as reactive.
+        result = subprocess.run(
+            [
+                "kubectl", "rollout", "restart",
+                "deployment/vllm-worker",
+                "-n", "inference-system",
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: rollout restart failed: {result.stderr}")
 
         # Wait for the rollout to complete (new pod with updated env)
         result = subprocess.run(
@@ -1083,7 +1099,7 @@ def save_incremental_results(all_results: dict, output_path: str) -> None:
 # ---------------------------------------------------------------------------
 # Pipeline readiness probe + strategy verification
 # ---------------------------------------------------------------------------
-def verify_pipeline_ready(expected_strategy: str, max_retries: int = 3) -> bool:
+def verify_pipeline_ready(expected_strategy: str, max_retries: int = 18) -> bool:
     """Send a test request through the full pipeline to verify readiness.
 
     WHY not just sleep(30s): a hardcoded sleep doesn't verify anything. This probe
@@ -1591,6 +1607,36 @@ def main():
     HOST = args.host.rstrip("/")
     global GRAFANA_URL
     GRAFANA_URL = "" if args.no_grafana else args.grafana.rstrip("/")
+
+    # WHY set context explicitly: when multiple EKS clusters exist (phase3, phase4),
+    # background processes or other terminals can change the default kubectl context.
+    # This caused the first sweep to silently deploy to phase4 mid-run. Setting the
+    # context at startup ensures all kubectl calls target the right cluster.
+    print("Setting kubectl context to inference-phase3...")
+    try:
+        ctx_result = subprocess.run(
+            ["kubectl", "config", "use-context",
+             "arn:aws:eks:us-east-1:019167255542:cluster/inference-phase3"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if ctx_result.returncode != 0:
+            # Try updating kubeconfig if context doesn't exist
+            subprocess.run(
+                ["aws", "eks", "update-kubeconfig",
+                 "--name", "inference-phase3", "--region", "us-east-1"],
+                capture_output=True, text=True, timeout=30,
+            )
+        current_ctx = subprocess.run(
+            ["kubectl", "config", "current-context"],
+            capture_output=True, text=True, timeout=10,
+        )
+        print(f"  Context: {current_ctx.stdout.strip()}")
+        if "inference-phase3" not in current_ctx.stdout:
+            print("  ERROR: Failed to set context to inference-phase3!")
+            sys.exit(1)
+    except Exception as e:
+        print(f"  WARNING: Could not verify kubectl context: {e}")
+    print()
 
     # Health check
     print("Checking API gateway health...")
