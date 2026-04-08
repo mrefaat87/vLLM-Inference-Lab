@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 3 — Complete Admission Control Results</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    background: #f6f8fa; color: #1f2328; padding: 0; margin: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    color: #e6edf3; padding: 48px 40px 40px; border-bottom: 3px solid #58a6ff;
+  }
+  .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .hero .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 20px; }
+  .verdict-bar { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
+  .verdict-chip {
+    background: rgba(126,231,135,0.12); border: 1px solid rgba(126,231,135,0.3);
+    border-radius: 8px; padding: 14px 20px; min-width: 160px;
+  }
+  .verdict-chip .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; margin-bottom: 4px; }
+  .verdict-chip .value { font-size: 22px; font-weight: 700; color: #7ee787; }
+  .verdict-chip .value.blue { color: #58a6ff; }
+  .verdict-chip .value.yellow { color: #e3b341; }
+  .verdict-chip .value.purple { color: #d2a8ff; }
+  .verdict-chip .value.cyan { color: #79c0ff; }
+  .verdict-chip .detail { font-size: 11px; color: #8b949e; margin-top: 2px; }
+
+  .content { max-width: 1400px; margin: 0 auto; padding: 32px 40px 60px; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; color: #1f2328; border-bottom: 2px solid #d0d7de; padding-bottom: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 12px; color: #0969da; }
+  p, li { font-size: 14px; line-height: 1.7; color: #424a53; margin-bottom: 8px; }
+  .round-meta { font-size: 13px; color: #656d76; margin-bottom: 8px; }
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  strong { color: #1f2328; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
+    padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #656d76; margin-bottom: 6px; font-weight: 600; }
+  .big-num { font-size: 36px; font-weight: 700; line-height: 1.1; }
+  .big-num.green { color: #1a7f37; }
+  .big-num.red { color: #cf222e; }
+  .big-num.blue { color: #0969da; }
+  .big-num.purple { color: #8250df; }
+  .unit { font-size: 14px; font-weight: 400; color: #656d76; }
+  .card .detail { font-size: 12px; color: #656d76; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 12px; }
+  th {
+    text-align: left; padding: 8px 10px; font-weight: 600; color: #656d76;
+    border-bottom: 2px solid #d0d7de; background: #f6f8fa; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;
+  }
+  td { padding: 7px 10px; border-bottom: 1px solid #eaeef2; font-family: 'SF Mono', monospace; font-size: 11px; }
+  tr:hover td { background: #f6f8fa; }
+  tr.winner td { background: #dafbe1; }
+  tr.adaptive td { background: #ddf4ff; }
+  .sla-met { color: #1a7f37; font-weight: 700; }
+  .sla-miss { color: #cf222e; font-weight: 700; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .badge-static { background: #dafbe1; color: #1a7f37; }
+  .badge-reactive { background: #fff1e5; color: #bc4c00; }
+  .badge-predictive { background: #fbefff; color: #8250df; }
+  .badge-adaptive { background: #ddf4ff; color: #0550ae; }
+
+  .callout {
+    border-radius: 8px; padding: 14px 18px; margin: 14px 0; font-size: 13px; line-height: 1.6;
+    border-left: 4px solid;
+  }
+  .callout-info { background: #ddf4ff; border-color: #0969da; }
+  .callout-info strong { color: #0969da; }
+  .callout-success { background: #dafbe1; border-color: #1a7f37; }
+  .callout-success strong { color: #1a7f37; }
+  .callout-warning { background: #fff8c5; border-color: #9a6700; }
+  .callout-warning strong { color: #9a6700; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .section-num {
+    display: inline-block; background: #0969da; color: #fff; width: 26px; height: 26px;
+    border-radius: 50%; text-align: center; line-height: 26px; font-size: 13px;
+    font-weight: 700; margin-right: 6px; vertical-align: middle;
+  }
+  .section-num.green-bg { background: #1a7f37; }
+  .section-num.purple-bg { background: #8250df; }
+
+  .ema-diagram {
+    background: #0d1117; color: #e6edf3; border-radius: 10px; padding: 18px 22px;
+    font-family: 'SF Mono', monospace; font-size: 12px; line-height: 1.8;
+    margin: 14px 0; overflow-x: auto;
+  }
+  .ema-diagram .comment { color: #8b949e; }
+  .ema-diagram .highlight { color: #7ee787; font-weight: 700; }
+  .ema-diagram .warn { color: #e3b341; }
+
+  .footer { text-align: center; padding: 32px; color: #8b949e; font-size: 12px; border-top: 1px solid #d0d7de; margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Phase 3 &mdash; Complete Admission Control Results</h1>
+  <p class="subtitle">
+    6 rounds &bull; 4 strategies (static, reactive, predictive, adaptive) &bull;
+    2 models (7B + 14B) &bull; 4 bottleneck metrics &bull; 68 configurations &bull;
+    Qwen2.5 AWQ on T4 (g4dn.xlarge Spot) &bull; vLLM v0.4.1 &bull; 2026-04-05 to 2026-04-08
+  </p>
+  <div class="verdict-bar">
+    <div class="verdict-chip">
+      <div class="label">7B Winner (A&ndash;C)</div>
+      <div class="value">Static pf=3&ndash;5</div>
+      <div class="detail">87&ndash;89 tok/s, 34&ndash;37ms, 100% SLA</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">14B Winner (D, F)</div>
+      <div class="value purple">Predictive t=0.50</div>
+      <div class="detail">13&ndash;23 tok/s, 77&ndash;95ms TPOT</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Adaptive on 7B (E)</div>
+      <div class="value cyan">+10% over predictive</div>
+      <div class="detail">59.2 vs 53.6 tok/s, best TPOT 34ms</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Adaptive on 14B (F)</div>
+      <div class="value yellow">&asymp; predictive</div>
+      <div class="detail">Ratio stays ~1.0, no improvement</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Total Configs</div>
+      <div class="value blue">68</div>
+      <div class="detail">6 rounds, 4 strategies</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ============================================================ -->
+<h2><span class="section-num">0</span> Strategy Overview</h2>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title"><span class="badge badge-static">static</span> Static</div>
+    <p>RabbitMQ <code>prefetch_count=N</code> is the only gate. No runtime checks.
+    Sweep param: prefetch count (1&ndash;20).</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="badge badge-reactive">reactive</span> Reactive</div>
+    <p>Checks current system load vs threshold. Rejects if above.
+    Does NOT examine the incoming request. Sweep param: threshold (0.50&ndash;0.90).</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="badge badge-predictive">predictive</span> Predictive</div>
+    <p>Estimates per-request cost using <code>max_tokens</code> (worst case).
+    Projects post-admission load. Sweep param: threshold (0.50&ndash;0.90).</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="badge badge-adaptive">adaptive</span> Adaptive (new)</div>
+    <p>Like predictive but learns actual <code>output_ratio</code> via EMA from completed requests.
+    Corrects overestimation. Sweep param: alpha (0.01&ndash;0.30).</p>
+  </div>
+</div>
+
+<div class="ema-diagram">
+  <div class="comment">// Adaptive strategy: SGLang new_token_ratio pattern</div><br>
+  <strong>ADMIT:</strong> cost = max_tokens &times; <span class="highlight">output_ratio</span> <span class="comment">// not max_tokens</span><br>
+  <strong>LEARN:</strong> ratio = &alpha; &times; (actual/max) + (1-&alpha;) &times; ratio <span class="comment">// EMA on completion</span><br>
+  <strong>PRESSURE:</strong> vLLM error &rarr; ratio snaps to <span class="warn">0.80</span> <span class="comment">// safety valve</span><br>
+  <strong>CONVERGE:</strong> ~23 completions at &alpha;=0.10 to reach 90% of true ratio
+</div>
+
+<div class="callout callout-info">
+  <strong>Reading the tables:</strong>
+  <span style="background:#dafbe1;padding:2px 6px;border-radius:4px">Green rows</span> = winner (under SLA + high throughput).
+  <span style="background:#ddf4ff;padding:2px 6px;border-radius:4px">Blue rows</span> = adaptive strategy.
+  <span class="sla-met">Green text</span> = under SLA target.
+  <span class="sla-miss">Red text</span> = over SLA or below 90% compliance.
+  TPOT SLA target = 2&times; uncontested baseline.
+</div>
+
+<!-- ============================================================ -->
+
+<h2><span class="section-num green-bg">
+A</span> Round A: 7B decode_throughput</h2>
+<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
+9 configs (9 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_1</td><td>90 tok/s</td><td class="sla-met">30.3ms</td><td class="sla-miss">1.4%</td><td>0</td><td>115,018ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_3</td><td>88.4 tok/s</td><td class="sla-met">35.5ms</td><td class="sla-met">100%</td><td>0</td><td>2,793ms</td><td>348.2%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_8</td><td>85.9 tok/s</td><td class="sla-met">34.7ms</td><td class="sla-met">100%</td><td>0</td><td>19.4ms</td><td>349.2%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_15</td><td>78.5 tok/s</td><td class="sla-met">36.2ms</td><td class="sla-met">100%</td><td>0</td><td>14.8ms</td><td>347.8%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.50</td><td>87.5 tok/s</td><td class="sla-met">46.0ms</td><td class="sla-miss">87.5%</td><td>99,275</td><td>60,657ms</td><td>387.6%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.70</td><td>87.4 tok/s</td><td class="sla-met">63.3ms</td><td class="sla-miss">87.5%</td><td>85,341</td><td>45,638ms</td><td>112.2%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.90</td><td>87.7 tok/s</td><td class="sla-met">40.5ms</td><td class="sla-miss">87.5%</td><td>90,863</td><td>65,499ms</td><td>235.8%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.60</td><td>37.4 tok/s</td><td class="sla-met">32.2ms</td><td class="">94.4%</td><td>57,858</td><td>50ms</td><td>22.4%</td><td>1.4</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>53.1 tok/s</td><td class="sla-met">35.1ms</td><td class="sla-met">98.6%</td><td>54,746</td><td>52.5ms</td><td>43.8%</td><td>1.0</td></tr>
+  </tbody>
+</table>
+<h2><span class="section-num green-bg">
+B</span> Round B: 7B gpu_compute</h2>
+<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
+9 configs (9 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_2</td><td>83.6 tok/s</td><td class="sla-met">35.6ms</td><td class="sla-miss">34.7%</td><td>0</td><td>9,623ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_5</td><td>86.2 tok/s</td><td class="sla-met">34.9ms</td><td class="sla-met">100%</td><td>0</td><td>3.1ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_10</td><td>86.5 tok/s</td><td class="sla-met">34.4ms</td><td class="sla-met">100%</td><td>0</td><td>27.8ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_20</td><td>86.6 tok/s</td><td class="sla-met">35.5ms</td><td class="sla-met">100%</td><td>0</td><td>17.7ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.60</td><td>85.6 tok/s</td><td class="sla-met">34.6ms</td><td class="sla-met">100%</td><td>0</td><td>26.4ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.80</td><td>86.2 tok/s</td><td class="sla-met">34.8ms</td><td class="sla-met">100%</td><td>0</td><td>8.3ms</td><td>0%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.50</td><td>37.5 tok/s</td><td class="sla-met">32.9ms</td><td class="">94.4%</td><td>59,058</td><td>48.2ms</td><td>0%</td><td>1.4</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.70</td><td>38.5 tok/s</td><td class="sla-met">32.4ms</td><td class="sla-miss">65.3%</td><td>85,070</td><td>13,576ms</td><td>0%</td><td>1.5</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.90</td><td>53.1 tok/s</td><td class="sla-met">33.7ms</td><td class="sla-met">98.6%</td><td>64,483</td><td>49.4ms</td><td>0%</td><td>1.0</td></tr>
+  </tbody>
+</table>
+<h2><span class="section-num green-bg">
+C</span> Round C: 7B compound</h2>
+<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
+18 configs (17 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_1</td><td>90 tok/s</td><td class="sla-met">31.1ms</td><td class="sla-miss">1.4%</td><td>0</td><td>116,030ms</td><td>0%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_2</td><td>93.3 tok/s</td><td class="sla-met">35.7ms</td><td class="sla-miss">33.3%</td><td>0</td><td>9,729ms</td><td>323.2%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_3</td><td>87.8 tok/s</td><td class="sla-met">34.1ms</td><td class="sla-met">100%</td><td>0</td><td>2,390ms</td><td>347.6%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_5</td><td>86.4 tok/s</td><td class="sla-met">35.0ms</td><td class="sla-met">100%</td><td>0</td><td>29.9ms</td><td>347.6%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_8</td><td>86.2 tok/s</td><td class="sla-met">34.5ms</td><td class="sla-met">100%</td><td>0</td><td>26.4ms</td><td>349.2%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_10</td><td>86.4 tok/s</td><td class="sla-met">35.4ms</td><td class="sla-met">100%</td><td>0</td><td>20.2ms</td><td>348%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_15</td><td>86.5 tok/s</td><td class="sla-met">35.6ms</td><td class="sla-met">100%</td><td>0</td><td>2.5ms</td><td>347.8%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_20</td><td>86.7 tok/s</td><td class="sla-met">35.7ms</td><td class="sla-met">100%</td><td>0</td><td>7.8ms</td><td>348%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.50</td><td>87.7 tok/s</td><td class="sla-miss">68.8ms</td><td class="sla-miss">87.5%</td><td>88,359</td><td>47,955ms</td><td>431.6%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.60</td><td>87.4 tok/s</td><td class="sla-miss">64.2ms</td><td class="sla-miss">87.5%</td><td>89,938</td><td>47,298ms</td><td>437.4%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.70</td><td>87.6 tok/s</td><td class="sla-met">46.9ms</td><td class="sla-miss">87.5%</td><td>86,263</td><td>60,553ms</td><td>255.8%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.80</td><td>83 tok/s</td><td class="sla-miss">69.5ms</td><td class="sla-miss">87.5%</td><td>75,361</td><td>46,660ms</td><td>457.8%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.90</td><td>80.2 tok/s</td><td class="sla-met">46.5ms</td><td class="sla-miss">87.5%</td><td>73,499</td><td>48,559ms</td><td>387%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.50</td><td>38.2 tok/s</td><td class="sla-met">35.3ms</td><td class="">94.4%</td><td>59,790</td><td>52.8ms</td><td>28.6%</td><td>1.4</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.60</td><td>38.4 tok/s</td><td class="sla-met">32.5ms</td><td class="sla-miss">65.3%</td><td>81,670</td><td>13,705ms</td><td>20.6%</td><td>1.5</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>predictive_threshold_0.70</td><td colspan="7" style="color:#656d76;text-align:center">No steady-state data</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>53.3 tok/s</td><td class="sla-met">34.2ms</td><td class="sla-met">98.6%</td><td>68,219</td><td>65.2ms</td><td>43.6%</td><td>1.0</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.90</td><td>59.3 tok/s</td><td class="sla-met">35.4ms</td><td class="sla-miss">20.8%</td><td>74,897</td><td>10,552ms</td><td>40.2%</td><td>1.0</td></tr>
+  </tbody>
+</table>
+<h2><span class="section-num purple-bg">
+D</span> Round D: 14B kv_cache (original)</h2>
+<p class="round-meta">Baseline TPOT: 62.32ms &bull; SLA target: 124.64ms &bull;
+9 configs (8 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>static_prefetch_1</td><td colspan="7" style="color:#656d76;text-align:center">No steady-state data</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.80</td><td>30.3 tok/s</td><td class="sla-miss">157.2ms</td><td class="sla-miss">0%</td><td>121,620</td><td>1.3ms</td><td>80.4%</td><td>2.0</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.50</td><td>22.7 tok/s</td><td class="sla-met">94.8ms</td><td class="sla-miss">0%</td><td>66,811</td><td>105,592ms</td><td>40.2%</td><td>2.7</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>30.3 tok/s</td><td class="sla-miss">149.9ms</td><td class="sla-miss">0%</td><td>120,931</td><td>1.3ms</td><td>70.3%</td><td>2.0</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_2</td><td>7.6 tok/s</td><td class="sla-met">64.8ms</td><td class="">—</td><td>0</td><td>—</td><td>20.1%</td><td>—</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_3</td><td>14.9 tok/s</td><td class="sla-met">67.9ms</td><td class="">—</td><td>0</td><td>—</td><td>30.1%</td><td>—</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_5</td><td>22.8 tok/s</td><td class="sla-met">118.5ms</td><td class="">—</td><td>0</td><td>—</td><td>50.2%</td><td>—</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_8</td><td>23.2 tok/s</td><td class="sla-miss">130.1ms</td><td class="">—</td><td>0</td><td>—</td><td>80.4%</td><td>—</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_10</td><td>22.8 tok/s</td><td class="sla-miss">170.6ms</td><td class="">—</td><td>0</td><td>—</td><td>100.5%</td><td>—</td></tr>
+  </tbody>
+</table>
+<h2><span class="section-num green-bg">
+E</span> Round E: 7B decode_throughput + adaptive</h2>
+<p class="round-meta">Baseline TPOT: 34.87ms &bull; SLA target: 69.74ms &bull;
+12 configs (12 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_1</td><td>87 tok/s</td><td class="sla-met">32.8ms</td><td class="sla-miss">1.4%</td><td>0</td><td>66,175ms</td><td>0%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_3</td><td>89 tok/s</td><td class="sla-met">36.4ms</td><td class="sla-met">98.6%</td><td>0</td><td>3,067ms</td><td>374.2%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_5</td><td>86.9 tok/s</td><td class="sla-met">37.2ms</td><td class="sla-met">100%</td><td>0</td><td>46ms</td><td>378.2%</td><td>0.7</td></tr>
+    <tr class="winner"><td><span class="badge badge-static">static</span></td><td>prefetch_8</td><td>87 tok/s</td><td class="sla-met">37.3ms</td><td class="sla-met">100%</td><td>0</td><td>29ms</td><td>374.4%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.50</td><td>88.3 tok/s</td><td class="sla-met">69.2ms</td><td class="sla-miss">87.5%</td><td>93,796</td><td>51,452ms</td><td>429%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.70</td><td>86.7 tok/s</td><td class="sla-met">68.5ms</td><td class="sla-miss">88.7%</td><td>86,291</td><td>48,157ms</td><td>451.2%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.90</td><td>87.8 tok/s</td><td class="sla-met">48.1ms</td><td class="sla-miss">87.5%</td><td>91,397</td><td>63,978ms</td><td>236.2%</td><td>0.7</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.50</td><td>36.6 tok/s</td><td class="sla-met">35.1ms</td><td class="">91.7%</td><td>57,290</td><td>50.2ms</td><td>28.8%</td><td>1.4</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>53.6 tok/s</td><td class="sla-met">36.6ms</td><td class="sla-met">98.6%</td><td>51,337</td><td>50.3ms</td><td>40.2%</td><td>1.0</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.05</td><td>53.4 tok/s</td><td class="sla-met">37.2ms</td><td class="sla-met">98.6%</td><td>59,410</td><td>49.3ms</td><td>40%</td><td>1.0</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.10</td><td>53.6 tok/s</td><td class="sla-met">34.0ms</td><td class="sla-met">98.6%</td><td>71,694</td><td>59ms</td><td>44%</td><td>1.0</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.20</td><td>59.2 tok/s</td><td class="sla-met">35.0ms</td><td class="sla-miss">27.8%</td><td>73,945</td><td>9,928ms</td><td>37.6%</td><td>1.0</td></tr>
+  </tbody>
+</table>
+<h2><span class="section-num purple-bg">
+F</span> Round F: 14B kv_cache + adaptive</h2>
+<p class="round-meta">Baseline TPOT: 62.32ms &bull; SLA target: 124.64ms &bull;
+11 configs (9 with data)</p>
+<table>
+  <thead><tr>
+    <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
+    <th>SLA %</th><th>NACKs</th><th>Queue P95</th><th>Tracker P95</th><th>$/1M out</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-static">static</span></td><td>static_prefetch_2</td><td colspan="7" style="color:#656d76;text-align:center">No steady-state data</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>static_prefetch_3</td><td colspan="7" style="color:#656d76;text-align:center">No steady-state data</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_5</td><td>8 tok/s</td><td class="sla-met">95.0ms</td><td class="sla-miss">0%</td><td>0</td><td>113,220ms</td><td>50.2%</td><td>7.6</td></tr>
+    <tr><td><span class="badge badge-static">static</span></td><td>prefetch_8</td><td>16.1 tok/s</td><td class="sla-miss">153.7ms</td><td class="sla-miss">0%</td><td>0</td><td>1.5ms</td><td>80.4%</td><td>3.8</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.50</td><td>8 tok/s</td><td class="sla-met">95.9ms</td><td class="sla-miss">0%</td><td>0</td><td>113,428ms</td><td>50.2%</td><td>7.6</td></tr>
+    <tr><td><span class="badge badge-reactive">reactive</span></td><td>threshold_0.80</td><td>15.3 tok/s</td><td class="sla-miss">154.2ms</td><td class="sla-miss">0%</td><td>60,017</td><td>5.3ms</td><td>80.4%</td><td>4.0</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.50</td><td>13.6 tok/s</td><td class="sla-met">76.6ms</td><td class="sla-miss">0%</td><td>36,854</td><td>107,904ms</td><td>40.2%</td><td>4.5</td></tr>
+    <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>24.1 tok/s</td><td class="sla-miss">150.8ms</td><td class="sla-miss">0%</td><td>130,345</td><td>88,806ms</td><td>70.3%</td><td>2.5</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.05</td><td>16.1 tok/s</td><td class="sla-miss">163.7ms</td><td class="sla-miss">0%</td><td>52,141</td><td>1.7ms</td><td>70.2%</td><td>3.8</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.10</td><td>16.1 tok/s</td><td class="sla-miss">147.3ms</td><td class="sla-miss">0%</td><td>38,211</td><td>1.3ms</td><td>70.2%</td><td>3.8</td></tr>
+    <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.20</td><td>16.1 tok/s</td><td class="sla-miss">158.7ms</td><td class="sla-miss">0%</td><td>50,464</td><td>1.5ms</td><td>70.3%</td><td>3.8</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2><span class="section-num">S</span> Cross-Round Summary</h2>
+
+<h3>When Each Strategy Wins</h3>
+<table>
+  <thead><tr>
+    <th>Condition</th>
+    <th><span class="badge badge-static">static</span></th>
+    <th><span class="badge badge-reactive">reactive</span></th>
+    <th><span class="badge badge-predictive">predictive</span></th>
+    <th><span class="badge badge-adaptive">adaptive</span></th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>7B bandwidth-bound</strong></td>
+      <td class="sla-met">WINS (87&ndash;89 tok/s)</td>
+      <td>High NACKs, TPOT spikes</td>
+      <td class="sla-miss">37&ndash;54 tok/s (overestimates)</td>
+      <td>53&ndash;59 tok/s (+10% vs pred)</td>
+    </tr>
+    <tr>
+      <td><strong>14B KV-scarce</strong></td>
+      <td>8&ndash;23 tok/s (no gate)</td>
+      <td>NACK churn, TPOT > SLA</td>
+      <td class="sla-met">WINS (13.6 tok/s, 77ms)</td>
+      <td>&asymp; predictive (ratio ~1.0)</td>
+    </tr>
+    <tr>
+      <td><strong>Adapts to workload?</strong></td>
+      <td class="sla-miss">No</td>
+      <td class="sla-miss">No</td>
+      <td class="sla-miss">No</td>
+      <td class="sla-met">Yes (EMA)</td>
+    </tr>
+    <tr>
+      <td><strong>NACKs</strong></td>
+      <td class="sla-met">0</td>
+      <td class="sla-miss">73K&ndash;121K</td>
+      <td>37K&ndash;131K</td>
+      <td>38K&ndash;74K</td>
+    </tr>
+    <tr>
+      <td><strong>Best TPOT</strong></td>
+      <td>30&ndash;37ms</td>
+      <td class="sla-miss">40&ndash;69ms</td>
+      <td>32&ndash;36ms</td>
+      <td class="sla-met">34ms (best overall)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Key Insights</h3>
+<div class="two-col">
+  <div class="callout callout-success">
+    <strong>When external admission control adds value:</strong> Three conditions must hold simultaneously:
+    (1) bottleneck resource held for full request lifetime (KV cache), (2) hardware has tight headroom
+    (14B on T4), (3) request sizes vary significantly (20 vs 2048 tokens). When any condition is missing,
+    vLLM's internal scheduler is sufficient.
+  </div>
+  <div class="callout callout-warning">
+    <strong>Adaptive's niche:</strong> Adaptive improves over predictive when the cost model overestimates
+    (requests use &lt;100% of max_tokens). On 7B, it recovers 10% throughput. On 14B where the cost model
+    is accurate, it converges toward predictive and adds no value. The strategy's value is
+    <em>workload-dependent</em>, not <em>model-dependent</em>.
+  </div>
+</div>
+
+<h3>Infrastructure Lessons</h3>
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">kubectl Context Drift</div>
+    <p>Multiple EKS clusters caused silent context switches mid-sweep. Fix: isolated <code>KUBECONFIG</code> per cluster.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Rollout Restart Required</div>
+    <p><code>kubectl set env</code> + <code>maxSurge=0</code> = stale pods. Fix: <code>rollout restart</code> after every env change.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Probe Timeout</div>
+    <p>3 retries (30s) too short for model reload (~3 min). Fix: 18 retries (180s).</p>
+  </div>
+  <div class="card">
+    <div class="card-title">EKS Access Entry</div>
+    <p>Karpenter node role missing from access entries. GPU nodes launched but couldn't register.</p>
+  </div>
+</div>
+
+<h3>Interview Takeaway</h3>
+<div class="callout callout-info">
+  <strong>The bottleneck metric matters less than the accuracy of cost modeling.</strong>
+  Across 68 configurations, predictive fails on 7B not because it gates on the wrong metric, but
+  because <code>max_tokens</code> overestimates actual output by 3&times;. Adaptive (SGLang new_token_ratio pattern)
+  fixes this by learning the actual ratio via EMA &mdash; recovering 10% throughput on 7B while maintaining
+  the best TPOT of any strategy (34ms). On 14B where the cost model is already accurate, adaptive
+  converges toward predictive. The engineering lesson: <em>adaptive vs static cost estimation</em>
+  is the lever, not which resource to gate on.
+</div>
+
+</div>
+
+<div class="footer">
+  Phase 3 &mdash; Admission Control Experiments &bull;
+  Mohamed Mahmoud &bull;
+  68 configs across 6 rounds &bull;
+  Infrastructure: EKS + Karpenter + vLLM v0.4.1 on g4dn.xlarge Spot ($0.22/hr) &bull;
+  Generated 2026-04-08
+</div>
+
+</body>
+</html>
