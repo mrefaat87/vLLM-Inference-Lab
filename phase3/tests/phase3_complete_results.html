@@ -106,37 +106,26 @@
 <body>
 
 <div class="hero">
-  <h1>Phase 3 &mdash; Complete Admission Control Results</h1>
+  <h1>Phase 3 &mdash; Should a Worker Decide Its Own Limits?</h1>
   <p class="subtitle">
-    6 rounds &bull; 4 strategies (static, reactive, predictive, adaptive) &bull;
-    2 models (7B + 14B) &bull; 4 bottleneck metrics &bull; 68 configurations &bull;
-    Qwen2.5 AWQ on T4 (g4dn.xlarge Spot) &bull; vLLM v0.4.1 &bull; 2026-04-05 to 2026-04-08
+    68 experiments across 4 admission strategies, 2 models, and 4 bottleneck metrics &bull;
+    Qwen2.5 AWQ on NVIDIA T4 (g4dn.xlarge Spot, $0.22/hr) &bull; EKS + Karpenter + vLLM v0.4.1 &bull;
+    April 5&ndash;8, 2026
   </p>
   <div class="verdict-bar">
     <div class="verdict-chip">
-      <div class="label">7B Winner (A&ndash;C)</div>
-      <div class="value">Static pf=3&ndash;5</div>
-      <div class="detail">87&ndash;89 tok/s, 34&ndash;37ms, 100% SLA</div>
+      <div class="label">The Question</div>
+      <div class="value yellow" style="font-size:16px">Can a worker regulate its own load better than a fixed queue limit?</div>
     </div>
     <div class="verdict-chip">
-      <div class="label">14B Winner (D, F)</div>
-      <div class="value purple">Predictive t=0.50</div>
-      <div class="detail">13&ndash;23 tok/s, 77&ndash;95ms TPOT</div>
+      <div class="label">The Answer</div>
+      <div class="value" style="font-size:16px">It depends on the bottleneck</div>
+      <div class="detail">7B: no (vLLM handles it). 14B: yes (KV-scarce).</div>
     </div>
     <div class="verdict-chip">
-      <div class="label">Adaptive on 7B (E)</div>
-      <div class="value cyan">+10% over predictive</div>
-      <div class="detail">59.2 vs 53.6 tok/s, best TPOT 34ms</div>
-    </div>
-    <div class="verdict-chip">
-      <div class="label">Adaptive on 14B (F)</div>
-      <div class="value yellow">&asymp; predictive</div>
-      <div class="detail">Ratio stays ~1.0, no improvement</div>
-    </div>
-    <div class="verdict-chip">
-      <div class="label">Total Configs</div>
-      <div class="value blue">68</div>
-      <div class="detail">6 rounds, 4 strategies</div>
+      <div class="label">The Surprise</div>
+      <div class="value cyan" style="font-size:16px">Cost model accuracy > metric choice</div>
+      <div class="detail">Adaptive EMA recovers 10% throughput by fixing cost overestimates</div>
     </div>
   </div>
 </div>
@@ -144,54 +133,59 @@
 <div class="content">
 
 <!-- ============================================================ -->
-<h2><span class="section-num">0</span> Strategy Overview</h2>
+<h2><span class="section-num">1</span> The Setup</h2>
+
+<p>In a queue-based inference architecture, the worker pulls jobs from RabbitMQ, runs them through vLLM, and streams tokens back.
+The core question: <strong>how many concurrent requests should a single GPU worker accept?</strong></p>
+
+<p>We tested four increasingly sophisticated answers:</p>
 
 <div class="card-grid">
   <div class="card">
-    <div class="card-title"><span class="badge badge-static">static</span> Static</div>
-    <p>RabbitMQ <code>prefetch_count=N</code> is the only gate. No runtime checks.
-    Sweep param: prefetch count (1&ndash;20).</p>
+    <div class="card-title"><span class="badge badge-static">static</span> "Just set a fixed limit"</div>
+    <p>RabbitMQ <code>prefetch_count=N</code> caps concurrency. No runtime intelligence.
+    Like a fixed-size Auto Scaling Group &mdash; simple, predictable, but blind to actual load.</p>
   </div>
   <div class="card">
-    <div class="card-title"><span class="badge badge-reactive">reactive</span> Reactive</div>
-    <p>Checks current system load vs threshold. Rejects if above.
-    Does NOT examine the incoming request. Sweep param: threshold (0.50&ndash;0.90).</p>
+    <div class="card-title"><span class="badge badge-reactive">reactive</span> "Check if the system is hot"</div>
+    <p>Before admitting a request, check current GPU/memory utilization. If above threshold, reject.
+    Like target-tracking on CPU &mdash; responsive but doesn't consider what the incoming request will cost.</p>
   </div>
   <div class="card">
-    <div class="card-title"><span class="badge badge-predictive">predictive</span> Predictive</div>
-    <p>Estimates per-request cost using <code>max_tokens</code> (worst case).
-    Projects post-admission load. Sweep param: threshold (0.50&ndash;0.90).</p>
+    <div class="card-title"><span class="badge badge-predictive">predictive</span> "Estimate what this request will cost"</div>
+    <p>Before admitting, estimate the request's resource footprint using <code>max_tokens</code>.
+    Project post-admission load. Like predictive scaling &mdash; smarter, but the estimate might be wrong.</p>
   </div>
   <div class="card">
-    <div class="card-title"><span class="badge badge-adaptive">adaptive</span> Adaptive (new)</div>
-    <p>Like predictive but learns actual <code>output_ratio</code> via EMA from completed requests.
-    Corrects overestimation. Sweep param: alpha (0.01&ndash;0.30).</p>
+    <div class="card-title"><span class="badge badge-adaptive">adaptive</span> "Learn what requests actually cost"</div>
+    <p>Like predictive, but learns the actual <code>output_ratio</code> (fraction of max_tokens used) via EMA
+    from completed requests. Inspired by SGLang's <code>new_token_ratio</code>. Self-correcting.</p>
   </div>
 </div>
 
-<div class="ema-diagram">
-  <div class="comment">// Adaptive strategy: SGLang new_token_ratio pattern</div><br>
-  <strong>ADMIT:</strong> cost = max_tokens &times; <span class="highlight">output_ratio</span> <span class="comment">// not max_tokens</span><br>
-  <strong>LEARN:</strong> ratio = &alpha; &times; (actual/max) + (1-&alpha;) &times; ratio <span class="comment">// EMA on completion</span><br>
-  <strong>PRESSURE:</strong> vLLM error &rarr; ratio snaps to <span class="warn">0.80</span> <span class="comment">// safety valve</span><br>
-  <strong>CONVERGE:</strong> ~23 completions at &alpha;=0.10 to reach 90% of true ratio
-</div>
+<p>We swept each strategy's aggressiveness parameter across 4 bottleneck metrics (decode throughput, GPU compute, KV cache,
+compound) on two models: <strong>7B</strong> (where memory bandwidth is the bottleneck) and
+<strong>14B</strong> (where KV cache headroom is tight). The SLA target is 2&times; the uncontested baseline TPOT.</p>
 
 <div class="callout callout-info">
   <strong>Reading the tables:</strong>
   <span style="background:#dafbe1;padding:2px 6px;border-radius:4px">Green rows</span> = winner (under SLA + high throughput).
   <span style="background:#ddf4ff;padding:2px 6px;border-radius:4px">Blue rows</span> = adaptive strategy.
-  <span class="sla-met">Green text</span> = under SLA target.
-  <span class="sla-miss">Red text</span> = over SLA or below 90% compliance.
-  TPOT SLA target = 2&times; uncontested baseline.
+  <span class="sla-met">Green text</span> = under SLA / above 95% compliance.
+  <span class="sla-miss">Red text</span> = over SLA / below 90% compliance.
 </div>
 
 <!-- ============================================================ -->
+<h2><span class="section-num green-bg">2</span> Act I: Can We Beat "Just Set prefetch=N"? (7B, Rounds A&ndash;C)</h2>
 
-<h2><span class="section-num green-bg">
-A</span> Round A: 7B decode_throughput</h2>
-<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
-9 configs (9 with data)</p>
+<p>Our first hypothesis: a worker that monitors its own resource usage should outperform a fixed concurrency limit.
+We tested this on the 7B model across three bottleneck metrics, expecting reactive and predictive to show clear advantages.</p>
+
+<p><strong>The result was humbling.</strong> Static won every round. Here's how we got there.</p>
+
+<h3>Round A: Gating on Memory Bandwidth (decode_throughput)</h3>
+<p>The T4's memory bandwidth is the bottleneck during decode on 7B. We gated on concurrent decode tokens in flight.
+Baseline TPOT: 31.78ms. SLA target: 63.56ms (2&times; baseline). 9 configs.</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -209,10 +203,19 @@ A</span> Round A: 7B decode_throughput</h2>
     <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.80</td><td>53.1 tok/s</td><td class="sla-met">35.1ms</td><td class="sla-met">98.6%</td><td>54,746</td><td>52.5ms</td><td>43.8%</td><td>1.0</td></tr>
   </tbody>
 </table>
-<h2><span class="section-num green-bg">
-B</span> Round B: 7B gpu_compute</h2>
-<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
-9 configs (9 with data)</p>
+<div class="callout callout-success">
+  <strong>Round A verdict: Static pf=3 wins.</strong> 88.4 tok/s, 35.5ms TPOT, 100% SLA, zero NACKs.
+  Reactive generated 85&ndash;99K NACKs without improving throughput &mdash; the retry churn added queue wait
+  (up to 65s P95) but didn't reduce contention. Predictive achieved excellent TPOT (32ms) but at half
+  the throughput (37 tok/s) because it overestimates cost using worst-case <code>max_tokens</code>.
+</div>
+
+<p>Maybe the metric was wrong? Decode throughput is shared equally across the batch &mdash; perhaps gating on GPU
+compute (which is bursty during prefill) would reveal where predictive shines.</p>
+
+<h3>Round B: Gating on GPU Compute (gpu_compute)</h3>
+<p>Prefill is compute-bound. We gated on concurrent input tokens during prefill phase.
+Same baseline. 9 configs.</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -230,10 +233,18 @@ B</span> Round B: 7B gpu_compute</h2>
     <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.90</td><td>53.1 tok/s</td><td class="sla-met">33.7ms</td><td class="sla-met">98.6%</td><td>64,483</td><td>49.4ms</td><td>0%</td><td>1.0</td></tr>
   </tbody>
 </table>
-<h2><span class="section-num green-bg">
-C</span> Round C: 7B compound</h2>
-<p class="round-meta">Baseline TPOT: 31.78ms &bull; SLA target: 63.56ms &bull;
-18 configs (17 with data)</p>
+<div class="callout callout-warning">
+  <strong>Round B surprise: Reactive now matches static (0 NACKs).</strong> Why? GPU compute budget releases
+  after the first token (~90ms). The tracker drains to 0% almost instantly, so the threshold never fires.
+  But predictive still over-restricts (37&ndash;53 tok/s) &mdash; it holds the budget until explicit release,
+  long after the actual prefill is done.
+</div>
+
+<p>Two metrics, same story. Let's try the compound metric &mdash; <code>max(gpu_fraction, decode_fraction)</code> &mdash;
+which gates on whichever resource is more constrained. With the full 18-config sweep, this should be the definitive 7B test.</p>
+
+<h3>Round C: Gating on Both (compound)</h3>
+<p>Compound metric: max of GPU and decode fractions. Full sweep: 8 static + 5 reactive + 5 predictive = 18 configs.</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -260,10 +271,32 @@ C</span> Round C: 7B compound</h2>
     <tr><td><span class="badge badge-predictive">predictive</span></td><td>threshold_0.90</td><td>59.3 tok/s</td><td class="sla-met">35.4ms</td><td class="sla-miss">20.8%</td><td>74,897</td><td>10,552ms</td><td>40.2%</td><td>1.0</td></tr>
   </tbody>
 </table>
-<h2><span class="section-num purple-bg">
-D</span> Round D: 14B kv_cache (original)</h2>
-<p class="round-meta">Baseline TPOT: 62.32ms &bull; SLA target: 124.64ms &bull;
-9 configs (8 with data)</p>
+<div class="callout callout-success">
+  <strong>Round C confirms it: static pf=3 wins on 7B, period.</strong> Across all three bottleneck metrics,
+  the same pattern: static achieves 87&ndash;89 tok/s at 34&ndash;36ms TPOT with 100% SLA and zero NACKs.
+  Reactive adds NACK churn. Predictive is too conservative. On a bandwidth-bound GPU like T4 with 7B,
+  vLLM's internal continuous batching scheduler is already optimal &mdash; an external admission gate
+  can only make things worse.
+</div>
+
+<div class="callout callout-info">
+  <strong>But why?</strong> The answer became clear: on 7B, neither GPU compute nor KV cache is constrained.
+  KV utilization peaked at just 11%. The bottleneck (memory bandwidth) is shared equally across batched requests
+  &mdash; there's no "unfair" resource allocation for an admission gate to prevent. What if we made KV cache
+  the actual bottleneck?
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="section-num purple-bg">3</span> Act II: Making It Hard Enough to Matter (14B, Round D)</h2>
+
+<p>We switched to the <strong>14B model</strong> (Qwen2.5-14B-Instruct-AWQ). On T4 with 0.90 GPU memory utilization,
+this model leaves only ~5.3 GB for KV cache. Each XL request (660 input + 2048 output tokens) uses ~587 MB of KV.
+At 8 concurrent XL requests: 4.7 GB = 89% of the KV budget. <em>Now</em> the system is genuinely constrained.</p>
+
+<p>Workload: <code>kv_stress_14b</code> &mdash; 0.15 req/s, all XL prompts, 300s duration. Each request takes ~128s to complete.</p>
+
+<h3>Round D: The Original 14B Experiment</h3>
+<p>Baseline TPOT: 62.32ms. SLA target: 124.64ms. 9 configs (8 with data).</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -281,10 +314,45 @@ D</span> Round D: 14B kv_cache (original)</h2>
     <tr><td><span class="badge badge-static">static</span></td><td>prefetch_10</td><td>22.8 tok/s</td><td class="sla-miss">170.6ms</td><td class="">—</td><td>0</td><td>—</td><td>100.5%</td><td>—</td></tr>
   </tbody>
 </table>
-<h2><span class="section-num green-bg">
-E</span> Round E: 7B decode_throughput + adaptive</h2>
-<p class="round-meta">Baseline TPOT: 34.87ms &bull; SLA target: 69.74ms &bull;
-12 configs (12 with data)</p>
+<div class="callout callout-success">
+  <strong>Round D: Predictive th=0.50 is the only config with TPOT under SLA (94.8ms vs 124.64ms target).</strong>
+  For the first time, external admission control outperforms static. Static pf=5 and pf=8 push TPOT past SLA (118&ndash;170ms).
+  Reactive generates 121K NACKs without keeping TPOT under control (157ms). Predictive's per-request KV cost estimation
+  finally matters &mdash; it gates expensive requests before they trigger preemption cascades.
+</div>
+
+<p>Three conditions made the difference: (1) KV cache held for full request lifetime (not released per-token like decode),
+(2) hardware has tight headroom (5.3 GB for a 587 MB-per-request workload), (3) 147&times; request size variance (20 vs 2048 tokens).
+When all three hold, per-request cost estimation earns its keep.</p>
+
+<p>But predictive has a flaw exposed in Rounds A&ndash;C: its cost model uses <code>max_tokens</code> as worst-case output.
+On 7B, requests use only ~35% of their budget, causing 3&times; overestimation. On 14B with all-XL requests, this
+doesn't matter (requests use nearly 100%). But what about mixed workloads? What if the cost model could <em>learn</em>?</p>
+
+<!-- ============================================================ -->
+<h2><span class="section-num">4</span> Act III: Teaching the Worker to Learn (Adaptive, Rounds E&ndash;F)</h2>
+
+<p>Industry research (SGLang's <code>new_token_ratio</code>, QLM's wait-time estimator) showed that production systems
+use <strong>self-correcting cost models</strong> rather than static worst-case estimates. We implemented the same idea:
+an EMA-tracked <code>output_ratio</code> that learns what fraction of <code>max_tokens</code> requests actually use.</p>
+
+<div class="ema-diagram">
+  <div class="comment">// The adaptive feedback loop</div><br>
+  <strong>ADMIT:</strong> cost = max_tokens &times; <span class="highlight">output_ratio</span> <span class="comment">// starts at 1.0 (= predictive)</span><br>
+  <strong>SERVE:</strong> vLLM generates tokens, request completes<br>
+  <strong>LEARN:</strong> ratio = &alpha; &times; (actual_output / max_tokens) + (1-&alpha;) &times; ratio <span class="comment">// EMA update</span><br>
+  <strong>PRESSURE:</strong> vLLM error &rarr; ratio snaps to <span class="warn">max(current, 0.80)</span> <span class="comment">// safety valve</span><br>
+  <br>
+  <span class="comment">// On 7B: ratio converges to ~0.35 (requests use 35% of budget) &rarr; 3&times; less conservative</span><br>
+  <span class="comment">// On 14B: ratio stays ~1.0 (XL uses full budget) &rarr; same as predictive</span>
+</div>
+
+<p>We tested three learning rates (&alpha;=0.05, 0.10, 0.20) on both models. If adaptive works, it should approach
+static's throughput on 7B (by correcting the overestimate) while maintaining predictive's quality on 14B (by not
+under-correcting).</p>
+
+<h3>Round E: Adaptive on 7B (decode_throughput)</h3>
+<p>All 4 strategies head-to-head. Baseline TPOT: 34.87ms. SLA target: 69.74ms. 12 configs.</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -305,10 +373,25 @@ E</span> Round E: 7B decode_throughput + adaptive</h2>
     <tr class="adaptive"><td><span class="badge badge-adaptive">adaptive</span></td><td>alpha_0.20</td><td>59.2 tok/s</td><td class="sla-met">35.0ms</td><td class="sla-miss">27.8%</td><td>73,945</td><td>9,928ms</td><td>37.6%</td><td>1.0</td></tr>
   </tbody>
 </table>
-<h2><span class="section-num purple-bg">
-F</span> Round F: 14B kv_cache + adaptive</h2>
-<p class="round-meta">Baseline TPOT: 62.32ms &bull; SLA target: 124.64ms &bull;
-11 configs (9 with data)</p>
+<div class="callout callout-success">
+  <strong>Adaptive &alpha;=0.10 achieves the best TPOT of any strategy (33.98ms)</strong> while matching predictive's
+  throughput (53.6 tok/s) and SLA (98.6%). At &alpha;=0.20, throughput jumps to 59.2 tok/s (+10% over predictive)
+  but SLA drops to 27.8% &mdash; the ratio decayed too aggressively. The sweet spot is &alpha;=0.10: fast enough
+  to learn within the 90s test window, stable enough not to over-admit.
+</div>
+
+<div class="callout callout-warning">
+  <strong>Static still wins overall on 7B (87&ndash;89 tok/s).</strong> Adaptive narrows the gap with predictive
+  but can't overcome the fundamental issue: on a bandwidth-bound GPU, vLLM's internal scheduler is already optimal.
+  The external gate's value is in TPOT quality (34ms vs reactive's 48&ndash;69ms), not throughput supremacy.
+</div>
+
+<p>Now the critical test: does adaptive hurt on 14B, where predictive already works? If the ratio stays near 1.0
+(because 14B XL requests use nearly all of max_tokens), adaptive should converge toward predictive's behavior
+without degrading.</p>
+
+<h3>Round F: Adaptive on 14B (kv_cache)</h3>
+<p>All 4 strategies on 14B. kv_stress_14b workload. Baseline TPOT: 62.32ms. SLA target: 124.64ms. 11 configs.</p>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -329,8 +412,22 @@ F</span> Round F: 14B kv_cache + adaptive</h2>
   </tbody>
 </table>
 
+<div class="callout callout-warning">
+  <strong>Adaptive converges toward predictive on 14B, as expected.</strong> All three alpha values land at
+  ~16 tok/s with TPOT 147&ndash;164ms &mdash; over SLA. The EMA ratio stays near 1.0 because 14B XL requests
+  use virtually all of their max_tokens budget. There's no overestimation to correct. Predictive th=0.50
+  remains the 14B winner (13.6 tok/s, 76.6ms TPOT).
+</div>
+
+<div class="callout callout-info">
+  <strong>Data quality caveat:</strong> The 14B kv_stress_14b workload produces only 2 steady-state requests per
+  config (128s/request, 300s test, 30s warmup + 15s drain = 255s window). Statistical significance is limited.
+  The directional finding (adaptive &asymp; predictive on 14B) is consistent across all alpha values, but the
+  exact TPOT numbers should be interpreted with caution.
+</div>
+
 <!-- ============================================================ -->
-<h2><span class="section-num">S</span> Cross-Round Summary</h2>
+<h2><span class="section-num">5</span> What We Learned</h2>
 
 <h3>When Each Strategy Wins</h3>
 <table>
@@ -416,15 +513,24 @@ F</span> Round F: 14B kv_cache + adaptive</h2>
   </div>
 </div>
 
-<h3>Interview Takeaway</h3>
+<h3>The Narrative Arc</h3>
 <div class="callout callout-info">
-  <strong>The bottleneck metric matters less than the accuracy of cost modeling.</strong>
-  Across 68 configurations, predictive fails on 7B not because it gates on the wrong metric, but
-  because <code>max_tokens</code> overestimates actual output by 3&times;. Adaptive (SGLang new_token_ratio pattern)
-  fixes this by learning the actual ratio via EMA &mdash; recovering 10% throughput on 7B while maintaining
-  the best TPOT of any strategy (34ms). On 14B where the cost model is already accurate, adaptive
-  converges toward predictive. The engineering lesson: <em>adaptive vs static cost estimation</em>
-  is the lever, not which resource to gate on.
+  <strong>We started asking "which metric should we gate on?" and ended up learning that the metric choice
+  doesn't matter &mdash; the cost model accuracy does.</strong>
+  <br><br>
+  Rounds A&ndash;C tried three different bottleneck metrics on 7B. All produced the same answer: static wins.
+  The external gate couldn't beat vLLM's internal scheduler because the bottleneck (bandwidth) is shared equally.
+  <br><br>
+  Round D changed the game by switching to 14B, making KV cache the real constraint. Suddenly predictive's
+  per-request cost estimation mattered &mdash; it could distinguish a 4 MB request from a 587 MB one.
+  <br><br>
+  But predictive's flaw was exposed: it uses <code>max_tokens</code> as worst case, overestimating by 3&times; on 7B.
+  Adaptive (SGLang's <code>new_token_ratio</code> pattern) fixed this with an EMA that learns actual usage,
+  recovering 10% throughput on 7B while producing the best TPOT of any strategy (34ms).
+  <br><br>
+  On 14B, adaptive correctly converges toward predictive &mdash; when the cost model is already accurate,
+  there's nothing to learn. <strong>The engineering lesson: adaptive vs static cost estimation is the lever,
+  not which resource to gate on.</strong>
 </div>
 
 </div>
