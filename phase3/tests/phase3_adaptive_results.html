@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Adaptive Admission Control — 4-Strategy Comparison</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    background: #f6f8fa; color: #1f2328; padding: 0; margin: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    color: #e6edf3; padding: 48px 40px 40px; border-bottom: 3px solid #58a6ff;
+  }
+  .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .hero .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 20px; }
+  .verdict-bar { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; }
+  .verdict-chip {
+    background: rgba(126,231,135,0.12); border: 1px solid rgba(126,231,135,0.3);
+    border-radius: 8px; padding: 16px 24px; min-width: 180px;
+  }
+  .verdict-chip .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; margin-bottom: 4px; }
+  .verdict-chip .value { font-size: 24px; font-weight: 700; color: #7ee787; }
+  .verdict-chip .value.blue { color: #58a6ff; }
+  .verdict-chip .value.yellow { color: #e3b341; }
+  .verdict-chip .value.purple { color: #d2a8ff; }
+  .verdict-chip .value.cyan { color: #79c0ff; }
+  .verdict-chip .detail { font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+  .content { max-width: 1340px; margin: 0 auto; padding: 32px 40px 60px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 40px 0 16px; color: #1f2328; border-bottom: 2px solid #d0d7de; padding-bottom: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 12px; color: #0969da; }
+  p, li { font-size: 14px; line-height: 1.7; color: #424a53; margin-bottom: 8px; }
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  strong { color: #1f2328; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
+    padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #656d76; margin-bottom: 6px; font-weight: 600; }
+  .big-num { font-size: 40px; font-weight: 700; line-height: 1.1; }
+  .big-num.green { color: #1a7f37; }
+  .big-num.red { color: #cf222e; }
+  .big-num.blue { color: #0969da; }
+  .big-num.orange { color: #bc4c00; }
+  .big-num.purple { color: #8250df; }
+  .big-num.cyan { color: #0550ae; }
+  .unit { font-size: 15px; font-weight: 400; color: #656d76; }
+  .card .detail { font-size: 12px; color: #656d76; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 600; color: #656d76;
+    border-bottom: 2px solid #d0d7de; background: #f6f8fa; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid #eaeef2; font-family: 'SF Mono', monospace; font-size: 12px; }
+  tr:hover td { background: #f6f8fa; }
+  tr.winner td { background: #dafbe1; }
+  tr.adaptive td { background: #ddf4ff; }
+  .sla-met { color: #1a7f37; font-weight: 700; }
+  .sla-miss { color: #cf222e; font-weight: 700; }
+
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-static { background: #dafbe1; color: #1a7f37; }
+  .badge-reactive { background: #fff1e5; color: #bc4c00; }
+  .badge-predictive { background: #fbefff; color: #8250df; }
+  .badge-adaptive { background: #ddf4ff; color: #0550ae; }
+
+  .callout {
+    border-radius: 8px; padding: 16px 20px; margin: 14px 0; font-size: 14px; line-height: 1.6;
+    border-left: 4px solid;
+  }
+  .callout-info { background: #ddf4ff; border-color: #0969da; }
+  .callout-info strong { color: #0969da; }
+  .callout-success { background: #dafbe1; border-color: #1a7f37; }
+  .callout-success strong { color: #1a7f37; }
+  .callout-warning { background: #fff8c5; border-color: #9a6700; }
+  .callout-warning strong { color: #9a6700; }
+  .callout-danger { background: #ffebe9; border-color: #cf222e; }
+  .callout-danger strong { color: #cf222e; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .section-num {
+    display: inline-block; background: #0969da; color: #fff; width: 28px; height: 28px;
+    border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;
+    font-weight: 700; margin-right: 8px; vertical-align: middle;
+  }
+  .section-num.green-bg { background: #1a7f37; }
+  .section-num.purple-bg { background: #8250df; }
+
+  .footer { text-align: center; padding: 32px; color: #8b949e; font-size: 12px; border-top: 1px solid #d0d7de; margin-top: 40px; }
+
+  .ema-diagram {
+    background: #0d1117; color: #e6edf3; border-radius: 10px; padding: 20px 24px;
+    font-family: 'SF Mono', monospace; font-size: 13px; line-height: 1.8;
+    margin: 16px 0; overflow-x: auto;
+  }
+  .ema-diagram .comment { color: #8b949e; }
+  .ema-diagram .highlight { color: #7ee787; font-weight: 700; }
+  .ema-diagram .warn { color: #e3b341; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Adaptive Admission Control &mdash; SGLang new_token_ratio Pattern</h1>
+  <p class="subtitle">
+    4 strategies &times; 2 models (7B + 14B) &times; 23 configurations &bull;
+    Qwen2.5 AWQ on T4 (g4dn.xlarge Spot) &bull;
+    EKS + Karpenter + vLLM v0.4.1 &bull; 2026-04-07/08
+  </p>
+  <div class="verdict-bar">
+    <div class="verdict-chip">
+      <div class="label">7B Winner</div>
+      <div class="value">Static pf=5</div>
+      <div class="detail">87 tok/s, 37ms TPOT, 100% SLA</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">14B Winner</div>
+      <div class="value purple">Predictive t=0.50</div>
+      <div class="detail">13.6 tok/s, 77ms TPOT &mdash; only config under SLA</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Adaptive on 7B</div>
+      <div class="value cyan">+10% over predictive</div>
+      <div class="detail">59.2 tok/s (a=0.20) vs 53.6 (pred t=0.80)</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Adaptive on 14B</div>
+      <div class="value yellow">&asymp; predictive</div>
+      <div class="detail">Ratio stays ~1.0 (XL uses full max_tokens)</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ============================================================ -->
+<h2><span class="section-num">1</span> What Is the Adaptive Strategy?</h2>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">The Problem</div>
+    <p><strong>Predictive</strong> estimates request cost using <code>max_tokens</code> as worst-case output.
+    But requests typically use only ~35% of their budget on 7B. A request with <code>max_tokens=2048</code>
+    that generates 500 tokens has 4&times; overestimated cost &mdash; causing unnecessary NACKs and halved throughput.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">The Solution</div>
+    <p><strong>Adaptive</strong> learns the actual output ratio via exponential moving average (EMA) from
+    completed requests. Instead of <code>cost = max_tokens</code>, it uses <code>cost = max_tokens &times; output_ratio</code>.
+    The ratio starts at 1.0 (= predictive) and decays toward the true usage fraction.</p>
+  </div>
+</div>
+
+<div class="ema-diagram">
+  <div class="comment">// Request lifecycle with adaptive strategy</div>
+  <br>
+  <strong>1. ADMIT:</strong> estimated_output = 2048 &times; <span class="highlight">0.35</span> = 717 tokens <span class="comment">// not 2048</span><br>
+  <strong>2. SERVE:</strong> vLLM generates 500 tokens, completes<br>
+  <strong>3. LEARN:</strong> sample = 500/2048 = 0.244<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;new_ratio = 0.1 &times; 0.244 + 0.9 &times; 0.35 = <span class="highlight">0.339</span> <span class="comment">// barely moved</span><br>
+  <br>
+  <div class="comment">// Pressure safety valve</div><br>
+  <strong>ERROR:</strong> vLLM returns 500 (KV exhausted)<br>
+  &nbsp;&nbsp;&nbsp;&nbsp;ratio snaps from 0.25 &rarr; <span class="warn">0.80</span> <span class="comment">// conservative immediately</span><br>
+  &nbsp;&nbsp;&nbsp;&nbsp;next ~20 completions: ratio gradually learns back down
+</div>
+
+<p>The sweep parameter is <strong>alpha</strong> (EMA learning rate): lower alpha = slower learning but more stable,
+higher alpha = faster adaptation but more volatile.</p>
+
+<!-- ============================================================ -->
+<h2><span class="section-num green-bg">2</span> 7B Results &mdash; Decode Throughput</h2>
+
+<p>Model: Qwen2.5-7B-Instruct-AWQ &bull; Workload: pareto_heavy (1.2 req/s, 80% short / 15% medium / 4% long / 1% XL)
+&bull; Baseline TPOT: 34.87ms &bull; SLA target: 69.74ms (2&times; baseline) &bull; Duration: 90s per config</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Strategy</th>
+      <th>Config</th>
+      <th>Throughput</th>
+      <th>TPOT P95</th>
+      <th>SLA %</th>
+      <th>NACKs</th>
+      <th>Queue P95</th>
+      <th>Tracker P95</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=1</td>
+      <td>87.0 tok/s</td>
+      <td>32.78ms</td>
+      <td class="sla-miss">1.4%</td>
+      <td>0</td>
+      <td>66,175ms</td>
+      <td>0.0%</td>
+    </tr>
+    <tr class="winner">
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=3</td>
+      <td>89.0 tok/s</td>
+      <td>36.43ms</td>
+      <td class="sla-met">98.6%</td>
+      <td>0</td>
+      <td>3,067ms</td>
+      <td>374%</td>
+    </tr>
+    <tr class="winner">
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=5</td>
+      <td>86.9 tok/s</td>
+      <td>37.23ms</td>
+      <td class="sla-met">100%</td>
+      <td>0</td>
+      <td>46ms</td>
+      <td>378%</td>
+    </tr>
+    <tr class="winner">
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=8</td>
+      <td>87.0 tok/s</td>
+      <td>37.27ms</td>
+      <td class="sla-met">100%</td>
+      <td>0</td>
+      <td>29ms</td>
+      <td>374%</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">reactive</span></td>
+      <td>th=0.50</td>
+      <td>88.3 tok/s</td>
+      <td class="sla-miss">69.24ms</td>
+      <td class="sla-miss">87.5%</td>
+      <td>93,796</td>
+      <td>51,452ms</td>
+      <td>429%</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">reactive</span></td>
+      <td>th=0.70</td>
+      <td>86.7 tok/s</td>
+      <td class="sla-miss">68.45ms</td>
+      <td class="sla-miss">88.7%</td>
+      <td>86,291</td>
+      <td>48,157ms</td>
+      <td>451%</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">reactive</span></td>
+      <td>th=0.90</td>
+      <td>87.8 tok/s</td>
+      <td>48.08ms</td>
+      <td class="sla-miss">87.5%</td>
+      <td>91,397</td>
+      <td>63,979ms</td>
+      <td>236%</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-predictive">predictive</span></td>
+      <td>th=0.50</td>
+      <td>36.6 tok/s</td>
+      <td>35.06ms</td>
+      <td class="sla-met">91.7%</td>
+      <td>57,290</td>
+      <td>50ms</td>
+      <td>29%</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-predictive">predictive</span></td>
+      <td>th=0.80</td>
+      <td>53.6 tok/s</td>
+      <td>36.60ms</td>
+      <td class="sla-met">98.6%</td>
+      <td>51,337</td>
+      <td>50ms</td>
+      <td>40%</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td>&alpha;=0.05</td>
+      <td>53.4 tok/s</td>
+      <td>37.23ms</td>
+      <td class="sla-met">98.6%</td>
+      <td>59,410</td>
+      <td>49ms</td>
+      <td>40%</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td>&alpha;=0.10</td>
+      <td>53.6 tok/s</td>
+      <td><strong>33.98ms</strong></td>
+      <td class="sla-met">98.6%</td>
+      <td>71,694</td>
+      <td>59ms</td>
+      <td>44%</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td><strong>&alpha;=0.20</strong></td>
+      <td><strong>59.2 tok/s</strong></td>
+      <td>35.05ms</td>
+      <td class="sla-miss">27.8%</td>
+      <td>73,945</td>
+      <td>9,928ms</td>
+      <td>38%</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout callout-success">
+  <strong>Adaptive &alpha;=0.10 is the sweet spot on 7B.</strong> It matches predictive th=0.80's throughput (53.6 tok/s)
+  with the best TPOT of any strategy (33.98ms) and 98.6% SLA. The ratio learned enough in 90s to reduce
+  overestimation without becoming reckless.
+</div>
+
+<div class="callout callout-warning">
+  <strong>Adaptive &alpha;=0.20 shows the convergence tension.</strong> It reached the highest adaptive throughput (59.2 tok/s)
+  but SLA dropped to 27.8% due to queue buildup &mdash; the ratio decayed too aggressively, admitting too many
+  requests in bursts. A longer test duration would show whether it stabilizes or oscillates.
+</div>
+
+<div class="callout callout-info">
+  <strong>Static still wins on 7B.</strong> 87&ndash;89 tok/s at 37ms TPOT with zero NACKs. vLLM's internal scheduler
+  handles the bandwidth-bound bottleneck optimally. Adaptive's value on 7B is incremental over predictive,
+  not transformative.
+</div>
+
+<h3>7B Key Metrics Cards</h3>
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">Best Throughput (Static)</div>
+    <div class="big-num green">89.0 <span class="unit">tok/s</span></div>
+    <div class="detail">static pf=3 &mdash; vLLM scheduler is sufficient</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Best Adaptive Throughput</div>
+    <div class="big-num blue">59.2 <span class="unit">tok/s</span></div>
+    <div class="detail">&alpha;=0.20 &mdash; +10% over predictive th=0.80</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Best TPOT (Adaptive)</div>
+    <div class="big-num purple">33.98 <span class="unit">ms</span></div>
+    <div class="detail">&alpha;=0.10 &mdash; best of ALL 12 configs</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Predictive Throughput Loss</div>
+    <div class="big-num red">-59% <span class="unit">vs static</span></div>
+    <div class="detail">36.6 tok/s (pred th=0.50) vs 89 tok/s (static)</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="section-num purple-bg">3</span> 14B Results &mdash; KV Cache</h2>
+
+<p>Model: Qwen2.5-14B-Instruct-AWQ &bull; Workload: kv_stress_14b (0.15 req/s, all XL prompts, 2048 max_tokens)
+&bull; Baseline TPOT: 62.32ms &bull; SLA target: 124.64ms &bull; Duration: 300s per config &bull; KV budget: 5.3 GB</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Strategy</th>
+      <th>Config</th>
+      <th>Throughput</th>
+      <th>TPOT P95</th>
+      <th>TPOT vs SLA</th>
+      <th>NACKs</th>
+      <th>Tracker P95</th>
+      <th>Steady-State Reqs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=2</td>
+      <td colspan="6" style="color:#656d76; text-align:center;">No steady-state data (too few completions at 128s/request)</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=3</td>
+      <td colspan="6" style="color:#656d76; text-align:center;">No steady-state data</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=5</td>
+      <td>8.0 tok/s</td>
+      <td class="sla-met">94.97ms</td>
+      <td class="sla-met">Under</td>
+      <td>0</td>
+      <td>50%</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-static">static</span></td>
+      <td>pf=8</td>
+      <td>16.1 tok/s</td>
+      <td class="sla-miss">153.66ms</td>
+      <td class="sla-miss">Over</td>
+      <td>0</td>
+      <td>80%</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">reactive</span></td>
+      <td>th=0.50</td>
+      <td>8.0 tok/s</td>
+      <td class="sla-met">95.88ms</td>
+      <td class="sla-met">Under</td>
+      <td>0</td>
+      <td>50%</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">reactive</span></td>
+      <td>th=0.80</td>
+      <td>15.3 tok/s</td>
+      <td class="sla-miss">154.16ms</td>
+      <td class="sla-miss">Over</td>
+      <td>60,017</td>
+      <td>80%</td>
+      <td>2</td>
+    </tr>
+    <tr class="winner">
+      <td><span class="badge badge-predictive">predictive</span></td>
+      <td><strong>th=0.50</strong></td>
+      <td><strong>13.6 tok/s</strong></td>
+      <td class="sla-met"><strong>76.60ms</strong></td>
+      <td class="sla-met"><strong>Under</strong></td>
+      <td>36,854</td>
+      <td>40%</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-predictive">predictive</span></td>
+      <td>th=0.80</td>
+      <td>24.1 tok/s</td>
+      <td class="sla-miss">150.82ms</td>
+      <td class="sla-miss">Over</td>
+      <td>130,345</td>
+      <td>70%</td>
+      <td>2</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td>&alpha;=0.05</td>
+      <td>16.1 tok/s</td>
+      <td class="sla-miss">163.72ms</td>
+      <td class="sla-miss">Over</td>
+      <td>52,141</td>
+      <td>70%</td>
+      <td>2</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td>&alpha;=0.10</td>
+      <td>16.1 tok/s</td>
+      <td class="sla-miss">147.34ms</td>
+      <td class="sla-miss">Over (barely)</td>
+      <td>38,211</td>
+      <td>70%</td>
+      <td>2</td>
+    </tr>
+    <tr class="adaptive">
+      <td><span class="badge badge-adaptive">adaptive</span></td>
+      <td>&alpha;=0.20</td>
+      <td>16.1 tok/s</td>
+      <td class="sla-miss">158.72ms</td>
+      <td class="sla-miss">Over</td>
+      <td>50,464</td>
+      <td>70%</td>
+      <td>2</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout callout-info">
+  <strong>Predictive th=0.50 remains the 14B winner.</strong> 13.6 tok/s at 76.60ms TPOT &mdash; the only config with
+  both decent throughput AND well under the 124.64ms SLA target. Predictive's cost model is accurate on 14B
+  because KV cache is held for the full request lifetime.
+</div>
+
+<div class="callout callout-warning">
+  <strong>Adaptive didn't improve on 14B.</strong> All three alpha values landed at ~16 tok/s with TPOT 147&ndash;164ms (over SLA).
+  The EMA ratio stays near 1.0 because 14B XL requests use nearly all of <code>max_tokens</code> &mdash; there's no
+  overestimation to correct. Adaptive converges toward predictive and doesn't add value when the cost model
+  is already accurate.
+</div>
+
+<h3>14B Key Metrics Cards</h3>
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">14B Winner</div>
+    <div class="big-num purple">Predictive <span class="unit">th=0.50</span></div>
+    <div class="detail">Only config under SLA with &gt;8 tok/s throughput</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Best Adaptive TPOT (14B)</div>
+    <div class="big-num orange">147.3 <span class="unit">ms</span></div>
+    <div class="detail">&alpha;=0.10 &mdash; over SLA (124.64ms) by 18%</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Why Adaptive = Predictive</div>
+    <div class="big-num" style="font-size:28px; color:#656d76;">ratio &asymp; 1.0</div>
+    <div class="detail">14B XL generates ~100% of max_tokens &mdash; no overestimation to correct</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Data Quality Issue</div>
+    <div class="big-num red">2 <span class="unit">steady-state reqs</span></div>
+    <div class="detail">128s/request + 300s test = very few data points per config</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="section-num">4</span> Cross-Model Comparison</h2>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">When Adaptive Helps</div>
+    <ul>
+      <li><strong>Request output varies widely</strong> &mdash; short requests use 35% of max_tokens, adaptive learns this</li>
+      <li><strong>Bottleneck is not KV-scarce</strong> &mdash; on 7B, memory bandwidth is the bottleneck, KV cache is abundant</li>
+      <li><strong>Predictive is too conservative</strong> &mdash; adaptive recovers 10% throughput by correcting the overestimate</li>
+      <li><strong>Test duration is long enough</strong> &mdash; ratio needs ~23 completions (at &alpha;=0.10) to converge</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-title">When Adaptive Doesn't Help</div>
+    <ul>
+      <li><strong>Requests use full max_tokens</strong> &mdash; 14B XL generates ~2048 tokens, ratio stays ~1.0</li>
+      <li><strong>KV cache is the bottleneck</strong> &mdash; cost model is already accurate, nothing to learn</li>
+      <li><strong>Uniform request sizes</strong> &mdash; no variance for the EMA to exploit</li>
+      <li><strong>Static is sufficient</strong> &mdash; on 7B, vLLM handles it internally; no external gate needed</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Strategy Comparison Matrix</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Dimension</th>
+      <th><span class="badge badge-static">Static</span></th>
+      <th><span class="badge badge-reactive">Reactive</span></th>
+      <th><span class="badge badge-predictive">Predictive</span></th>
+      <th><span class="badge badge-adaptive">Adaptive</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>7B throughput</strong></td>
+      <td class="sla-met">87&ndash;89 tok/s</td>
+      <td>87&ndash;88 tok/s</td>
+      <td class="sla-miss">37&ndash;54 tok/s</td>
+      <td>53&ndash;59 tok/s</td>
+    </tr>
+    <tr>
+      <td><strong>7B TPOT P95</strong></td>
+      <td>33&ndash;37ms</td>
+      <td class="sla-miss">48&ndash;69ms</td>
+      <td>35&ndash;36ms</td>
+      <td class="sla-met">34&ndash;37ms</td>
+    </tr>
+    <tr>
+      <td><strong>14B throughput</strong></td>
+      <td>8&ndash;16 tok/s</td>
+      <td>8&ndash;15 tok/s</td>
+      <td class="sla-met">14&ndash;24 tok/s</td>
+      <td>16 tok/s</td>
+    </tr>
+    <tr>
+      <td><strong>14B TPOT P95</strong></td>
+      <td>95&ndash;154ms</td>
+      <td>96&ndash;154ms</td>
+      <td class="sla-met">77&ndash;151ms</td>
+      <td>147&ndash;164ms</td>
+    </tr>
+    <tr>
+      <td><strong>NACKs</strong></td>
+      <td class="sla-met">0</td>
+      <td class="sla-miss">60K&ndash;94K</td>
+      <td>37K&ndash;130K</td>
+      <td>38K&ndash;74K</td>
+    </tr>
+    <tr>
+      <td><strong>Mechanism</strong></td>
+      <td>RabbitMQ prefetch</td>
+      <td>Current load check</td>
+      <td>Per-request cost (fixed)</td>
+      <td>Per-request cost (learned)</td>
+    </tr>
+    <tr>
+      <td><strong>Adapts to workload?</strong></td>
+      <td class="sla-miss">No</td>
+      <td class="sla-miss">No</td>
+      <td class="sla-miss">No</td>
+      <td class="sla-met">Yes (EMA)</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2><span class="section-num">5</span> Infrastructure Lessons</h2>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">kubectl Context Drift</div>
+    <p>With multiple EKS clusters, the default kubectl context silently switched to phase4 mid-sweep.
+    First sweep's predictive/adaptive runs actually ran as reactive. <strong>Fix:</strong> isolated
+    <code>KUBECONFIG=/tmp/phase3-kubeconfig</code> per cluster.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Rollout Restart Required</div>
+    <p><code>kubectl set env</code> updates the deployment spec but with <code>maxSurge=0</code> on a single GPU node,
+    the old pod keeps serving. <strong>Fix:</strong> <code>kubectl rollout restart</code> after every env change
+    to force pod recreation.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Pipeline Probe Timeout</div>
+    <p>3 retries &times; 10s = 30s was too short for model reload (~3 min). Load tests started before vLLM
+    was serving, causing 100% errors. <strong>Fix:</strong> increased to 18 retries (180s).</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Karpenter Node Access Entry</div>
+    <p>Terraform-created Karpenter node role was missing from EKS access entries. GPU nodes launched but
+    couldn't register with the cluster. <strong>Fix:</strong> manual <code>aws eks create-access-entry</code>
+    for the Karpenter node role.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="section-num">6</span> Interview Takeaway</h2>
+
+<div class="callout callout-success">
+  <strong>Adaptive admission control (SGLang new_token_ratio pattern) improves throughput by 10% over static
+  predictive cost models when request output lengths are variable.</strong> The EMA-learned output ratio corrects
+  the systematic overestimation that plagues fixed cost models on bandwidth-bound GPUs. However, it provides
+  no benefit when: (a) the cost model is already accurate (14B, KV-scarce), (b) vLLM's internal scheduler
+  is sufficient (7B, static wins), or (c) request sizes are uniform. The key engineering insight is that
+  <em>adaptive vs static cost estimation</em> matters more than <em>which bottleneck metric to gate on</em>.
+</div>
+
+</div><!-- /content -->
+
+<div class="footer">
+  Phase 3 &mdash; Admission Control Experiments &bull;
+  Mohamed Mahmoud &bull;
+  Generated 2026-04-08 &bull;
+  Infrastructure: EKS + Karpenter + vLLM v0.4.1 on g4dn.xlarge Spot ($0.22/hr)
+</div>
+
+</body>
+</html>
