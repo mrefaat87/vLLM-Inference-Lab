@@ -322,7 +322,7 @@ Two replicas: one configured as prefill-optimized (high `max_num_batched_tokens`
 2. **Queue depth not queue duration** — our KEDA signal is queue depth. Variable-length requests make depth misleading. Duration directly measures user pain.
 3. **No starvation prevention** — our priority experiments didn't test what happens when low-priority requests never get served. Every production system ages/boosts starved requests.
 4. **Static threshold tuning** — we hand-tuned admission thresholds. SGLang's `new_token_ratio` auto-adapts. QLM uses CLT-based wait time estimation. The industry trend is toward adaptive, not static, admission.
-5. **Pull model limits cache reuse** — our architecture has workers pulling from a shared queue. Cache-aware routing requires *push* to specific replicas. The queue-pull and cache-push models are in tension. Production resolves this with per-replica local queues behind a smart router.
+5. **Broker-push model limits cache reuse** — our architecture has RabbitMQ pushing to workers via `basic_consume` with `prefetch_count` for flow control (not polling/pulling). But the broker distributes round-robin across consumers — it doesn't know which replica has a cached prefix. Cache-aware routing requires a *smart router* that pushes to a specific replica based on prefix hash. Production resolves this with per-replica local queues behind a cache-aware router.
 
 ---
 

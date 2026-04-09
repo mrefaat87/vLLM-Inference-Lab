@@ -7,7 +7,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
-    background: #f6f8fa; color: #1f2328; padding: 0; margin: 0;
+    background: #0d1117; color: #e6edf3; padding: 0; margin: 0;
   }
   .hero {
     background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
@@ -29,56 +29,57 @@
   .verdict-chip .detail { font-size: 11px; color: #8b949e; margin-top: 2px; }
 
   .content { max-width: 1400px; margin: 0 auto; padding: 32px 40px 60px; }
-  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; color: #1f2328; border-bottom: 2px solid #d0d7de; padding-bottom: 8px; }
-  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 12px; color: #0969da; }
-  p, li { font-size: 14px; line-height: 1.7; color: #424a53; margin-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 12px; color: #e6edf3; border-bottom: 2px solid #30363d; padding-bottom: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 12px; color: #58a6ff; }
+  p, li { font-size: 14px; line-height: 1.7; color: #8b949e; margin-bottom: 8px; }
   .round-meta { font-size: 13px; color: #656d76; margin-bottom: 8px; }
   ul { padding-left: 20px; margin-bottom: 12px; }
-  strong { color: #1f2328; }
+  strong { color: #e6edf3; }
 
   .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
   .card {
-    background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
-    padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
-  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #656d76; margin-bottom: 6px; font-weight: 600; }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 6px; font-weight: 600; }
+  .card p { color: #8b949e; }
   .big-num { font-size: 36px; font-weight: 700; line-height: 1.1; }
-  .big-num.green { color: #1a7f37; }
-  .big-num.red { color: #cf222e; }
-  .big-num.blue { color: #0969da; }
-  .big-num.purple { color: #8250df; }
-  .unit { font-size: 14px; font-weight: 400; color: #656d76; }
-  .card .detail { font-size: 12px; color: #656d76; margin-top: 4px; }
+  .big-num.green { color: #3fb950; }
+  .big-num.red { color: #f85149; }
+  .big-num.blue { color: #58a6ff; }
+  .big-num.purple { color: #d2a8ff; }
+  .unit { font-size: 14px; font-weight: 400; color: #8b949e; }
+  .card .detail { font-size: 12px; color: #8b949e; margin-top: 4px; }
 
   table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 12px; }
   th {
-    text-align: left; padding: 8px 10px; font-weight: 600; color: #656d76;
-    border-bottom: 2px solid #d0d7de; background: #f6f8fa; font-size: 11px;
+    text-align: left; padding: 8px 10px; font-weight: 600; color: #8b949e;
+    border-bottom: 2px solid #30363d; background: #161b22; font-size: 11px;
     text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;
   }
-  td { padding: 7px 10px; border-bottom: 1px solid #eaeef2; font-family: 'SF Mono', monospace; font-size: 11px; }
-  tr:hover td { background: #f6f8fa; }
-  tr.winner td { background: #dafbe1; }
-  tr.adaptive td { background: #ddf4ff; }
-  .sla-met { color: #1a7f37; font-weight: 700; }
-  .sla-miss { color: #cf222e; font-weight: 700; }
+  td { padding: 7px 10px; border-bottom: 1px solid #21262d; font-family: 'SF Mono', monospace; font-size: 11px; color: #c9d1d9; }
+  tr:hover td { background: #161b22; }
+  tr.winner td { background: rgba(63,185,80,0.1); }
+  tr.adaptive td { background: rgba(88,166,255,0.1); }
+  .sla-met { color: #3fb950; font-weight: 700; }
+  .sla-miss { color: #f85149; font-weight: 700; }
 
   .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; }
-  .badge-static { background: #dafbe1; color: #1a7f37; }
-  .badge-reactive { background: #fff1e5; color: #bc4c00; }
-  .badge-predictive { background: #fbefff; color: #8250df; }
-  .badge-adaptive { background: #ddf4ff; color: #0550ae; }
+  .badge-static { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .badge-reactive { background: rgba(227,179,65,0.15); color: #e3b341; }
+  .badge-predictive { background: rgba(210,168,255,0.15); color: #d2a8ff; }
+  .badge-adaptive { background: rgba(88,166,255,0.15); color: #58a6ff; }
 
   .callout {
     border-radius: 8px; padding: 14px 18px; margin: 14px 0; font-size: 13px; line-height: 1.6;
     border-left: 4px solid;
   }
-  .callout-info { background: #ddf4ff; border-color: #0969da; }
-  .callout-info strong { color: #0969da; }
-  .callout-success { background: #dafbe1; border-color: #1a7f37; }
-  .callout-success strong { color: #1a7f37; }
-  .callout-warning { background: #fff8c5; border-color: #9a6700; }
-  .callout-warning strong { color: #9a6700; }
+  .callout-info { background: rgba(88,166,255,0.1); border-color: #58a6ff; }
+  .callout-info strong { color: #58a6ff; }
+  .callout-success { background: rgba(63,185,80,0.1); border-color: #3fb950; }
+  .callout-success strong { color: #3fb950; }
+  .callout-warning { background: rgba(227,179,65,0.1); border-color: #e3b341; }
+  .callout-warning strong { color: #e3b341; }
 
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
@@ -100,7 +101,7 @@
   .ema-diagram .highlight { color: #7ee787; font-weight: 700; }
   .ema-diagram .warn { color: #e3b341; }
 
-  .footer { text-align: center; padding: 32px; color: #8b949e; font-size: 12px; border-top: 1px solid #d0d7de; margin-top: 40px; }
+  .footer { text-align: center; padding: 32px; color: #484f58; font-size: 12px; border-top: 1px solid #21262d; margin-top: 40px; }
 </style>
 </head>
 <body>
@@ -135,7 +136,9 @@
 <!-- ============================================================ -->
 <h2><span class="section-num">1</span> The Setup</h2>
 
-<p>In a queue-based inference architecture, the worker pulls jobs from RabbitMQ, runs them through vLLM, and streams tokens back.
+<p>In a queue-based inference architecture, RabbitMQ pushes jobs to the worker (via AMQP <code>basic_consume</code>),
+which runs them through vLLM and streams tokens back. The worker controls backpressure via <code>prefetch_count</code>
+&mdash; how many unacknowledged messages the broker will deliver at once.
 The core question: <strong>how many concurrent requests should a single GPU worker accept?</strong></p>
 
 <p>We tested four increasingly sophisticated answers:</p>
@@ -169,8 +172,8 @@ compound) on two models: <strong>7B</strong> (where memory bandwidth is the bott
 
 <div class="callout callout-info">
   <strong>Reading the tables:</strong>
-  <span style="background:#dafbe1;padding:2px 6px;border-radius:4px">Green rows</span> = winner (under SLA + high throughput).
-  <span style="background:#ddf4ff;padding:2px 6px;border-radius:4px">Blue rows</span> = adaptive strategy.
+  <span style="background:rgba(63,185,80,0.15);padding:2px 6px;border-radius:4px;color:#3fb950">Green rows</span> = winner (under SLA + high throughput).
+  <span style="background:rgba(88,166,255,0.15);padding:2px 6px;border-radius:4px;color:#58a6ff">Blue rows</span> = adaptive strategy.
   <span class="sla-met">Green text</span> = under SLA / above 95% compliance.
   <span class="sla-miss">Red text</span> = over SLA / below 90% compliance.
 </div>
