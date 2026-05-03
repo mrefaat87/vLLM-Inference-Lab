@@ -1,0 +1,22 @@
+# bitnami/minio values — single-replica, ephemeral.
+# Backs Dynamo's artifact store. Not used for model weights (those go on EFS).
+mode: standalone
+
+auth:
+  rootUser: "phase45"
+  rootPassword: "phase45-spike-only"
+
+defaultBuckets: "dynamo-artifacts"
+
+persistence:
+  enabled: true
+  storageClass: gp3
+  size: 20Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi

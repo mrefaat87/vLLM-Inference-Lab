@@ -1,0 +1,54 @@
+# Experiment E — Speculative decoding (0.5B draft + 7B target)
+#
+# Variable changed from A: speculative decoding off → on.
+# Same co-located topology, same round-robin router, same model.
+#
+# Workloads: W1, W2 (W3's bursty long-prompts mostly stress prefill, which
+# spec decode doesn't accelerate — not a useful comparison)
+apiVersion: dynamo.nvidia.com/v1alpha1
+kind: DynamoGraphDeployment
+metadata:
+  name: exp-e-specdecode
+  namespace: dynamo-system
+  labels:
+    phase: phase4.5
+    experiment: E
+    variable: speculative-decoding
+spec:
+  frontend:
+    replicas: 1
+    image: nvcr.io/nvidia/ai-dynamo/frontend:1.0.x
+
+  router:
+    mode: round-robin
+    replicas: 1
+
+  workers:
+    - name: vllm
+      role: colocated
+      replicas: 4
+      image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.x
+      model:
+        name: Qwen/Qwen2.5-7B-Instruct
+        sourceUri: s3://inference-lab-model-cache/qwen25-7b-instruct/
+      engineArgs:
+        max_model_len: 8192
+        # Lower target memory to make room for the draft model on the same GPU
+        # (24 GiB A10G: 7B FP16 ~14 GiB, 0.5B FP16 ~1 GiB, KV cache ~8 GiB).
+        gpu_memory_utilization: 0.85
+        speculative_config:
+          model: Qwen/Qwen2.5-0.5B-Instruct
+          num_speculative_tokens: 5
+          method: draft_model
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "16"
+          memory: 64Gi
+        limits:
+          nvidia.com/gpu: 1
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule

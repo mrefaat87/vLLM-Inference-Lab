@@ -1,0 +1,190 @@
+# gpu-nodepool.yaml — Hardened Karpenter GPU node provisioning for Phase 4.
+#
+# CHANGES FROM PHASE 1:
+#   1. Pre-baked AMI: custom AMI with vLLM image pre-cached (~90s saved per cold start)
+#   2. Resource limits raised: 32 CPU / 128Gi (supports 4 g4dn.xlarge nodes)
+#   3. Consolidation delay: 300s (up from 60s — prevents thrashing on bursty traffic)
+#   4. Expiry extended: 6h (up from 4h — less churn for 5-min replacement cost)
+#   5. Disruption budget: max 1 node disrupted at a time (like ASG MaxBatchSize=1)
+#
+# WHY THESE CHANGES:
+#   Phase 2 showed 5-min cold starts. Each node replacement costs real latency.
+#   The Phase 1 config was too eager to consolidate (60s) and too willing to
+#   disrupt multiple nodes simultaneously (no budget). Phase 4 trades cost
+#   efficiency for stability — keep nodes alive longer, disrupt fewer at once.
+#
+# PRE-BAKED AMI:
+#   Built by: bash phase4.5/scripts/build-ami.sh
+#   Base: EKS-optimized AL2 GPU AMI (NVIDIA drivers + kubelet)
+#   Added: vLLM container image (~8GB) pre-cached in containerd
+#   Karpenter discovers it via amiSelectorTerms tag filter.
+#   When no custom AMI exists, Karpenter falls back to the default EKS AMI.
+---
+# EC2NodeClass — pre-baked AMI with cached vLLM container image
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes
+  labels:
+    app.kubernetes.io/name: gpu-nodes
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  # WHY AL2: still needed even with a custom AMI. Karpenter uses amiFamily to
+  # determine the bootstrap script (kubelet args, containerd config, NVIDIA device
+  # plugin setup). Our custom AMI is BASED ON the AL2 EKS AMI, so AL2 bootstrap works.
+  amiFamily: AL2
+
+  # WHY amiSelectorTerms: tells Karpenter to use our pre-baked AMI instead of the
+  # default EKS AMI. The tag "inference-lab-gpu-node" is set by the Packer build
+  # (phase4.5/scripts/build-ami.sh). Karpenter picks the most recent AMI matching
+  # this tag. If no custom AMI exists, remove this block and Karpenter falls back
+  # to auto-discovering the latest EKS AL2 GPU AMI.
+  #
+  # ANALOGY: this is like setting a custom AMI ID in an ASG launch template
+  # instead of using the latest Amazon Linux AMI. You trade automatic OS updates
+  # for faster instance startup.
+  #
+  # REBUILD the AMI when: vLLM version changes, EKS version upgrades.
+  # NOT needed when: model changes (model comes from S3 init container).
+  # AMI built: ami-08d6b00352f604240 (2026-04-05, non-SOCI)
+  # Phase 4v3: prefer SOCI-enabled AMI (built by build-ami-soci.sh).
+  # Karpenter tries selectors in order — first match wins.
+  # If no SOCI AMI exists, falls back to the non-SOCI pre-baked AMI.
+  # NOTE: Custom AMI selectors commented out — using default EKS AL2 GPU AMI.
+  # Uncomment to use pre-baked AMI (build-ami.sh) or SOCI AMI (build-ami-soci.sh):
+  # amiSelectorTerms:
+  #   - tags:
+  #       Name: "inference-lab-gpu-node-soci"
+  #   - tags:
+  #       Name: "inference-lab-gpu-node"
+
+  role: "inference-phase4-5-karpenter-node"
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-5"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-5"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        # WHY 100Gi: pre-cached vLLM image ~8GB + model weights ~4GB + runtime + headroom
+        encrypted: true
+        deleteOnTermination: true
+
+    # NOTE: Model snapshot volume (/dev/xvdf) commented out — create-model-snapshot.sh
+    # was never executed. The S3 init container handles model loading instead.
+    # To enable: run create-model-snapshot.sh, replace snap-PLACEHOLDER below, uncomment.
+    # - deviceName: /dev/xvdf
+    #   ebs:
+    #     volumeSize: 20Gi
+    #     volumeType: gp3
+    #     snapshotID: "snap-REPLACE-ME"
+    #     encrypted: true
+    #     deleteOnTermination: true
+
+  # WHY userData: Karpenter nodes need the snapshot-backed volume mounted at a
+  # known path before pods start. This runs after kubelet bootstrap but before
+  # pod scheduling. The init container in deployment-patch.yaml checks this path
+  # first and skips S3 download if model files are present.
+  #
+  # NOTE: Karpenter merges this with its own bootstrap userData (kubelet args,
+  # containerd config). The MIME multipart format ensures both scripts run.
+  # NOTE: userData for /dev/xvdf mount commented out — model snapshot volume not active.
+  # The S3 init container + hostPath DirectoryOrCreate handles model caching.
+  # userData: |
+  #   #!/bin/bash
+  #   mkdir -p /mnt/model-cache
+  #   mount -o noatime /dev/xvdf /mnt/model-cache
+
+  tags:
+    Project: inference-lab
+---
+# NodePool — scheduling constraints + hardened disruption policies
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool
+  labels:
+    app.kubernetes.io/name: gpu-pool
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  template:
+    metadata:
+      labels:
+        node-role: gpu
+    spec:
+      nodeClassRef:
+        name: gpu-nodes
+
+      requirements:
+        # WHY g4dn.xlarge ONLY (Phase 4.5 — T4 pivot, 2026-05-02 night):
+        #   - 1x T4 (16 GiB) per node, 4 vCPU, 16 GiB RAM
+        #   - Same instance Phase 2-3 used; known-good
+        #   - 4 nodes × 4 vCPU = 16 spot vCPU — fits inside default G/VT spot quota (32 vCPU)
+        #   - Spot ~$0.16/hr/node × 4 × 72h ≈ $46 budget
+        #   - No EFA on g4dn.xlarge (only g4dn.metal has EFA). NIXL falls back
+        #     to TCP for cross-node KV transfer — accept this; it's the spike's
+        #     "AWS commodity GPU without specialized networking" finding.
+        # Earlier draft was 4x g5.8xlarge (EFA, 24 GiB A10G) but EFA test isn't
+        # interview-critical and spot quota wall blocked the cheaper path.
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+          # WHY single-AZ: simpler networking, lower cross-AZ data charges.
+          # Control plane still spans 2 AZs (EKS requirement); workers do not.
+
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+          # WHY taint: prevents non-GPU workloads from landing on GPU nodes.
+
+  # WHY 16 CPU / 64 GiB: 4x g4dn.xlarge (4 vCPU, 16 GiB each).
+  # Static replica count for the spike — no KEDA scaling — so this is also
+  # the cap we never want to exceed.
+  limits:
+    cpu: "16"
+    memory: 64Gi
+
+  disruption:
+    # WHY WhenEmpty: a node running disagg prefill/decode workers should NOT
+    # be considered "underutilized" just because CPU is idle while GPU is busy.
+    consolidationPolicy: WhenEmpty
+
+    # WHY 600s (up from Phase 4's 300s): experiment runs are 5-15 min each.
+    # We do NOT want a node consolidated mid-experiment because of a brief
+    # idle window between A's W3 and B's W1. 10 min is longer than any
+    # planned inter-experiment gap.
+    consolidateAfter: 600s
+
+    # WHY 12h: spike is 3 days; we will tear down before any expiry fires.
+    # Picked larger than 8h to guarantee no surprise rotation during a
+    # multi-hour experiment series.
+    expireAfter: 12h
+
+    # WHY budgets.nodes=1: same as Phase 4 — never disrupt more than one
+    # GPU node simultaneously. With only 2 nodes total, this is critical:
+    # losing both at once kills all inference capacity.
+    budgets:
+      - nodes: "1"

@@ -1,0 +1,27 @@
+# bitnami/etcd values — single-replica, ephemeral.
+# Spike-grade only. HA etcd is Phase 7 territory.
+auth:
+  rbac:
+    create: false
+  token:
+    enabled: false
+
+replicaCount: 1
+
+persistence:
+  enabled: true
+  storageClass: gp3
+  size: 10Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+# Disable the cluster-domain auto-discovery probe — it can fail on first install
+# and cause restart loops we don't need to debug for a 3-day spike.
+autoCompactionMode: revision
+autoCompactionRetention: "1000"

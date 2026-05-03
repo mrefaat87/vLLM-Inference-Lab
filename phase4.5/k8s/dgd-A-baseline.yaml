@@ -1,0 +1,132 @@
+# Experiment A — Baseline (co-located, round-robin, no spec decode)
+#
+# Variable changed from "vanilla vLLM": none. This is the reference config.
+# Workloads run against this: W1, W2, W3, W4.
+#
+# Schema reference: /tmp/dynamo-v102/tests/planner/perf_test_configs/agg_8b.yaml
+# Image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2 (matches operator v1.0.2)
+# Model: Qwen2.5-7B-Instruct-AWQ (already in s3://inference-lab-model-cache/Qwen/)
+# Frontend tolerations omitted — falls on system t3 nodes by default.
+apiVersion: nvidia.com/v1alpha1
+kind: DynamoGraphDeployment
+metadata:
+  name: exp-a-baseline
+  namespace: dynamo-system
+  labels:
+    phase: phase4-5
+    experiment: A
+    variable: baseline
+spec:
+  services:
+    Frontend:
+      componentType: main
+      replicas: 1
+      envs:
+        # Override DYN_NAMESPACE to match worker namespace (which has worker-suffix
+        # appended by the operator). Without this, Frontend looks at
+        # `dynamo-system-exp-a-baseline` but workers register at
+        # `dynamo-system-exp-a-baseline-<DYN_NAMESPACE_WORKER_SUFFIX>`.
+        # The suffix `106be681` is the operator-generated VllmDecodeWorker hash;
+        # update if the deployment is recreated.
+        - { name: DYN_NAMESPACE, value: "dynamo-system-exp-a-baseline-106be681" }
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 20
+        periodSeconds: 5
+        timeoutSeconds: 5
+        failureThreshold: 3
+      readinessProbe:
+        exec:
+          command:
+            - /bin/sh
+            - -c
+            - 'curl -s http://localhost:8000/health | jq -e ".status == \"healthy\""'
+        initialDelaySeconds: 60
+        periodSeconds: 60
+        timeoutSeconds: 30
+        failureThreshold: 10
+      resources:
+        # Sized to fit anywhere: t3.medium (4 vCPU, 4 GiB) is full from monitoring,
+        # so Frontend may need to land on GPU nodes (16 GiB headroom).
+        requests:
+          cpu: "200m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+      extraPodSpec:
+        # Tolerate GPU taint so Frontend can land on g4dn nodes when system t3
+        # nodes are full. Frontend requests 0 GPU so it doesn't compete with workers.
+        tolerations:
+          - key: nvidia.com/gpu
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+        mainContainer:
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - "python3 -m dynamo.frontend --http-port 8000"
+    VllmDecodeWorker:
+      # No HF token — Qwen2.5-7B-Instruct-AWQ is publicly accessible.
+      componentType: worker
+      replicas: 4   # 4 GPUs total → one worker per GPU, all co-located P+D
+      livenessProbe:
+        httpGet:
+          path: /live
+          port: 9090
+        periodSeconds: 5
+        timeoutSeconds: 30
+        failureThreshold: 1
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 9090
+        periodSeconds: 10
+        timeoutSeconds: 30
+        failureThreshold: 60
+      resources:
+        # Sized for g4dn.xlarge: 4 vCPU, 16 GiB RAM, 1 T4 GPU per node.
+        # Headroom: kubelet + DaemonSets reserve ~0.5 vCPU + ~1 GiB.
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+          gpu: "1"
+        limits:
+          cpu: "3"
+          memory: "12Gi"
+          gpu: "1"
+      envs:
+        - name: DYN_SYSTEM_PORT
+          value: "9090"
+        - name: DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS
+          value: '["generate"]'
+      extraPodSpec:
+        # GPU-tainted nodes need this toleration; required because our NodePool
+        # taints all GPU nodes nvidia.com/gpu=true:NoSchedule.
+        tolerations:
+          - key: nvidia.com/gpu
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+        mainContainer:
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            periodSeconds: 10
+            failureThreshold: 90   # 15min — model load + warmup on g4dn.xlarge T4
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              python3 -m dynamo.vllm
+              --model Qwen/Qwen2.5-7B-Instruct-AWQ
+              --quantization awq
+              --max-model-len 4096
+              --gpu-memory-utilization 0.9
+              2>&1 | tee /tmp/vllm.log

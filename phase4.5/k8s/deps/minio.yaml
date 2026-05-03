@@ -1,0 +1,78 @@
+# Single-replica MinIO via plain StatefulSet — replaces the Bitnami chart.
+# Official `minio/minio` image. Standalone mode, ephemeral PVC.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio
+  namespace: dynamo-system
+type: Opaque
+stringData:
+  MINIO_ROOT_USER: phase45
+  MINIO_ROOT_PASSWORD: phase45-spike-only
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: dynamo-system
+spec:
+  ports:
+    - port: 9000
+      name: api
+      targetPort: 9000
+    - port: 9001
+      name: console
+      targetPort: 9001
+  selector:
+    app: minio
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+  namespace: dynamo-system
+spec:
+  serviceName: minio
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+          args: [server, /data, --console-address, ":9001"]
+          envFrom:
+            - secretRef:
+                name: minio
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 20Gi

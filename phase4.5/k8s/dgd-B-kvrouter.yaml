@@ -1,0 +1,96 @@
+# Experiment B — KV-aware routing
+#
+# Variable changed from A: Frontend router mode round-robin → kv (KV-aware).
+# Worker spec is identical to A; only Frontend args differ.
+#
+# Flag reference: /tmp/dynamo-v102/components/src/dynamo/frontend/frontend_args.py
+#   --router-mode {round-robin, random, kv, direct}
+#   --router-kv-overlap-score-weight (default ~1.0)
+#   --router-kv-events                 enable NATS KV-event channel
+apiVersion: nvidia.com/v1alpha1
+kind: DynamoGraphDeployment
+metadata:
+  name: exp-b-kvrouter
+  namespace: dynamo-system
+  labels:
+    phase: phase4-5
+    experiment: B
+    variable: kv-routing
+spec:
+  services:
+    Frontend:
+      componentType: main
+      replicas: 1
+      envs:
+        # Match worker namespace (worker-suffix appended). Suffix discovered
+        # post-deploy from `kubectl get dynamoworkermetadatas` if the
+        # deployment is recreated — for now using known fresh-deploy suffix.
+        # NOTE: this MUST be re-checked after `kubectl apply` since the
+        # operator regenerates the suffix on each deployment.
+        - { name: DYN_NAMESPACE, value: "PLACEHOLDER_WILL_BE_PATCHED" }
+      livenessProbe:
+        httpGet: { path: /health, port: 8000 }
+        initialDelaySeconds: 20
+        periodSeconds: 5
+      readinessProbe:
+        exec:
+          command:
+            - /bin/sh
+            - -c
+            - 'curl -s http://localhost:8000/health | jq -e ".status == \"healthy\""'
+        initialDelaySeconds: 60
+        periodSeconds: 60
+      resources:
+        requests: { cpu: "200m", memory: "512Mi" }
+        limits:   { cpu: "1",    memory: "1Gi" }
+      extraPodSpec:
+        # Tolerate GPU taint so Frontend can land on g4dn nodes (system t3 are full).
+        tolerations:
+          - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+        mainContainer:
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              python3 -m dynamo.frontend
+              --http-port 8000
+              --router-mode kv
+              --router-kv-events
+              --router-kv-overlap-score-weight 1.0
+    VllmDecodeWorker:
+      componentType: worker
+      replicas: 4
+      livenessProbe:
+        httpGet: { path: /live, port: 9090 }
+        periodSeconds: 5
+      readinessProbe:
+        httpGet: { path: /health, port: 9090 }
+        periodSeconds: 10
+        failureThreshold: 60
+      resources:
+        # Sized for g4dn.xlarge (4 vCPU, 16 GiB, 1 T4)
+        requests: { cpu: "2", memory: "8Gi", gpu: "1" }
+        limits:   { cpu: "3", memory: "12Gi", gpu: "1" }
+      envs:
+        - { name: DYN_SYSTEM_PORT, value: "9090" }
+        - { name: DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS, value: '["generate"]' }
+      extraPodSpec:
+        tolerations:
+          - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+        mainContainer:
+          startupProbe:
+            httpGet: { path: /health, port: 9090 }
+            periodSeconds: 10
+            failureThreshold: 90
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              python3 -m dynamo.vllm
+              --model Qwen/Qwen2.5-7B-Instruct-AWQ
+              --quantization awq
+              --max-model-len 4096
+              --gpu-memory-utilization 0.9
+              2>&1 | tee /tmp/vllm.log

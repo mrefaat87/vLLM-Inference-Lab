@@ -1,0 +1,87 @@
+# policy-d-composite-aggressive.yaml — KEDA: queue depth + KV cache (threshold=0.65).
+#
+# POLICY D (COMPOSITE AGGRESSIVE): Two triggers — queue depth AND GPU KV cache
+# with a LOW threshold. Scales proactively BEFORE admission starts rejecting.
+#
+# WHY 0.65 (AGGRESSIVE): scale when KV cache is only 2/3 full. This gives
+# Karpenter a ~5 min head start to provision a node BEFORE admission control
+# kicks in (at 0.80). By the time the new worker is ready, the existing worker
+# hasn't rejected any requests — smoother experience.
+#
+# HYPOTHESIS: If 0.65 produces significantly fewer NACKs (rejected requests)
+# than Policy C (0.80) without wasting too many GPU-hours on premature scaling,
+# proactive scaling beats reactive scaling for inference workloads.
+#
+# RISK: Over-scaling. If KV cache briefly hits 65% on a burst of short requests
+# then drops back, we've unnecessarily provisioned a $0.16/hr GPU node for 5 min
+# of work. The stabilizationWindowSeconds (60s) mitigates this — KV must stay
+# above 65% for a full minute before scaling triggers.
+#
+# ANALOGY: Predictive scaling in ASG — scale based on projected need, not
+# current overload. Like launching capacity 10 min before expected traffic spike.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-worker-scaler
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-scaler
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+    scaling-policy: composite-aggressive
+spec:
+  scaleTargetRef:
+    name: vllm-worker
+
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  # WHY 300s: cooldown must exceed scale-up latency (~165s with optimizations).
+  # See policy-a for the full explanation of the 2x rule.
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+
+  triggers:
+    # Trigger 1: Queue depth (same as Policy A)
+    - type: rabbitmq
+      metadata:
+        queueName: inference_queue
+        mode: QueueLength
+        value: "5"
+        activationValue: "3"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+
+    # Trigger 2: Average KV cache usage — AGGRESSIVE threshold
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        metricName: vllm_kv_cache_avg
+        query: avg(vllm:gpu_cache_usage_perc)
+
+        threshold: "0.65"
+        # WHY 0.65: fire 15 percentage points BELOW admission rejection (0.80).
+        # At ~30 tok/s throughput, KV cache grows ~12MB/s per request (401KB/tok).
+        # A 300-token request fills 120MB. Going from 65% to 80% of 9.6GB = 1.44GB
+        # of headroom, which covers ~12 concurrent 300-token requests.
+        # 5-min scaling window at 1.0 req/s = 300 requests. So the headroom buys
+        # time for the new worker to come online.
+
+        activationThreshold: "0.50"
+        # WHY 0.50: lower activation to match the aggressive posture. Start
+        # evaluating scaling as soon as KV cache is half full.

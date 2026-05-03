@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 4.5 — NVIDIA Dynamo Hands-On Spike</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    background: #0d1117; color: #e6edf3; padding: 0; margin: 0;
+    line-height: 1.55;
+  }
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    color: #e6edf3; padding: 48px 40px 40px; border-bottom: 3px solid #58a6ff;
+  }
+  .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .hero .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 24px; max-width: 900px; }
+  .hero .meta { color: #6e7681; font-size: 13px; margin-bottom: 16px; }
+  .hero .meta strong { color: #c9d1d9; font-weight: 600; }
+  .verdict-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .verdict-chip {
+    background: rgba(126,231,135,0.10); border: 1px solid rgba(126,231,135,0.3);
+    border-radius: 8px; padding: 12px 18px; min-width: 200px;
+  }
+  .verdict-chip.warn { background: rgba(227,179,65,0.10); border-color: rgba(227,179,65,0.3); }
+  .verdict-chip.bad { background: rgba(248,81,73,0.10); border-color: rgba(248,81,73,0.3); }
+  .verdict-chip .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; margin-bottom: 4px; }
+  .verdict-chip .value { font-size: 20px; font-weight: 700; color: #7ee787; }
+  .verdict-chip.warn .value { color: #e3b341; }
+  .verdict-chip.bad .value { color: #f85149; }
+  .verdict-chip .detail { font-size: 11px; color: #8b949e; margin-top: 4px; line-height: 1.3; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 40px 80px; }
+  section { margin-bottom: 40px; }
+  h2 {
+    font-size: 22px; font-weight: 600; color: #e6edf3;
+    margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #30363d;
+  }
+  h3 { font-size: 16px; font-weight: 600; color: #c9d1d9; margin: 18px 0 8px; }
+  p { color: #c9d1d9; margin-bottom: 12px; max-width: 920px; }
+  p.lede { color: #e6edf3; font-size: 16px; }
+  ul { color: #c9d1d9; margin: 8px 0 12px 22px; }
+  li { margin-bottom: 6px; }
+  code { background: #161b22; color: #ffa657; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre {
+    background: #161b22; color: #c9d1d9; padding: 12px 16px; border-radius: 6px;
+    border: 1px solid #30363d; overflow-x: auto; font-size: 12px; margin: 8px 0;
+  }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+  .pill.gpu  { background: rgba(126,231,135,0.15); color: #7ee787; }
+  .pill.warn { background: rgba(227,179,65,0.15); color: #e3b341; }
+  .pill.bad  { background: rgba(248,81,73,0.15); color: #f85149; }
+  .pill.muted{ background: #21262d; color: #8b949e; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #21262d; }
+  th { color: #8b949e; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { color: #c9d1d9; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  td.bad { color: #f85149; font-weight: 600; }
+  td.win { color: #7ee787; font-weight: 600; }
+  tr.exp-a { background: rgba(88,166,255,0.04); }
+  tr.exp-b { background: rgba(126,231,135,0.04); }
+  tr.exp-c { background: rgba(248,81,73,0.04); }
+
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); margin: 16px 0; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px;
+  }
+  .card h4 { font-size: 14px; color: #58a6ff; margin-bottom: 8px; font-weight: 600; }
+  .card .num { font-size: 26px; font-weight: 700; color: #c9d1d9; font-variant-numeric: tabular-nums; }
+  .card .num small { font-size: 14px; color: #8b949e; font-weight: 400; }
+  .card.bad h4 { color: #f85149; }
+  .card.warn h4 { color: #e3b341; }
+  .card.win h4 { color: #7ee787; }
+
+  .bar-chart { margin: 14px 0; }
+  .bar-row { display: grid; grid-template-columns: 90px 1fr 80px; gap: 10px; align-items: center; margin-bottom: 6px; font-size: 12px; }
+  .bar-row .label { color: #8b949e; font-variant-numeric: tabular-nums; }
+  .bar-row .bar { background: #21262d; border-radius: 3px; height: 18px; overflow: hidden; position: relative; }
+  .bar-row .bar .fill { height: 100%; border-radius: 3px; }
+  .bar-row .bar .fill.a { background: #58a6ff; }
+  .bar-row .bar .fill.b { background: #7ee787; }
+  .bar-row .bar .fill.c { background: #f85149; }
+  .bar-row .num { font-variant-numeric: tabular-nums; color: #c9d1d9; text-align: right; }
+
+  .callout {
+    background: rgba(248,81,73,0.08); border-left: 3px solid #f85149;
+    padding: 12px 16px; margin: 14px 0; border-radius: 0 6px 6px 0;
+  }
+  .callout.win { background: rgba(126,231,135,0.08); border-left-color: #7ee787; }
+  .callout.muted { background: rgba(139,148,158,0.08); border-left-color: #8b949e; }
+  .callout strong { color: #e6edf3; }
+  .callout p { margin-bottom: 0; }
+
+  footer { color: #6e7681; font-size: 12px; padding: 20px 40px; border-top: 1px solid #21262d; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>Phase 4.5 — NVIDIA Dynamo Hands-On Spike</h1>
+  <p class="subtitle">
+    Going through the motions of deploying NVIDIA Dynamo end-to-end on AWS commodity GPUs.
+    Three experiments — co-located baseline, KV-aware routing, prefill/decode disaggregation —
+    on 4× g4dn.xlarge T4 spot instances with Dynamo v1.0.2.
+  </p>
+  <p class="meta">
+    <strong>Date:</strong> 2026-05-02 &nbsp;|&nbsp;
+    <strong>Cluster:</strong> EKS inference-phase4-5 (us-east-1a) &nbsp;|&nbsp;
+    <strong>Hardware:</strong> 4× g4dn.xlarge spot (T4 16 GB) &nbsp;|&nbsp;
+    <strong>Cost:</strong> ~$5.50 actual &nbsp;|&nbsp;
+    <strong>Model:</strong> Qwen2.5-7B-Instruct-AWQ
+  </p>
+  <div class="verdict-bar">
+    <div class="verdict-chip bad">
+      <div class="label">Headline finding</div>
+      <div class="value">~2× slower</div>
+      <div class="detail">Disaggregation regresses TTFT on AWS without RDMA. TCP-NIXL transfer cost dominates head-of-line-blocking savings.</div>
+    </div>
+    <div class="verdict-chip warn">
+      <div class="label">KV routing</div>
+      <div class="value">~noop @ 4 wkrs</div>
+      <div class="detail">Modest 11% p99 win on bursty long-prompt only. Routing payoff scales with fleet size + prefix-share ratio.</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Operability</div>
+      <div class="value">Works, with quirks</div>
+      <div class="detail">3 schema/version gotchas, 2 broken upstream charts. ~5h from terraform apply to first chat completion.</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <h2>Why this spike</h2>
+  <p class="lede">
+    Original project plan slated NVIDIA Dynamo for Phase 8 (full disaggregated inference platform).
+    Interview timing forced an earlier hands-on encounter — a 1-day, time-boxed spike to deploy
+    Dynamo on an EKS GPU fleet, exercise its three differentiating features (Smart Router,
+    disaggregation, NIXL KV transfer), and document everything that broke or was non-obvious
+    along the way.
+  </p>
+  <p>
+    A first attempt on 2026-05-01 hit the AWS spot G/VT vCPU quota wall on g5.8xlarge spot
+    (EFA-equipped). Pivoted to <strong>g4dn.xlarge T4</strong> — the same instance Phase 2-3
+    used and known-good — accepting that we'd lose the EFA / NIXL-on-RDMA story and gain
+    a spike that actually runs to completion. That trade turned out to produce a more
+    interesting finding: <em>NIXL on commodity AWS networking is a deopt, and we measured
+    the cost</em>.
+  </p>
+</section>
+
+<section>
+  <h2>Setup</h2>
+  <div class="grid">
+    <div class="card">
+      <h4>Compute</h4>
+      <div class="num">4 <small>× T4 GPUs</small></div>
+      <p style="font-size:12px;color:#8b949e;margin-top:6px;">
+        g4dn.xlarge spot, 16 GiB VRAM, 4 vCPU, 1 GPU per node. Single AZ us-east-1a.
+        $0.235/hr per node.
+      </p>
+    </div>
+    <div class="card">
+      <h4>Stack</h4>
+      <div class="num">v1.0.2</div>
+      <p style="font-size:12px;color:#8b949e;margin-top:6px;">
+        Dynamo Platform chart pinned to v1.0.2 git tag. vLLM runtime image
+        <code>nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2</code>.
+        etcd, NATS, PostgreSQL, MinIO as control-plane deps.
+      </p>
+    </div>
+    <div class="card">
+      <h4>Workloads</h4>
+      <div class="num">4 <small>profiles</small></div>
+      <p style="font-size:12px;color:#8b949e;margin-top:6px;">
+        W1 random short, W2 shared-prefix RAG, W3 bursty long-prompt mix,
+        W4 cold-start probe. ~1000 inference requests across all runs.
+      </p>
+    </div>
+  </div>
+  <p style="font-size:13px;color:#8b949e;">
+    Observability: kube-prometheus-stack with DCGM ServiceMonitor wired up.
+    Phase 3-compatible JSON output schema for results, refuses to overwrite on re-run.
+  </p>
+</section>
+
+<section>
+  <h2>Experiments</h2>
+
+  <div class="grid" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="card">
+      <h4>A — Baseline <span class="pill muted">colocated</span></h4>
+      <p style="font-size:12px;">4 vLLM workers, prefill+decode on the same GPU. Round-robin routing.
+      The reference everything else compares to.</p>
+    </div>
+    <div class="card">
+      <h4>B — KV-aware routing <span class="pill muted">colocated</span></h4>
+      <p style="font-size:12px;">Same topology as A. Frontend changed to
+      <code>--router-mode kv --router-kv-events</code>. Variable: router only.</p>
+    </div>
+    <div class="card">
+      <h4>C — Disaggregation <span class="pill warn">TCP NIXL</span></h4>
+      <p style="font-size:12px;">2 prefill + 2 decode workers, NIXL transport over TCP (no EFA).
+      Variable: topology only.</p>
+    </div>
+  </div>
+
+  <p style="font-size:13px;color:#8b949e;margin-top:8px;">
+    D (ModelExpress vs Phase 4.1 streamer) was skipped per the plan's drop-priority list once
+    A/B/C produced a clean disagg-without-EFA finding — would have needed a separate
+    ModelExpress server install for less interview value than what we already had.
+    E (speculative decoding) was dropped during planning — 7B-AWQ + 0.5B draft + KV cache too
+    tight on T4 16 GB.
+  </p>
+</section>
+
+<section>
+  <h2>Results</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Experiment</th><th>Workload</th>
+        <th class="num">Requests</th><th class="num">Errors</th>
+        <th class="num">TTFT p50</th><th class="num">TTFT p99</th>
+        <th class="num">TBT p50</th><th class="num">Throughput tok/s</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="exp-a"><td>A baseline</td><td>W1 random</td><td class="num">100</td><td class="num">0</td><td class="num">733 ms</td><td class="num">1003 ms</td><td class="num">230 ms</td><td class="num">166</td></tr>
+      <tr class="exp-a"><td>A baseline</td><td>W2 shared-prefix</td><td class="num">75</td><td class="num">0</td><td class="num">752 ms</td><td class="num">930 ms</td><td class="num">226 ms</td><td class="num">215</td></tr>
+      <tr class="exp-a"><td>A baseline</td><td>W3 bursty</td><td class="num">64</td><td class="num">16*</td><td class="num">709 ms</td><td class="num">1009 ms</td><td class="num">225 ms</td><td class="num">71</td></tr>
+      <tr class="exp-a"><td>A baseline</td><td>W4 cold-start</td><td class="num">1</td><td class="num">0</td><td class="num">493 ms</td><td class="num">493 ms</td><td class="num">219 ms</td><td class="num">2</td></tr>
+      <tr class="exp-b"><td>B KV router</td><td>W1</td><td class="num">100</td><td class="num">0</td><td class="num">735 ms</td><td class="num">1030 ms</td><td class="num">229 ms</td><td class="num">166</td></tr>
+      <tr class="exp-b"><td>B KV router</td><td>W2</td><td class="num">75</td><td class="num">0</td><td class="num">757 ms</td><td class="num">932 ms</td><td class="num">233 ms</td><td class="num">227</td></tr>
+      <tr class="exp-b"><td>B KV router</td><td>W3</td><td class="num">64</td><td class="num">16*</td><td class="num">686 ms</td><td class="num win">899 ms</td><td class="num">224 ms</td><td class="num">71</td></tr>
+      <tr class="exp-c"><td>C disagg (TCP)</td><td>W1</td><td class="num">100</td><td class="num">0</td><td class="num bad">1502 ms</td><td class="num bad">1944 ms</td><td class="num">238 ms</td><td class="num">166</td></tr>
+      <tr class="exp-c"><td>C disagg (TCP)</td><td>W2</td><td class="num">75</td><td class="num">0</td><td class="num bad">1870 ms</td><td class="num bad">2136 ms</td><td class="num">238 ms</td><td class="num">217</td></tr>
+      <tr class="exp-c"><td>C disagg (TCP)</td><td>W3</td><td class="num">64</td><td class="num">16*</td><td class="num bad">1524 ms</td><td class="num bad">1828 ms</td><td class="num">240 ms</td><td class="num">71</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:#6e7681;margin-top:4px;">
+    *W3's 16 errors are the long-prompt sub-workload exceeding <code>max-model-len 4096</code> on T4.
+    Workload-side issue, not Dynamo.
+  </p>
+</section>
+
+<section>
+  <h2>Headline finding — disaggregation regresses TTFT without RDMA</h2>
+
+  <div class="bar-chart">
+    <h3>TTFT p99 by experiment (lower is better)</h3>
+    <div class="bar-row"><div class="label">A — W1</div><div class="bar"><div class="fill a" style="width:46.4%"></div></div><div class="num">1003 ms</div></div>
+    <div class="bar-row"><div class="label">B — W1</div><div class="bar"><div class="fill b" style="width:47.7%"></div></div><div class="num">1030 ms</div></div>
+    <div class="bar-row"><div class="label">C — W1</div><div class="bar"><div class="fill c" style="width:90.0%"></div></div><div class="num">1944 ms</div></div>
+    <div class="bar-row"><div class="label">&nbsp;</div><div class="bar" style="background:transparent"></div><div class="num">&nbsp;</div></div>
+    <div class="bar-row"><div class="label">A — W2</div><div class="bar"><div class="fill a" style="width:43.0%"></div></div><div class="num">930 ms</div></div>
+    <div class="bar-row"><div class="label">B — W2</div><div class="bar"><div class="fill b" style="width:43.2%"></div></div><div class="num">932 ms</div></div>
+    <div class="bar-row"><div class="label">C — W2</div><div class="bar"><div class="fill c" style="width:98.9%"></div></div><div class="num">2136 ms</div></div>
+    <div class="bar-row"><div class="label">&nbsp;</div><div class="bar" style="background:transparent"></div><div class="num">&nbsp;</div></div>
+    <div class="bar-row"><div class="label">A — W3</div><div class="bar"><div class="fill a" style="width:46.7%"></div></div><div class="num">1009 ms</div></div>
+    <div class="bar-row"><div class="label">B — W3</div><div class="bar"><div class="fill b" style="width:41.6%"></div></div><div class="num">899 ms</div></div>
+    <div class="bar-row"><div class="label">C — W3</div><div class="bar"><div class="fill c" style="width:84.6%"></div></div><div class="num">1828 ms</div></div>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>What's happening:</strong> Disaggregation splits prefill and decode onto separate
+      g4dn nodes. Every request hits the prefill worker, KV blocks get computed, then transfer
+      over NIXL to the decode worker. Without RDMA hardware, NIXL falls back to TCP — and on
+      g4dn.xlarge's commodity 25 Gbps networking, that transfer costs ~700–1100 ms per request.
+      That's bigger than any head-of-line-blocking savings disagg is supposed to deliver.
+    </p>
+  </div>
+
+  <h3>Why this matters for the interview</h3>
+  <p>
+    The interview talking point isn't "disagg is bad." It's:
+    <strong>disagg's value is gated on RDMA-class networking, and most AWS GPU instances
+    don't have it.</strong> On bare-metal H100 clusters with InfiniBand, the same architecture
+    would likely flip to a 2× <em>win</em>. We measured the cost of the missing fabric, which
+    is exactly the AWS-specific story the spike was designed to tell.
+  </p>
+
+  <p style="font-size:13px;color:#8b949e;">
+    TBT p50 is essentially flat across all three experiments (224-240 ms) — the per-token
+    decode cost is the same regardless of topology. The hit is entirely concentrated at TTFT,
+    which is exactly where you'd expect the cross-node KV transfer to land.
+  </p>
+</section>
+
+<section>
+  <h2>KV-aware routing — modest p99 win on bursty traffic, near-noop elsewhere</h2>
+
+  <p>
+    Identical TTFT to round-robin on W1 and W2, with one outlier:
+    <strong>W3 (bursty long-prompt mix) p99 dropped from 1009 ms → 899 ms — a 11% improvement.</strong>
+    Three plausible reasons it didn't show more:
+  </p>
+  <ul>
+    <li><strong>4 workers is too few.</strong> Round-robin already lands the same request on
+      the same worker fairly often (probability 1/4), so the KV router has limited headroom
+      to optimize cache placement.</li>
+    <li><strong>W2's 2 KB shared prefix is small relative to total prefill.</strong>
+      Dynamo's router can route to a cache-warm worker, but the user-message-specific prefill
+      still dominates ~700 ms TTFT. The cache hit saves a small fraction.</li>
+    <li><strong>vLLM's per-worker prefix caching covers most of the win once a worker has seen
+      the prefix.</strong> The KV router shines when you're trying to <em>steer</em> traffic
+      to where caches exist; if engine-side caching already captures the prefix on every hit,
+      the routing layer's marginal value is small.</li>
+  </ul>
+
+  <div class="callout win">
+    <p>
+      <strong>Implication:</strong> KV-aware routing's payoff scales with fleet size and
+      prefix-share ratio. A 32-worker fleet running real RAG (longer shared prompts, more
+      worker diversity for round-robin to miss) would likely show a 2-3× larger delta than
+      what we measured at 4 workers with a 2 KB prefix.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Operator quirks that ate the most time</h2>
+
+  <h3>Worker-suffix namespace mismatch</h3>
+  <p>
+    The Dynamo operator injects <code>DYN_NAMESPACE=dynamo-system-exp-X</code> on Frontend pods,
+    but workers append a hash suffix (<code>DYN_NAMESPACE_WORKER_SUFFIX=&lt;8 hex chars&gt;</code>)
+    and register their model cards under the full <code>dynamo-system-exp-X-&lt;suffix&gt;</code>
+    Dynamo namespace. Frontend's <code>/v1/models</code> returned empty until we manually
+    overrode <code>DYN_NAMESPACE</code> on Frontend to include the worker suffix:
+  </p>
+  <pre>kubectl patch dynamographdeployment exp-a-baseline --type=merge \
+  -p '{"spec":{"services":{"Frontend":{"envs":[{"name":"DYN_NAMESPACE",
+       "value":"dynamo-system-exp-a-baseline-&lt;suffix&gt;"}]}}}}'</pre>
+  <p style="font-size:13px;color:#8b949e;">
+    Workaround is fragile — every redeploy generates a new hash, requiring a re-patch. Feels like
+    an operator bug or undocumented contract; would file an upstream issue if I were on the team.
+  </p>
+
+  <h3>Disagg requires explicit NIXL connector flag</h3>
+  <p>
+    The <code>--connector</code> flag is deprecated in v1.0.2. The new contract is:
+  </p>
+  <pre>--kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'</pre>
+  <p>
+    Old example DGDs in the v1.0.2 source don't have this. Prefill workers crash on first boot
+    with a clear error message, but the operator silently keeps both old (broken) and new
+    (patched) ReplicaSets, leading to the next quirk:
+  </p>
+
+  <h3>Stale ReplicaSet pile-up on rolling update</h3>
+  <p>
+    When patching the DGD spec, the operator created a NEW worker deployment hash but didn't
+    terminate the OLD one. Result: 6 worker pods wanted on 4 GPU nodes (anti-affinity by
+    hostname), 2 pending forever, deadlock. Fix:
+  </p>
+  <pre>kubectl delete deploy &lt;old-hash&gt;
+# OR worst-case, nuke the DGD and re-apply</pre>
+</section>
+
+<section>
+  <h2>Infrastructure surprises</h2>
+  <ul>
+    <li><span class="pill bad">AWS</span> <strong>Spot G/VT vCPU quota is per-account-per-region</strong>,
+      defaults to 32 vCPU. 4× g5.8xlarge = 128 vCPU = blocked. Karpenter's
+      <code>MaxSpotInstanceCountExceeded</code> masquerades as a transient capacity event.
+      Pre-flight check before sizing any multi-GPU spot fleet.</li>
+    <li><span class="pill bad">Bitnami</span> <strong>Mid-2025 image-hosting change broke many Helm
+      charts.</strong> Dynamo platform chart depends on <code>bitnami/etcd:3.6.4</code> which
+      404s on fresh pulls. Replaced etcd / postgres / minio with plain manifests pointing at
+      official images (<code>quay.io/coreos/etcd</code>, <code>postgres:16-alpine</code>,
+      <code>minio/minio</code>).</li>
+    <li><span class="pill warn">Dynamo</span> <strong><code>main</code> chart references image tag
+      that doesn't exist on NGC.</strong> Listed tags via NGC's unauth token endpoint; latest
+      stable image is <code>1.0.2</code>. Pinning to the <code>v1.0.2</code> git tag of the chart
+      aligned versions.</li>
+    <li><span class="pill warn">EKS</span> <strong>1.30 doesn't ship a <code>gp3</code> StorageClass
+      by default</strong> — only <code>gp2</code>. Created and patched as default; otherwise
+      the Bitnami values' <code>storageClass: gp3</code> fail with PVCs Pending forever.</li>
+    <li><span class="pill warn">Tooling</span> <strong>Cluster-guard hook didn't recognize
+      helm's <code>--kube-context</code> flag</strong> (only kubectl's <code>--context</code>).
+      Patched the regex to recognize both — reusable hook fix that survives the spike.</li>
+    <li><span class="pill muted">Misc</span> <strong>Networking blips during Terraform apply</strong>
+      (DNS lookup failures mid-create for <code>eks.us-east-1.amazonaws.com</code> and
+      <code>iam.amazonaws.com</code>) left the EKS cluster ACTIVE but TF state inconsistent.
+      Re-running <code>terraform apply</code> reconciled — except an orphan EKS cluster needed
+      manual <code>aws eks delete-cluster</code> first.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What I'd say in the interview</h2>
+  <ol style="margin-left:22px;color:#c9d1d9;">
+    <li style="margin:8px 0;"><strong>"I built and exercised Dynamo end-to-end on EKS with T4 GPUs in a few hours."</strong>
+      Schema-correct DGDs for co-located, KV-aware-routing, and disaggregated topologies; full
+      Prometheus + Grafana with DCGM scraping.</li>
+    <li style="margin:8px 0;"><strong>"I measured the cost of disaggregation without RDMA on AWS commodity instances:
+      roughly 2× TTFT regression on T4 + TCP-NIXL."</strong> Concrete numbers, three workload
+      patterns, four T4 nodes. Empirically grounded — not handwave.</li>
+    <li style="margin:8px 0;"><strong>"KV-aware routing's win scales with fleet size and prefix-share ratio."</strong>
+      Modest 11% p99 improvement at 4 workers. Natural follow-up is to repeat at 16-32 workers
+      with longer shared prefixes.</li>
+    <li style="margin:8px 0;"><strong>"The operator's discovery-namespace contract has a sharp edge."</strong>
+      Frontend's <code>DYN_NAMESPACE</code> doesn't include the worker hash suffix that workers
+      append. First-deploy <code>/v1/models</code> is empty until you patch.</li>
+    <li style="margin:8px 0;"><strong>"NIXL is portable to commodity AWS GPUs without specialized networking
+      — it just falls back to TCP, which is slow but functional."</strong> Means you can prototype
+      disagg architectures without paying for p4d/p5 hardware first.</li>
+    <li style="margin:8px 0;"><strong>"vLLM's per-worker prefix caching covers most of the KV-routing win
+      when prefixes are small."</strong> The router earns its keep on workloads where prefix
+      is large <em>or</em> the fleet is too big for round-robin to randomly hit warm workers.</li>
+    <li style="margin:8px 0;"><strong>"Time-to-first-deployment-that-served-tokens was about 5 hours."</strong>
+      Most was schema mismatches and namespace gotchas, not infrastructure provisioning.
+      Production teams adopting Dynamo should expect 2-3 days of operability investment before
+      benchmarks are meaningful.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Open questions / follow-ups</h2>
+  <ul>
+    <li><strong>NIXL EFA performance on AWS</strong> — out of scope after the T4 pivot.
+      Would need g5.8xlarge or g6.8xlarge (EFA-equipped) to measure properly.
+      Candidate for a future Phase 4.6: even half a day on EFA hardware would close the
+      disagg-economics question.</li>
+    <li><strong>KV router behavior at higher concurrency / fleet size</strong> — measured at
+      4 workers and 1.5–2 req/s. Production-scale (32 workers, 50+ req/s) would likely show
+      a larger router delta.</li>
+    <li><strong>ModelExpress vs Phase 4.1 streamer head-to-head</strong> — skipped (Experiment D).</li>
+    <li><strong>Speculative decoding on T4</strong> — dropped during planning;
+      7B-AWQ + 0.5B + KV cache too tight on 16 GB. Future spike on 24 GB+ GPUs unlocks E.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>One-line CV summary</h2>
+  <div class="callout muted">
+    <p style="color:#e6edf3;font-size:14px;">
+      Built a Dynamo-on-EKS hands-on lab on AWS commodity T4 GPUs; measured prefill/decode
+      disaggregation regressing TTFT by ~2× on TCP-fallback NIXL (vs. RDMA), and quantified
+      KV-aware routing as a near-noop at 4-worker scale with modest p99 wins on bursty
+      long-prompt traffic.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Phase 4.5 of the LLM Inference Learning Lab. Raw result JSONs in
+  <code>phase4.5/tests/exp-*-results.json</code>. Full design + research at
+  <code>phase4.5/{design,research,learnings}.md</code>.
+</footer>
+
+</body>
+</html>

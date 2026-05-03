@@ -1,0 +1,28 @@
+# nats-io/nats values — single-replica with JetStream enabled.
+# JetStream is the durable subsystem Dynamo's KV-event channel uses;
+# without it, the Smart Router can't subscribe reliably.
+config:
+  cluster:
+    enabled: false  # single replica, no clustering for spike
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: true
+      pvc:
+        size: 5Gi
+        storageClassName: gp3
+
+container:
+  merge:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+# Expose for in-cluster Dynamo workers to publish KV events to.
+# No external exposure — control plane traffic only.
+service:
+  enabled: true

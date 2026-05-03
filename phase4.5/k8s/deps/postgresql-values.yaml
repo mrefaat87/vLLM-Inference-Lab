@@ -1,0 +1,18 @@
+# bitnami/postgresql values — single-replica, ephemeral.
+# Backs the Dynamo API Store (model registry, deployment metadata).
+auth:
+  postgresPassword: "phase45-spike-only"   # spike-grade; rotate for prod
+  database: "dynamo"
+
+primary:
+  persistence:
+    enabled: true
+    storageClass: gp3
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi

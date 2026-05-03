@@ -1,0 +1,55 @@
+{
+  "strategy": "unknown",
+  "workload": "w4_cold_start",
+  "config": {
+    "endpoint": "http://localhost:8000",
+    "metrics_endpoint": null,
+    "workload": "w4_cold_start",
+    "rate": 1.0,
+    "duration": 5.0,
+    "warmup": 0.0,
+    "drain": 0.0,
+    "seed": 42
+  },
+  "analysis": {
+    "steady_state_requests": 1,
+    "steady_state_errors": 0,
+    "total_requests": 1,
+    "total_errors": 0,
+    "ttft": {
+      "p50": 0.4929,
+      "p95": 0.4929,
+      "p99": 0.4929
+    },
+    "tbt_client": {
+      "p50": 0.219,
+      "p95": 0.219,
+      "p99": 0.219
+    },
+    "total_sec": {
+      "p50": 2.4638,
+      "p95": 2.4638,
+      "p99": 2.4638
+    },
+    "throughput": {
+      "total_tokens": 10,
+      "tok_per_sec_avg": 2.0
+    }
+  },
+  "raw_results": [
+    {
+      "request_id": 0,
+      "label": "W4-COLD",
+      "submit_offset_sec": 2.8332999999991504e-05,
+      "client_ttft_sec": 0.49288254200000003,
+      "client_total_sec": 2.463841083,
+      "tokens_out": 10,
+      "client_avg_tbt_sec": 0.2189873055555555,
+      "error": null,
+      "routed_worker": null,
+      "cache_hit_blocks": null,
+      "nixl_transfer_ms": null
+    }
+  ],
+  "dynamo_metrics": {}
+}

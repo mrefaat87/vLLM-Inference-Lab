@@ -1,0 +1,40 @@
+# Phase 4.5 Dynamo Platform values — operator-only install pointing at our
+# already-deployed etcd + NATS in dynamo-system.
+global:
+  etcd:
+    install: false   # we deployed quay.io/coreos/etcd ourselves
+  kai-scheduler:
+    install: false
+  grove:
+    install: false
+
+# Disable bundled NATS subchart — we deployed nats/nats Helm chart ourselves.
+nats:
+  enabled: false
+
+# Disable bundled etcd subchart (also covered by global.etcd.install=false)
+etcd:
+  enabled: false
+
+dynamo-operator:
+  enabled: true
+  upgradeCRD: true   # apply CRDs as part of install
+
+  # Point operator at our existing services in the same namespace.
+  # NATS uses the headless service name from the nats Helm chart.
+  natsAddr: "nats://nats.dynamo-system.svc.cluster.local:4222"
+  etcdAddr: "http://etcd.dynamo-system.svc.cluster.local:2379"
+
+  # Tell the operator nats is available externally.
+  nats:
+    enabled: true
+
+  # Disable the bundled webhook cert-manager dance for the spike — we don't
+  # have cert-manager installed and DGD admission validation isn't critical
+  # for the experiments. If the operator requires it, we'll re-enable.
+  webhook:
+    certManager:
+      enabled: false
+
+  controllerManager:
+    replicas: 1

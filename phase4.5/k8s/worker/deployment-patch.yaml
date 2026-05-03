@@ -1,0 +1,443 @@
+# deployment-patch.yaml — Phase 4 strategic merge patch for vllm-worker.
+#
+# WHAT THIS DOES: Modifies the Phase 1 base Deployment with:
+#   1. EBS snapshot model cache via hostPath (Pillar 4: zero-download cold start)
+#   2. S3 fallback in init container if snapshot not available
+#   3. preStop hook on vllm-server (Pillar 5: keep vLLM alive during drain)
+#   4. terminationGracePeriodSeconds: 180 (Pillar 5: drain window)
+#   5. envFrom ConfigMap on queue-worker (Pillar 1: externalized config)
+#   6. Updated queue-worker image to phase4v2 tag (EBS cache + warmup + drain)
+#
+# APPLY: kubectl apply -f phase4.5/k8s/worker/deployment-patch.yaml
+# This is a FULL deployment (not a patch), because strategic merge patches
+# for containers require the full container spec. It replaces the Phase 1
+# Deployment entirely.
+#
+# INIT CONTAINER FLOW (tiered model loading):
+#   1. Pod scheduled on GPU node by Karpenter
+#   2. init container (aws-cli) runs first, checks three sources in order:
+#      a. EBS snapshot hostPath (/mnt/model-cache) — model pre-loaded on volume (~0s)
+#      b. Previous pod's download on same node (hostPath persists) (~0s)
+#      c. S3 fallback download (~15-20s same-region)
+#   3. vLLM server starts, finds weights in /root/.cache/huggingface
+#   4. vLLM loads weights into GPU (~30s) — no HuggingFace download needed
+#
+# EXPECTED COLD START IMPROVEMENT:
+#   Phase 2 baseline:       ~300s (60s HF download + 30s GPU load + 210s infra)
+#   Phase 4 with S3:        ~255s (20s S3 download + 30s GPU load + 205s infra)
+#   Phase 4v2 with snapshot: ~235s (0s EBS mount + 30s GPU load + 205s infra)
+#   Savings over baseline:  ~65s per cold start
+#
+# PHASE 4v3 CHANGES (readiness + SOCI):
+#   7. Startup probe on vLLM — replaces fixed initialDelaySeconds: 120. Detects
+#      model readiness the instant /health returns 200, not after a blind wait.
+#      ANALOGY: like EC2 instance status checks — start immediately, succeed on
+#      first passing check, no fixed initialDelay timer.
+#   8. Readiness probe on queue-worker — file-based check for /tmp/worker-ready.
+#      Created after warmup completes. Pod is NOT ready until both vLLM model
+#      is loaded AND CUDA kernels are compiled. Prevents rolling update from
+#      killing old pod before new pod is truly serving.
+#      ANALOGY: ELB health check on the application, not just the instance.
+#   9. SOCI lazy image loading — containerd starts vLLM before full decompression.
+#      Reduces 110s image unpack to ~10-20s. See phase4.5/scripts/setup-soci.sh.
+#
+# COLD START TIMELINE WITH v3:
+#   Node provision (Karpenter + Spot):   ~90s
+#   Image lazy load (SOCI):              ~15s  (was ~110s)
+#   Init container (S3/snapshot):        ~20s  (overlaps with lazy load background fetch)
+#   vLLM model loading to GPU:           ~30s
+#   Startup probe detects health:         ~5s  (was 120s fixed delay)
+#   Worker warmup (CUDA compilation):    ~30s
+#   Readiness file created:               ~0s  (immediate after warmup)
+#   ─────────────────────────────────────────
+#   Total estimated:                    ~190s  (was ~400s)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-worker
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 1
+  # WHY 1: KEDA controls the actual replica count. This is the initial value
+  # before KEDA takes over. Set to 1 = always 1 warm worker on deploy.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm-worker
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: inference
+    spec:
+      serviceAccountName: vllm-worker
+      # WHY service account: IRSA lets this pod assume an IAM role for S3 access
+      # (init container model download) and ECR (image pull). Same as EC2 instance profile.
+
+      terminationGracePeriodSeconds: 180
+      # WHY 180s (up from 60s in Phase 1): a max_tokens=4096 generation at ~32 tok/s
+      # takes ~128 seconds. Adding 52s safety margin gives 180s. This is the hard
+      # deadline — after 180s, Kubernetes sends SIGKILL.
+      # The worker's DRAIN_TIMEOUT (170s) is 10s shorter to allow connection cleanup.
+      # Analogy: ALB deregistration delay — how long to wait for active connections.
+
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /mnt/model-cache
+            type: DirectoryOrCreate
+            # WHY hostPath (replacing emptyDir): Karpenter nodes now boot with an
+            # EBS snapshot pre-loaded with model weights, mounted at /mnt/model-cache
+            # via EC2NodeClass userData. hostPath exposes this node-level mount into
+            # the pod. If the snapshot volume isn't available (fallback), DirectoryOrCreate
+            # ensures the directory exists and the init container downloads from S3.
+            # ANALOGY: like using an EBS volume attached to an EC2 instance via launch
+            # template instead of downloading data on each boot.
+        - name: compile-cache
+          hostPath:
+            path: /mnt/compile-cache
+            type: DirectoryOrCreate
+            # WHY hostPath for compilation cache: vLLM V1 engine writes compiled
+            # Triton kernels, torch.compile FX graphs, and CUDA graph captures to
+            # ~/.cache/vllm/. These are GPU-architecture-specific and take 7-30s to
+            # generate. By persisting them to the host's /mnt/compile-cache:
+            #   - Pod restarts on the same node reuse compiled kernels (0s vs 30s)
+            #   - Karpenter places the new pod on the same node → cache hit
+            #   - Different GPU architecture (T4 vs A10G) → cache miss (safe, recompiles)
+            # ANALOGY: Lambda SnapStart or EC2 instance store cache — ephemeral per-node
+            # but dramatically faster for repeat deployments on the same hardware.
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+            # WHY /dev/shm: PyTorch shared memory for inter-process communication.
+
+      # ────────────────────────────────────────────────────
+      # Phase 4: S3 model cache init container
+      # ────────────────────────────────────────────────────
+      initContainers:
+        - name: model-download
+          image: amazon/aws-cli:2.15.0
+          # WHY aws-cli image: lightweight (~150MB), has aws s3 sync built in.
+          # No need for a custom image — just a download utility.
+          command:
+            - sh
+            - -c
+            - |
+              MODEL_DIR="/model-cache/models--Qwen--Qwen2.5-7B-Instruct-AWQ"
+
+              # ── Check 1: EBS snapshot (hostPath) ──────────────────────────
+              # WHY check hostPath first: if the node booted with a snapshot-backed
+              # EBS volume (created by create-model-snapshot.sh), model weights are
+              # already at /mnt/model-cache (exposed as /model-cache via hostPath).
+              # This is the fastest path — zero download, zero network I/O.
+              if [ -d "${MODEL_DIR}/snapshots" ] || [ -d "${MODEL_DIR}/refs" ]; then
+                echo "Model found on EBS snapshot volume — skipping download"
+                echo "Source: hostPath /mnt/model-cache (pre-loaded EBS snapshot)"
+                ls -la "${MODEL_DIR}/"
+                echo "Total size: $(du -sh ${MODEL_DIR}/ | cut -f1)"
+                exit 0
+              fi
+
+              # ── Check 2: previous pod on same node (hostPath persists) ────
+              # WHY second check: even without the snapshot, hostPath persists across
+              # pod restarts on the same node. A previous pod may have downloaded
+              # from S3 and the files are still on the host filesystem.
+              if [ -f "${MODEL_DIR}/config.json" ]; then
+                echo "Model found from previous pod — skipping download"
+                ls -la "${MODEL_DIR}/"
+                exit 0
+              fi
+
+              # ── Fallback: download from S3 ────────────────────────────────
+              echo "No pre-loaded model found. Downloading from S3..."
+              echo "Bucket: ${MODEL_CACHE_BUCKET}"
+              echo "Start time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+              # WHY || exit 0: if the S3 bucket doesn't exist or download fails,
+              # exit gracefully. vLLM will fall back to downloading from HuggingFace
+              # Hub (slower, but works). This makes the init container a best-effort
+              # optimization rather than a hard dependency.
+              if ! aws s3 sync \
+                "s3://${MODEL_CACHE_BUCKET}/Qwen/Qwen2.5-7B-Instruct-AWQ/" \
+                "${MODEL_DIR}/" \
+                --no-progress \
+                --only-show-errors 2>&1; then
+                echo "WARNING: S3 download failed — vLLM will download from HuggingFace instead"
+                echo "Run phase4.5/scripts/upload-model-to-s3.sh to enable S3 caching"
+                exit 0
+              fi
+
+              echo "Download complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "Model files:"
+              ls -la "${MODEL_DIR}/"
+              echo "Total size: $(du -sh ${MODEL_DIR}/ | cut -f1)"
+          env:
+            - name: MODEL_CACHE_BUCKET
+              value: "inference-lab-model-cache"
+              # PLACEHOLDER: replace with your actual S3 bucket name.
+              # The upload-model-to-s3.sh script creates and populates this bucket.
+          volumeMounts:
+            - name: model-cache
+              mountPath: /model-cache
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+              # WHY modest: init container is I/O-bound (downloading from S3).
+              # 500m CPU is enough to drive the network transfer.
+            limits:
+              cpu: "1"
+              memory: 1Gi
+
+      containers:
+        # ──────────────────────────────────────────────
+        # Container 1: vLLM inference server
+        # ──────────────────────────────────────────────
+        - name: vllm-server
+          image: vllm/vllm-openai:v0.19.0
+          # WHY v0.19.0 (up from v0.4.1): all Phase 4v3 optimizations require v0.7.0+.
+          # Run:ai Model Streamer (v0.6.4+), CUDA graph size limiting (v0.7.0+),
+          # Sleep Mode (v0.7.0+), V1 engine (v0.8.0+ default). v0.19.0 is latest
+          # stable as of April 2026. AWQ + Qwen2.5-7B + T4 fully supported.
+          # ANALOGY: like upgrading your ASG launch template to the latest AMI —
+          # you get all the new instance features (Nitro, enhanced networking).
+
+          args:
+            - --model
+            - Qwen/Qwen2.5-7B-Instruct-AWQ
+            - --quantization
+            - awq
+            - --max-model-len
+            - "4096"
+            - --gpu-memory-utilization
+            - "0.85"
+            # WHY no --enforce-eager: v0.4.1 used --enforce-eager to skip CUDA graph
+            # capture (54s compilation on first request). With v0.19.0 we get:
+            #   1. Compilation cache on hostPath → pay compilation cost once per node
+            #   2. CUDA graphs provide ~30% faster inference at runtime
+            # Net: first cold start on a new node is slightly slower (7s graph capture
+            # with size limiting), but every subsequent start is free and runtime is
+            # 30% faster. Like pre-compiling Lambda functions — first invoke is slow,
+            # but all subsequent invokes benefit from the warm cache.
+            # NOTE: --load-format runai_streamer requires pip install runai-model-streamer
+            # which is NOT in the stock vLLM image. To enable:
+            #   1. Build custom vLLM image with: pip install runai-model-streamer runai-model-streamer-s3
+            #   2. Uncomment the flags below
+            # Without it, vLLM uses the default safetensors loader (~48s vs ~14s with streamer).
+            # - --load-format
+            # - runai_streamer
+            # NOTE: --enable-sleep-mode temporarily disabled to diagnose CrashLoopBackOff.
+            # Re-enable after verifying base vLLM v0.19.0 starts cleanly.
+            # - --enable-sleep-mode
+            # WHY sleep mode: keeps vLLM process alive with CUDA context, JIT kernels,
+            # and CUDA graphs preserved when GPU memory is freed. Wake-up from L1 sleep
+            # takes 0.3-0.9s vs ~295s full cold start. The queue-worker calls /sleep
+            # after SLEEP_IDLE_TIMEOUT seconds of no traffic, and /wake_up when a new
+            # message arrives. GPU VRAM is freed during sleep — although on dedicated
+            # EC2 instances this doesn't save money (billing is per-instance, not per-GPU-second),
+            # it eliminates cold start latency when traffic resumes after idle gaps.
+            # ANALOGY: EC2 hibernate — same instance, same warm caches, just paused.
+            # Cost note: on EC2, sleep mode is a LATENCY optimization, not a cost
+            # optimization. Cost savings come from multi-model GPU packing or serverless
+            # platforms that bill per GPU-second.
+            - --port
+            - "8000"
+
+          ports:
+            - name: http
+              containerPort: 8000
+
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+                  optional: true
+            # WHY TRANSFORMERS_CACHE: tell HuggingFace library to look in the
+            # volume where the init container placed the model weights.
+            - name: TRANSFORMERS_CACHE
+              value: /root/.cache/huggingface
+            - name: HF_HOME
+              value: /root/.cache/huggingface
+            # NOTE: VLLM_SERVER_DEV_MODE temporarily disabled (sleep mode disabled)
+            # - name: VLLM_SERVER_DEV_MODE
+            #   value: "1"
+            - name: TORCH_CUDA_ARCH_LIST
+              value: "7.5"
+              # WHY pin to 7.5: T4 GPU is compute capability 7.5. Without this,
+              # PyTorch JIT-compiles kernels for all supported architectures on first
+              # inference. Pinning to 7.5 skips compilation for 8.0 (A100), 8.6 (A10G),
+              # 9.0 (H100), etc. Saves variable time on first-run compilation.
+              # Must change if deploying to g5 (A10G = 8.0) or p4d (A100 = 8.0).
+            # NOTE: RUNAI_STREAMER_CONCURRENCY only applies when --load-format runai_streamer
+            # is enabled (requires custom vLLM image with runai-model-streamer pip package).
+            # - name: RUNAI_STREAMER_CONCURRENCY
+            #   value: "16"
+
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+              cpu: "2"
+              memory: 12Gi
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "4"
+              memory: 12Gi
+
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+            - name: compile-cache
+              mountPath: /root/.cache/vllm
+              # WHY separate volume: compiled Triton kernels, torch.compile artifacts,
+              # and CUDA graph captures are written to ~/.cache/vllm/ by V1 engine.
+              # Mounting this to a hostPath means compiled kernels survive pod restarts
+              # on the same node. Second cold start skips compilation entirely (~30s saved).
+              # ANALOGY: Lambda SnapStart — pre-initialized execution environment cached
+              # across invocations. First invoke compiles, subsequent invokes reuse.
+            - name: shm
+              mountPath: /dev/shm
+
+          # Phase 4: preStop hook keeps vLLM alive while queue-worker drains
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "15"]
+                # WHY sleep 15: Kubernetes sends SIGTERM to ALL containers simultaneously.
+                # The queue-worker needs vLLM alive on localhost to finish in-flight
+                # streaming responses. This 15s delay ensures vLLM outlives the worker's
+                # initial drain phase. After 15s, vLLM receives SIGTERM and shuts down.
+                # The worker's DRAIN_TIMEOUT (170s) handles the rest.
+                # Analogy: keeping the backend server running while the proxy drains connections.
+
+          # Phase 4v3: startup probe replaces initialDelaySeconds on readiness/liveness.
+          # K8s startup probes run INSTEAD OF liveness/readiness until they succeed.
+          # This prevents liveness from killing vLLM during slow model loading (30-60s),
+          # while detecting readiness the instant /health returns 200.
+          # ANALOGY: EC2 StatusCheckFailed_Instance — check immediately, succeed on
+          # first pass, no fixed timer. initialDelaySeconds was like setting a mandatory
+          # InService warmup even when the instance was ready in 30s.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+            # WHY 5s × 60 = 300s max: generous ceiling for model loading.
+            # vLLM typically loads in 30-40s, so this succeeds on attempt ~7-8.
+            # The extra headroom covers edge cases (slow EBS, large models).
+            # Once this passes, readiness and liveness probes activate.
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            # WHY no initialDelaySeconds: the startup probe covers the slow-start
+            # window. Once startup passes, vLLM is already healthy, so the first
+            # readiness check passes immediately. This eliminates the old 120s
+            # fixed delay that wasted time even when vLLM was ready in 40s.
+            periodSeconds: 10
+            failureThreshold: 3
+            # WHY 3 (down from 30): after startup passes, vLLM is stable.
+            # 3 × 10s = 30s to detect a mid-run failure. The old failureThreshold: 30
+            # was only high to cover cold start — startup probe handles that now.
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            # WHY no initialDelaySeconds: same reasoning as readiness. The startup
+            # probe protects against premature liveness kills during model loading.
+            periodSeconds: 30
+            failureThreshold: 3
+            # WHY 3 × 30s = 90s: if vLLM is unresponsive for 90s after being healthy,
+            # something is fundamentally wrong — restart the container.
+
+        # ──────────────────────────────────────────────
+        # Container 2: Queue worker sidecar (Phase 4)
+        # ──────────────────────────────────────────────
+        - name: queue-worker
+          image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/worker:phase4v3
+          # WHY :phase4v3 tag (not :latest): enables rollback to phase4v2 without ambiguity.
+          # phase4v3 adds: readiness file signal (/tmp/worker-ready after warmup).
+          # phase4v2 had: EBS snapshot model cache, model warmup, updated drain logic.
+
+          env:
+            # Connection strings — NOT from ConfigMap because they're infrastructure
+            # endpoints, not tunable scaling parameters.
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "inference"
+            - name: RABBITMQ_PASS
+              value: "inference123"
+              # TODO: move credentials to Kubernetes Secrets
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: VLLM_HOST
+              value: "localhost"
+            - name: VLLM_PORT
+              value: "8000"
+            - name: VLLM_MODEL
+              value: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+
+          # Phase 4: scaling parameters from the unified ConfigMap.
+          # This replaces the hardcoded PREFETCH_COUNT, GPU_CACHE_THRESHOLD, etc.
+          # from Phase 1. Changing the ConfigMap + restarting the pod applies new values.
+          envFrom:
+            - configMapRef:
+                name: scaling-config
+                # WHY envFrom: injects ALL keys from the ConfigMap as env vars.
+                # The worker reads ADMISSION_STRATEGY, GPU_CACHE_THRESHOLD, MAX_BATCH_SIZE,
+                # PREFETCH_COUNT, DRAIN_TIMEOUT, and per-request constants from env.
+                # KEDA_* keys are also injected but ignored by the worker (only used
+                # by the ScaledObject YAML and test harness).
+
+          # Phase 4v3: readiness probe on the queue-worker sidecar.
+          # The pod is ready when ALL containers pass readiness. This probe ensures
+          # the pod isn't marked ready until the worker's warmup completes (CUDA
+          # kernel compilation). Without this, rolling updates would kill the old
+          # pod as soon as vLLM is healthy, before warmup finishes — creating a
+          # gap where no worker is actually consuming from the queue.
+          # ANALOGY: ELB health check on the application endpoint, not just TCP port.
+          # The instance might have a listening socket (vLLM healthy) but the app
+          # isn't ready to serve (warmup incomplete).
+          readinessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/worker-ready"]
+              # WHY file-based (not HTTP): the worker is a queue consumer, not a web
+              # server. Adding an HTTP server just for health checks would be over-
+              # engineering. The file is created after warmup and lives in the
+              # container's ephemeral filesystem — automatically cleaned on restart.
+            periodSeconds: 5
+            failureThreshold: 90
+            # WHY 5s × 90 = 450s: covers vLLM startup (up to 300s via startup probe)
+            # + warmup (~30s) + safety margin. The worker creates /tmp/worker-ready
+            # right after warmup completes, so this typically passes within 5s of
+            # warmup finishing. The high failureThreshold prevents the container from
+            # being killed during the wait — it's the queue-worker's equivalent of
+            # the vLLM startup probe.
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

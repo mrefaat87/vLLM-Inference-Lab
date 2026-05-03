@@ -1,0 +1,128 @@
+# Experiment C — Disaggregation (2 prefill + 2 decode)
+#
+# Variable changed from A: topology only.
+#   - 4 co-located workers → 2 prefill + 2 decode workers
+#   - vLLM `--disaggregation-mode {prefill,decode}` flag splits responsibility
+#   - Frontend router stays round-robin (intentionally — isolates topology
+#     from routing per design)
+#
+# Reference: /tmp/dynamo-v102/tests/planner/perf_test_configs/disagg_8b_2p2d.yaml
+apiVersion: nvidia.com/v1alpha1
+kind: DynamoGraphDeployment
+metadata:
+  name: exp-c-disagg
+  namespace: dynamo-system
+  labels:
+    phase: phase4-5
+    experiment: C
+    variable: disaggregation
+spec:
+  services:
+    Frontend:
+      componentType: main
+      replicas: 1
+      envs:
+        # Will be patched post-deploy with the worker-suffixed namespace.
+        - { name: DYN_NAMESPACE, value: "PLACEHOLDER_WILL_BE_PATCHED" }
+      livenessProbe:
+        httpGet: { path: /health, port: 8000 }
+        initialDelaySeconds: 20
+        periodSeconds: 5
+      readinessProbe:
+        exec:
+          command:
+            - /bin/sh
+            - -c
+            - 'curl -s http://localhost:8000/health | jq -e ".status == \"healthy\""'
+        initialDelaySeconds: 60
+        periodSeconds: 60
+      resources:
+        requests: { cpu: "200m", memory: "512Mi" }
+        limits:   { cpu: "1",    memory: "1Gi" }
+      extraPodSpec:
+        tolerations:
+          - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+        mainContainer:
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - "python3 -m dynamo.frontend --http-port 8000 --kv-cache-block-size 128"
+
+    VllmPrefillWorker:
+      componentType: worker
+      replicas: 2
+      livenessProbe:
+        httpGet: { path: /live, port: 9090 }
+        periodSeconds: 5
+      readinessProbe:
+        httpGet: { path: /health, port: 9090 }
+        periodSeconds: 10
+        failureThreshold: 60
+      resources:
+        requests: { cpu: "2", memory: "8Gi", gpu: "1" }
+        limits:   { cpu: "4", memory: "12Gi", gpu: "1" }
+      envs:
+        - { name: DYN_SYSTEM_PORT, value: "9090" }
+        - { name: DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS, value: '["generate"]' }
+      extraPodSpec:
+        tolerations:
+          - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+        mainContainer:
+          startupProbe:
+            httpGet: { path: /health, port: 9090 }
+            periodSeconds: 10
+            failureThreshold: 90
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              python3 -m dynamo.vllm
+              --model Qwen/Qwen2.5-7B-Instruct-AWQ
+              --quantization awq
+              --max-model-len 4096
+              --gpu-memory-utilization 0.9
+              --disaggregation-mode prefill --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+              --block-size 128
+              --no-enable-prefix-caching
+              2>&1 | tee /tmp/vllm.log
+
+    VllmDecodeWorker:
+      componentType: worker
+      replicas: 2
+      livenessProbe:
+        httpGet: { path: /live, port: 9090 }
+        periodSeconds: 5
+      readinessProbe:
+        httpGet: { path: /health, port: 9090 }
+        periodSeconds: 10
+        failureThreshold: 60
+      resources:
+        requests: { cpu: "2", memory: "8Gi", gpu: "1" }
+        limits:   { cpu: "4", memory: "12Gi", gpu: "1" }
+      envs:
+        - { name: DYN_SYSTEM_PORT, value: "9090" }
+        - { name: DYN_SYSTEM_USE_ENDPOINT_HEALTH_STATUS, value: '["generate"]' }
+      extraPodSpec:
+        tolerations:
+          - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+        mainContainer:
+          startupProbe:
+            httpGet: { path: /health, port: 9090 }
+            periodSeconds: 10
+            failureThreshold: 90
+          image: nvcr.io/nvidia/ai-dynamo/vllm-runtime:1.0.2
+          workingDir: /workspace/examples/backends/vllm
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              python3 -m dynamo.vllm
+              --model Qwen/Qwen2.5-7B-Instruct-AWQ
+              --quantization awq
+              --max-model-len 4096
+              --gpu-memory-utilization 0.9
+              --disaggregation-mode decode --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+              --block-size 128
+              --no-enable-prefix-caching
+              2>&1 | tee /tmp/vllm.log

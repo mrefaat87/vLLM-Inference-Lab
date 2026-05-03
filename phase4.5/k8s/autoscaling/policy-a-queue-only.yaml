@@ -1,0 +1,87 @@
+# policy-a-queue-only.yaml — KEDA ScaledObject: queue depth only, value=5.
+#
+# POLICY A (BASELINE): Scale workers based solely on RabbitMQ queue depth.
+# This is the Phase 2 approach with maxReplicaCount raised to 4.
+#
+# SCALING FORMULA: desiredReplicas = ceil(currentQueueLength / value)
+#   - queue=4  -> ceil(4/5)  = 1 replica (no scale-up)
+#   - queue=6  -> ceil(6/5)  = 2 replicas
+#   - queue=11 -> ceil(11/5) = 3 replicas
+#   - queue=16 -> ceil(16/5) = 4 replicas (max)
+#
+# WHY VALUE=5: matches prefetch_count — if queue exceeds what 1 worker can hold,
+# messages are accumulating. Conservative: waits until there's clear evidence of
+# overload before scaling.
+#
+# ANALOGY: ASG scaling on SQS ApproximateNumberOfMessagesVisible with a step
+# scaling policy. Queue > 5 = add worker, queue = 0 for 180s = remove worker.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-worker-scaler
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-scaler
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+    scaling-policy: queue-only
+spec:
+  scaleTargetRef:
+    name: vllm-worker
+
+  minReplicaCount: 1
+  # WHY min 1: always keep 1 warm worker. Scale-to-zero takes 5 min to recover.
+
+  maxReplicaCount: 4
+  # WHY 4: cost guardrail matching Karpenter NodePool limits (32 CPU / 128Gi).
+
+  pollingInterval: 15
+  # WHY 15s: balance responsiveness vs RabbitMQ broker load.
+
+  cooldownPeriod: 300
+  # WHY 300s (up from 180s): cooldown must exceed scale-up latency. With Phase 2's
+  # 60s cooldown, KEDA scaled workers back down before they finished loading the model.
+  # The queue drained in ~30s, and 60s later KEDA killed the new worker mid-boot.
+  # Rule of thumb: cooldown >= 2x scale-up latency. With pre-baked AMI + S3 init,
+  # scale-up is ~165s, so 300s provides ~2x safety margin. Without AMI optimization,
+  # scale-up is ~300s, and the 300s stabilizationWindow + 300s cooldown = 600s total
+  # protection — sufficient for even worst-case cold starts.
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          # WHY 60s: require 60s of sustained queue pressure before adding a worker.
+          # Prevents scaling on transient spikes that drain in under a minute.
+          # Analogy: ASG scaling policy with a 60s alarm evaluation period.
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+              # WHY 1 pod per 60s: scale up gradually, 1 worker at a time.
+              # Each new worker needs a GPU node (~5 min). Requesting 2 simultaneously
+              # doubles the Spot request pressure without benefiting latency sooner.
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          # WHY 300s: require 5 min of calm before removing a worker. Longer than
+          # scale-up because scale-down is harder to reverse (5 min cold start).
+          # Analogy: ASG cooldown for scale-in — always longer than scale-out.
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+              # WHY 1 pod per 120s: scale down 1 worker at a time, every 2 min.
+              # Prevents removing all excess capacity at once.
+
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: inference_queue
+        mode: QueueLength
+        value: "5"
+        activationValue: "3"
+        # WHY activationValue 3: minimum queue depth before scaling starts.
+        # Prevents scaling on tiny transient bursts (1-2 requests).
+      authenticationRef:
+        name: rabbitmq-trigger-auth
