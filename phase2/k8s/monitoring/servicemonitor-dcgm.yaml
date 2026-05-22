@@ -1,0 +1,34 @@
+# servicemonitor-dcgm.yaml — Tell Prometheus to scrape GPU hardware metrics.
+#
+# WHAT THIS SCRAPES: DCGM Exporter on port 9400:
+#   - DCGM_FI_DEV_GPU_UTIL      — SM compute utilization %
+#   - DCGM_FI_DEV_MEM_COPY_UTIL — Memory bandwidth utilization % (decode bottleneck)
+#   - DCGM_FI_DEV_FB_USED       — VRAM used (MiB)
+#   - DCGM_FI_DEV_FB_FREE       — VRAM free (MiB)
+#   - DCGM_FI_DEV_GPU_TEMP      — Temperature (Celsius)
+#   - DCGM_FI_DEV_POWER_USAGE   — Power draw (watts)
+#
+# WHY THESE METRICS MATTER FOR INFERENCE:
+#   GPU_UTIL high + MEM_COPY_UTIL low = prefill phase (compute-bound)
+#   GPU_UTIL low + MEM_COPY_UTIL high = decode phase (memory-bandwidth-bound)
+#   Both high = GPU saturated — adding more concurrent requests degrades latency
+#   Both low = GPU underutilized — room for more work
+#
+# A T4 has 320 GB/s memory bandwidth. Reading 4GB AWQ weights at 32 tok/s = ~128 GB/s
+# = ~40% bandwidth utilization just for weights. This is THE bottleneck for decode.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dcgm-exporter-metrics
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: dcgm-exporter
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

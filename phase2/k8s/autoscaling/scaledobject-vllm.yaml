@@ -1,0 +1,94 @@
+# scaledobject-vllm.yaml — KEDA autoscaler for vLLM GPU workers.
+#
+# WHAT THIS DOES: Watches RabbitMQ queue depth and scales the vllm-worker
+# Deployment between 1 and 2 replicas. When queue depth exceeds 5 messages,
+# KEDA triggers a scale-up. When queue is empty for 60s, it scales back down.
+#
+# SCALING FLOW:
+#   1. Load arrives → queue depth grows past 5
+#   2. KEDA sets vllm-worker replicas from 1 → 2
+#   3. New pod is Pending (needs a GPU)
+#   4. Karpenter provisions a new g4dn.xlarge Spot node (~60-90s)
+#   5. NVIDIA device plugin DaemonSet starts on new node
+#   6. vLLM pod schedules, model downloads + loads (~2-4 min)
+#   7. Second worker starts consuming from RabbitMQ
+#   8. Queue drains, depth drops to 0
+#   9. After 60s of depth=0, KEDA scales back to 1
+#   10. Empty GPU node consolidated by Karpenter after 60s
+#
+# ANALOGY: This is an ASG scaling policy watching SQS ApproximateNumberOfMessagesVisible.
+#   - ScaleTargetRef = ASG name
+#   - minReplicaCount = MinSize
+#   - maxReplicaCount = MaxSize
+#   - value: 5 = threshold (like "scale out when queue > 5")
+#   - cooldownPeriod = cooldown period (prevent flapping)
+#
+# WHY queue_depth > 5:
+#   The worker's prefetch_count is 5 — it holds up to 5 unacked messages.
+#   When total queue depth exceeds 5, messages are accumulating beyond what
+#   a single worker can absorb → second worker would help.
+#   From Phase 1 load test: N=5 had queue_wait=6ms (fine), N=15 had 12s (not fine).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-worker-scaler
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-scaler
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    name: vllm-worker
+    # WHY target vllm-worker Deployment: KEDA adjusts the Deployment's replica count.
+    # Each replica is a full sidecar pod (vLLM server + queue worker) that requires
+    # a dedicated GPU. Increasing replicas from 1→2 triggers Karpenter to provision
+    # a new GPU node for the second pod.
+
+  minReplicaCount: 1
+  # WHY min 1: always keep at least one GPU worker warm. Scaling to 0 would save
+  # cost but cold-start from 0 takes 3-5 min (Spot node + model load) — unacceptable
+  # for any real-time traffic.
+
+  maxReplicaCount: 2
+  # WHY max 2: cost guardrail. The Karpenter NodePool limits are 16 CPU / 64Gi,
+  # which fits ~2 g4dn.xlarge nodes. Going beyond 2 would either exceed NodePool
+  # limits or require larger GPU instances at higher cost.
+
+  pollingInterval: 15
+  # WHY 15s: how often KEDA checks RabbitMQ queue depth. Balances responsiveness
+  # (detect queue buildup quickly) vs RabbitMQ load (don't spam the broker).
+  # 15s means worst-case 15s delay before scale-up triggers.
+
+  cooldownPeriod: 180
+  # WHY 180s: after queue drops to 0, wait 180s before scaling down. Prevents
+  # premature scale-down during bursty traffic and allows time for the comparison
+  # test to run with both workers active. In production you might use 60-120s;
+  # 180s gives comfortable buffer for the learning lab test cycle.
+
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: inference_queue
+        # WHY inference_queue: matches the queue name declared by the gateway and worker.
+
+        mode: QueueLength
+        # WHY QueueLength: scales based on total messages in the queue.
+        # Alternative: MessageRate (scale on publish rate), but queue length is
+        # more direct — it tells you "how much work is waiting right now."
+
+        value: "5"
+        # WHY 5: the threshold per replica. KEDA's formula:
+        #   desiredReplicas = ceil(currentQueueLength / value)
+        # So: queue=6 → ceil(6/5) = 2 replicas, queue=4 → ceil(4/5) = 1 replica.
+        # 5 matches prefetch_count — the number of messages one worker can hold.
+
+        activationValue: "3"
+        # WHY activationValue 3: minimum queue depth before KEDA starts scaling.
+        # Prevents scaling on tiny transient bursts (e.g., 2 simultaneous requests
+        # that drain immediately). Only start scaling when there's meaningful backlog.
+
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+        # WHY reference TriggerAuthentication: keeps AMQP credentials in a Secret
+        # rather than inline in the ScaledObject YAML.

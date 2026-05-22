@@ -1,0 +1,50 @@
+# keda-rabbitmq-auth.yaml — AMQP credentials for KEDA's RabbitMQ scaler.
+#
+# KEDA needs to connect to RabbitMQ via AMQP to read queue depth. The connection
+# string is stored in a K8s Secret and referenced by a TriggerAuthentication CRD.
+#
+# WHY AMQP (not HTTP management API): KEDA's RabbitMQ scaler uses the AMQP
+# protocol directly to query queue stats. This is more reliable than scraping
+# the HTTP API and doesn't require the management plugin (though we have it).
+#
+# WHY separate Secret + TriggerAuth (not inline in ScaledObject):
+#   1. Secrets are base64-encoded in K8s — slightly better than plaintext
+#   2. TriggerAuthentication CRD can be reused across multiple ScaledObjects
+#   3. Secret rotation doesn't require editing the ScaledObject
+#
+# NOTE: These are the same credentials as Phase 1. Production would use
+# External Secrets Operator pulling from AWS Secrets Manager.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-keda-secret
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: keda-auth
+    app.kubernetes.io/part-of: inference-lab
+type: Opaque
+stringData:
+  # WHY stringData (not data): K8s auto-base64-encodes stringData values.
+  # data: requires pre-encoded values, which is error-prone.
+  host: "amqp://inference:inference123@rabbitmq.inference-system.svc.cluster.local:5672/"
+  # WHY FQDN (not short name): KEDA might run in a different namespace than
+  # RabbitMQ. Using the full cluster DNS name ensures connectivity regardless
+  # of namespace boundaries.
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: keda-auth
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-keda-secret
+      key: host
+      # WHY 'host' parameter: KEDA's RabbitMQ scaler expects a parameter named
+      # 'host' containing the full AMQP connection string. This maps the Secret
+      # key to the scaler's expected parameter name.

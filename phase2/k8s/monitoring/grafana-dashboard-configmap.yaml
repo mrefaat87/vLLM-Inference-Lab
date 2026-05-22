@@ -1,0 +1,508 @@
+# grafana-dashboard-configmap.yaml — Pre-built inference platform dashboard.
+#
+# HOW IT WORKS: The Grafana sidecar (deployed by kube-prometheus-stack) watches
+# for ConfigMaps with label grafana_dashboard=1 and auto-imports them as dashboards.
+# This is the declarative, GitOps-friendly way to manage Grafana dashboards.
+#
+# DASHBOARD LAYOUT (4 rows, 14 panels):
+#   Row 1 — GPU Hardware:    Compute Util, Memory BW Util, VRAM, Temperature
+#   Row 2 — Inference Engine: KV Cache %, Requests Running/Waiting, Throughput
+#   Row 3 — Latency & Traffic: TTFT, TBT, Request Rate & Errors
+#   Row 4 — Queue & Scaling:  Queue Depth, Ready/Unacked, Worker Replicas, GPU Nodes
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-dashboard
+  namespace: inference-system
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana-dashboard
+    app.kubernetes.io/part-of: inference-lab
+data:
+  inference-platform.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "description": "LLM Inference Platform — GPU, Engine, Latency, Queue & Scaling metrics",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 100,
+          "title": "GPU Hardware (DCGM)",
+          "type": "row"
+        },
+        {
+          "title": "GPU Compute Utilization %",
+          "description": "SM (Streaming Multiprocessor) utilization. High during prefill (compute-bound), lower during decode (memory-bandwidth-bound).",
+          "type": "gauge",
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+          "id": 1,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 90 }
+                ]
+              },
+              "min": 0,
+              "max": 100,
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "DCGM_FI_DEV_GPU_UTIL",
+              "legendFormat": "GPU {{gpu}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Memory Bandwidth Utilization %",
+          "description": "THE decode bottleneck. T4 has 320 GB/s bandwidth. Reading 4GB AWQ weights at 32 tok/s uses ~40% of available bandwidth.",
+          "type": "gauge",
+          "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+          "id": 2,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "red", "value": 85 }
+                ]
+              },
+              "min": 0,
+              "max": 100,
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "DCGM_FI_DEV_MEM_COPY_UTIL",
+              "legendFormat": "GPU {{gpu}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "VRAM Usage (MiB)",
+          "description": "GPU framebuffer memory: model weights (~4GB for AWQ) + KV cache + CUDA overhead.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+          "id": 3,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "fillOpacity": 20,
+                "stacking": { "mode": "normal" }
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "DCGM_FI_DEV_FB_USED",
+              "legendFormat": "Used",
+              "refId": "A"
+            },
+            {
+              "expr": "DCGM_FI_DEV_FB_FREE",
+              "legendFormat": "Free",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "GPU Temperature",
+          "description": "GPU die temperature. T4 throttles at 83C. Green <70C, yellow <83C, red >=83C.",
+          "type": "gauge",
+          "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+          "id": 4,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 83 }
+                ]
+              },
+              "min": 0,
+              "max": 100,
+              "unit": "celsius"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "DCGM_FI_DEV_GPU_TEMP",
+              "legendFormat": "GPU {{gpu}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+          "id": 101,
+          "title": "Inference Engine (vLLM)",
+          "type": "row"
+        },
+        {
+          "title": "KV Cache Usage %",
+          "description": "Fraction of GPU KV cache blocks in use. Above 80% = admission control rejects new requests. Above 85% = vLLM starts evicting (preemption).",
+          "type": "gauge",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+          "id": 5,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.7 },
+                  { "color": "orange", "value": 0.8 },
+                  { "color": "red", "value": 0.9 }
+                ]
+              },
+              "min": 0,
+              "max": 1,
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "vllm:gpu_cache_usage_perc",
+              "legendFormat": "KV Cache %",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Requests Running vs Waiting",
+          "description": "Running = actively generating tokens on GPU. Waiting = queued inside vLLM's scheduler (not in RabbitMQ).",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+          "id": 6,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "fillOpacity": 10
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "vllm:num_requests_running",
+              "legendFormat": "Running",
+              "refId": "A"
+            },
+            {
+              "expr": "vllm:num_requests_waiting",
+              "legendFormat": "Waiting",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Throughput (tok/s)",
+          "description": "Token generation rate. T4 with Qwen-7B-AWQ: ~32 tok/s baseline, degrades with batch size.",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+          "id": 7,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 15 },
+                  { "color": "green", "value": 25 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rate(vllm:generation_tokens_total[1m])",
+              "legendFormat": "tok/s",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 102,
+          "title": "Latency & Traffic",
+          "type": "row"
+        },
+        {
+          "title": "TTFT (Time to First Token)",
+          "description": "User-perceived latency before first token appears. <200ms = instant, >1s = feels broken.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 15 },
+          "id": 8,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.5, rate(vllm:time_to_first_token_seconds_bucket[5m]))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket[5m]))",
+              "legendFormat": "p99",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "TBT (Time Between Tokens)",
+          "description": "Streaming quality — how smooth the token output feels. <50ms = fluid, >200ms = stuttery.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 15 },
+          "id": 9,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.5, rate(vllm:time_per_output_token_seconds_bucket[5m]))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(vllm:time_per_output_token_seconds_bucket[5m]))",
+              "legendFormat": "p99",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Request Rate & Errors",
+          "description": "Gateway HTTP request rate by status code. 202 = enqueued, 200 = streaming, 5xx = errors.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 15 },
+          "id": 10,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "fillOpacity": 10
+              },
+              "unit": "reqps"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "5.." },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(gateway_requests_total[1m])) by (status)",
+              "legendFormat": "{{status}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+          "id": 103,
+          "title": "Queue & Scaling",
+          "type": "row"
+        },
+        {
+          "title": "RabbitMQ Queue Depth",
+          "description": "Total messages in inference_queue. Threshold line at 5 = KEDA scale-up trigger. Above 5 = messages accumulating, need more workers.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 22 },
+          "id": 11,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "fixedColor": "blue", "mode": "fixed" },
+              "custom": {
+                "fillOpacity": 20,
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 5 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rabbitmq_queue_messages{queue=\"inference_queue\"}",
+              "legendFormat": "Total Messages",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Queue: Ready vs Unacked",
+          "description": "Ready = waiting for a worker. Unacked = being processed. High ready count = workers can't keep up.",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 6, "x": 6, "y": 22 },
+          "id": 12,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "fillOpacity": 20
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rabbitmq_queue_messages_ready{queue=\"inference_queue\"}",
+              "legendFormat": "Ready (waiting)",
+              "refId": "A"
+            },
+            {
+              "expr": "rabbitmq_queue_messages_unacked{queue=\"inference_queue\"}",
+              "legendFormat": "Unacked (processing)",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Worker Replicas",
+          "description": "Current vLLM worker replica count. KEDA scales between 1 and 2 based on queue depth.",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 12, "y": 22 },
+          "id": 13,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "blue", "value": 2 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_spec_replicas{namespace=\"inference-system\", deployment=\"vllm-worker\"}",
+              "legendFormat": "Desired",
+              "refId": "A"
+            },
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"inference-system\", deployment=\"vllm-worker\"}",
+              "legendFormat": "Ready",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "GPU Nodes",
+          "description": "Number of GPU nodes in the cluster. Karpenter provisions/consolidates based on pending GPU pods.",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 6, "x": 18, "y": 22 },
+          "id": 14,
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "blue", "value": 2 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "count(kube_node_labels{label_node_role=\"gpu\"})",
+              "legendFormat": "GPU Nodes",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 39,
+      "tags": ["inference", "vllm", "gpu"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30m", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Inference Platform",
+      "uid": "inference-platform",
+      "version": 1
+    }

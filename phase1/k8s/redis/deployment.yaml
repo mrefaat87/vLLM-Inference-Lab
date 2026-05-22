@@ -1,0 +1,106 @@
+# redis/deployment.yaml — In-memory store for streaming inference results.
+#
+# ARCHITECTURE ROLE: Redis acts as the "result bus" between vLLM workers and
+# the API gateway. Workers publish streaming tokens to Redis pub/sub channels;
+# the API gateway subscribes and streams them back to clients via SSE.
+#
+# WHY Redis over writing results back to RabbitMQ:
+#   1. Pub/sub fan-out — multiple consumers can watch the same stream
+#   2. Sub-millisecond latency for token-by-token streaming
+#   3. No queue semantics needed for results (fire-and-forget is fine)
+#
+# ANALOGY: Redis is like CloudWatch metrics here — ephemeral data that
+# multiple dashboards (consumers) can read simultaneously.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: cache
+spec:
+  replicas: 1
+  # WHY 1 replica: Redis pub/sub doesn't replicate across instances.
+  # For HA, we'd use Redis Sentinel or ElastiCache. Phase 1 is fine with 1.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: cache
+    spec:
+      # WHY affinity for CPU nodes: Redis is CPU/memory only, no GPU needed.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - cpu
+
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          # WHY alpine: ~30MB image vs ~130MB for full Debian. Faster pull,
+          # smaller attack surface. Redis doesn't need system libraries.
+
+          ports:
+            - name: redis
+              containerPort: 6379
+
+          command:
+            - redis-server
+            - --maxmemory
+            - 128mb
+            - --maxmemory-policy
+            - allkeys-lru
+            # WHY allkeys-lru: if memory fills up, evict least-recently-used keys.
+            # Since we're using Redis for pub/sub and ephemeral result storage,
+            # old results can be safely evicted. No persistence needed.
+            #
+            # WHY 128mb cap: prevents Redis from consuming all node memory if
+            # results accumulate. Acts as a natural backpressure mechanism —
+            # same concept as a bounded queue with max depth.
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+              # WHY 128Mi request = maxmemory: ensures the scheduler places
+              # this pod on a node with enough memory for the configured limit.
+            limits:
+              cpu: 250m
+              memory: 256Mi
+              # WHY 256Mi limit > 128mb maxmemory: Redis needs memory beyond
+              # the data store — output buffers, client connections, overhead.
+              # 2x the data limit covers these comfortably.
+
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+              # WHY redis-cli ping: returns PONG if Redis is responsive.
+              # A TCP check wouldn't catch a frozen event loop.
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+              # WHY same as liveness: for Redis, if it can respond to PING,
+              # it's ready to serve. No separate "warming up" phase.
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3

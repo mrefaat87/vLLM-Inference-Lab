@@ -1,0 +1,34 @@
+# servicemonitor-rabbitmq.yaml — Tell Prometheus to scrape RabbitMQ queue metrics.
+#
+# WHAT THIS SCRAPES: RabbitMQ's rabbitmq_prometheus plugin on port 15692:
+#   - rabbitmq_queue_messages          — total messages in queue (ready + unacked)
+#   - rabbitmq_queue_messages_ready    — messages waiting to be consumed
+#   - rabbitmq_queue_messages_unacked  — messages being processed (in-flight)
+#   - rabbitmq_queue_messages_published_total — publish rate
+#   - rabbitmq_queue_messages_delivered_total — consume rate
+#   - rabbitmq_connections             — active AMQP connections
+#
+# WHY QUEUE DEPTH MATTERS: queue_messages_ready is the primary autoscaling signal.
+# When it exceeds the worker's prefetch_count (5), messages are accumulating faster
+# than workers can process them → need more GPU workers.
+#
+# ANALOGY: This is like monitoring SQS ApproximateNumberOfMessagesVisible —
+# the metric that drives ASG scaling policies.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rabbitmq-metrics
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  endpoints:
+    - port: prometheus
+      # WHY port name "prometheus": matches the named port in the patched
+      # RabbitMQ Service (phase2/k8s/patches/rabbitmq-service.yaml).
+      interval: 15s
+      path: /metrics

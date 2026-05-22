@@ -1,0 +1,250 @@
+# vllm-worker/deployment.yaml — GPU inference pod with sidecar queue worker.
+#
+# ARCHITECTURE: Sidecar pattern — two containers in one pod sharing localhost.
+#
+#   ┌─────────────────────────────────────────────────┐
+#   │  Pod (scheduled on GPU node)                    │
+#   │                                                 │
+#   │  ┌──────────────┐    localhost:8000    ┌──────┐ │
+#   │  │ queue-worker  │ ──────────────────→ │ vLLM │ │
+#   │  │ (pulls from   │                    │ (GPU  │ │
+#   │  │  RabbitMQ)    │ ←────────────────── │  srv) │ │
+#   │  └──────────────┘    JSON response    └──────┘ │
+#   └─────────────────────────────────────────────────┘
+#
+# WHY sidecar (not separate pods):
+#   1. localhost communication = zero network latency between worker and vLLM
+#   2. They MUST be co-located on the same GPU node — no point running the
+#      queue worker without vLLM, or vLLM without something feeding it requests
+#   3. Pod lifecycle is coupled: if vLLM crashes, the worker should restart too
+#   4. Simulates a real inference serving pod (like TGI or Triton patterns)
+#
+# ANALOGY: This is like an EC2 instance running both nginx (queue-worker)
+# and your app server (vLLM) — nginx handles queueing, app does compute.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-worker
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 1
+  # WHY 1 replica: each replica needs a full GPU. Start with 1 to validate
+  # the pipeline, then scale based on queue depth in Phase 3.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm-worker
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: inference
+    spec:
+      serviceAccountName: vllm-worker
+      # WHY service account: IRSA (IAM Roles for Service Accounts) lets this
+      # pod assume an IAM role to read model weights from S3 without embedding
+      # AWS credentials. Same concept as EC2 instance profiles.
+
+      terminationGracePeriodSeconds: 60
+      # WHY 60s: gives the queue worker time to finish in-flight inference
+      # requests before the pod is killed. vLLM may need time to flush the
+      # KV cache. Default 30s is too short for a 4096-token generation.
+      # Same concept as connection draining on an ALB target group.
+
+      # WHY toleration: this pod MUST run on GPU nodes, which are tainted with
+      # nvidia.com/gpu. Without this toleration, the scheduler would never
+      # place it on a GPU node — and it would be Pending forever.
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+      volumes:
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 20Gi
+            # WHY emptyDir (not S3 PVC): S3 Mountpoint doesn't support file locking,
+            # which HuggingFace's hub library requires for downloads. emptyDir uses
+            # the node's local gp3 SSD (~100GB root volume). Model downloads once
+            # per pod start (~3 min for 4GB AWQ). For persistent caching across
+            # pod restarts, we'll add a pre-download init container in Phase 2.
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+            # WHY /dev/shm: vLLM uses PyTorch, which uses shared memory for
+            # inter-process communication and tensor operations. Default Docker
+            # shm is 64MB, which causes "bus error" crashes during inference.
+            # 2Gi is safe for a 7B model. This is a well-known GPU container gotcha.
+
+      containers:
+        # ──────────────────────────────────────────────
+        # Container 1: vLLM inference server
+        # ──────────────────────────────────────────────
+        - name: vllm-server
+          image: vllm/vllm-openai:v0.4.1
+          # WHY v0.4.1: stable release with PagedAttention v2, continuous batching,
+          # and AWQ quantization support. Pinned for reproducibility.
+
+          args:
+            - --model
+            - Qwen/Qwen2.5-7B-Instruct-AWQ
+            # WHY AWQ quantization: 4-bit weights fit in ~4GB VRAM, leaving
+            # ~12GB for KV cache on a T4 (16GB). Full FP16 would use ~14GB
+            # for weights alone, leaving almost no room for KV cache.
+            - --quantization
+            - awq
+            - --max-model-len
+            - "4096"
+            # WHY 4096: balances context length vs KV cache memory. Longer
+            # contexts = more KV cache memory per request = fewer concurrent
+            # requests. 4096 is practical for most chat/completion workloads.
+            - --gpu-memory-utilization
+            - "0.85"
+            # WHY 0.85: reserves 15% GPU memory for CUDA graph compilation
+            # and temporary allocations. T4 with 16GB needs headroom for
+            # the ~1-3GB CUDA graph capture phase on startup.
+            - --enforce-eager
+            # WHY enforce-eager: skip CUDA graph capture to save GPU memory.
+            # Slight throughput hit (~5%) but avoids OOM during startup on T4.
+            - --port
+            - "8000"
+
+          ports:
+            - name: http
+              containerPort: 8000
+
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+                  optional: true
+                  # WHY optional: Qwen2.5-7B-Instruct-AWQ is a public model,
+                  # so no token is needed. But if we switch to a gated model
+                  # (e.g., Llama), the token will be required. Optional prevents
+                  # a hard failure for public models.
+
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+              # WHY 1 GPU: each vLLM instance uses exactly 1 GPU.
+              # This is the resource that triggers Karpenter to provision
+              # a GPU node — same as an ASG launching an instance when
+              # pending capacity exceeds available capacity.
+              cpu: "2"
+              memory: 12Gi
+              # WHY 12Gi: vLLM needs ~4GB for model weights in CPU memory
+              # during loading, plus Python runtime, tokenizer, and buffers.
+              # 8Gi was causing OOMKilled during CUDA graph compilation.
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "4"
+              memory: 12Gi
+              # WHY request = limit for GPU pods: prevents overcommit.
+              # GPU memory can't be shared or overcommitted like CPU.
+              # If vLLM gets evicted mid-inference, the entire KV cache is lost.
+
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+              # WHY this path: HuggingFace transformers library caches
+              # downloaded models here by default. Mounting the PVC here
+              # means model weights persist across pod restarts.
+            - name: shm
+              mountPath: /dev/shm
+              # WHY mount shm: overrides the default 64MB Docker /dev/shm
+              # with our 2Gi emptyDir. Prevents PyTorch shared memory errors.
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 120
+            # WHY 120s initial delay: vLLM takes 60-120s to:
+            #   1. Download model weights (if not cached) — up to 5 min
+            #   2. Load weights into GPU memory — ~30s for 7B AWQ
+            #   3. Compile CUDA kernels (first run only) — ~20s
+            #   4. Warm up the KV cache allocator
+            # 120s covers the cached case. failureThreshold covers cold starts.
+            periodSeconds: 10
+            failureThreshold: 30
+            # WHY 30 failures × 10s = 5 min total: covers a cold start where
+            # model weights need downloading from HuggingFace. Without this
+            # buffer, K8s would restart the pod in a crash loop.
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 180
+            # WHY 180s: must be longer than readiness initialDelay + time to
+            # become ready. Otherwise liveness kills the pod before it finishes
+            # starting. This is a common K8s mistake that causes infinite restarts.
+            periodSeconds: 30
+            failureThreshold: 5
+            # WHY lenient (5 × 30s = 2.5 min): GPU inference can cause temporary
+            # unresponsiveness during large batch processing. Don't restart a
+            # healthy-but-busy server.
+
+        # ──────────────────────────────────────────────
+        # Container 2: Queue worker sidecar
+        # ──────────────────────────────────────────────
+        - name: queue-worker
+          image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/worker:latest
+          # PLACEHOLDER: replace 019167255542 with your AWS account ID.
+
+          env:
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "inference"
+            - name: RABBITMQ_PASS
+              value: "inference123"
+              # TODO: move credentials to Kubernetes Secrets in Phase 2
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: VLLM_HOST
+              value: "localhost"
+              # WHY localhost: sidecar pattern — both containers share the
+              # pod's network namespace, so vLLM is reachable at 127.0.0.1.
+              # No Service or DNS needed. Zero network hop.
+            - name: VLLM_PORT
+              value: "8000"
+            - name: VLLM_MODEL
+              value: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+              # WHY pass model name: the worker needs it for the vLLM
+              # /v1/chat/completions API payload.
+            - name: PREFETCH_COUNT
+              value: "5"
+              # WHY 5: controls how many messages RabbitMQ sends to this worker
+              # before waiting for an ACK. Think of it as the "in-flight limit"
+              # or concurrency level.
+              #
+              # ANALOGY: This is like the "desired capacity" of requests being
+              # processed. Too low (1) = GPU sits idle between requests.
+              # Too high (50) = memory pressure from queued prompts.
+              # 5 matches vLLM's continuous batching sweet spot for a 7B model
+              # on a T4 — enough to keep the GPU saturated without OOM risk.
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              # WHY modest resources: the queue worker is I/O-bound — it pulls
+              # messages from RabbitMQ, forwards to vLLM over localhost, and
+              # publishes results to Redis. No heavy computation.
+              # request = limit to prevent noisy-neighbor issues on the GPU node.

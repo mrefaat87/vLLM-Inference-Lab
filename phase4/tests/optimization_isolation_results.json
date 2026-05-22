@@ -1,0 +1,19 @@
+{
+  "experiment": "phase4_optimization_isolation",
+  "start_time": "2026-04-05T09:46:57.096526+00:00",
+  "end_time": "2026-04-05T10:03:33.297362+00:00",
+  "results": {
+    "cold_start": {
+      "config": "full",
+      "name": "+ Both (S3 + AMI)",
+      "cold_start_sec": 900.0
+    },
+    "drain": {
+      "total_requests": 10,
+      "successes": 10,
+      "errors": 0,
+      "drain_stats_found": false,
+      "success_rate": 1.0
+    }
+  }
+}

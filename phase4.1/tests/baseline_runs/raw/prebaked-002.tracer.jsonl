@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777637507095, "run_id": "prebaked-002"}
+{"event": "vllm_import_done", "epoch_ms": 1777637645050, "run_id": "prebaked-002"}
+{"event": "cuda_context_ready", "epoch_ms": 1777637648619, "run_id": "prebaked-002"}
+{"event": "weight_load_start", "epoch_ms": 1777637773751, "run_id": "prebaked-002"}
+{"event": "weight_load_done", "epoch_ms": 1777637807330, "run_id": "prebaked-002"}
+{"event": "graph_capture_start", "epoch_ms": 1777637932101, "run_id": "prebaked-002"}
+{"event": "warmup_done", "epoch_ms": 1777637941791, "run_id": "prebaked-002"}
+{"event": "server_ready", "epoch_ms": 1777637944938, "run_id": "prebaked-002"}

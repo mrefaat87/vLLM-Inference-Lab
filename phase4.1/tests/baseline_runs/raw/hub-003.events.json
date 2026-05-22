@@ -1,0 +1,395 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "action": "Scheduling",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T11:12:50.037932Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "300886",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "0/2 nodes are available: 2 node(s) didn't match Pod's node affinity/selector. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:12:50Z",
+                "name": "baseline-hub-003.18ab6cad6cc7491d",
+                "namespace": "baseline",
+                "resourceVersion": "300888",
+                "uid": "225b5eb2-10ce-4e48-86b4-840c5989e008"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:12:51Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "300887",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:12:51Z",
+            "message": "Pod should schedule on: nodeclaim/gpu-pool-lkgqb",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:12:51Z",
+                "name": "baseline-hub-003.18ab6cadad5f99bb",
+                "namespace": "baseline",
+                "resourceVersion": "300893",
+                "uid": "26b5ae44-6352-4f48-8b57-19dea78d4813"
+            },
+            "reason": "Nominated",
+            "reportingComponent": "karpenter",
+            "reportingInstance": "",
+            "source": {
+                "component": "karpenter"
+            },
+            "type": "Normal"
+        },
+        {
+            "action": "Binding",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T11:14:06.973615Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "300887",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "Successfully assigned baseline/baseline-hub-003 to ip-10-5-28-81.ec2.internal",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:06Z",
+                "name": "baseline-hub-003.18ab6cbf5680b36b",
+                "namespace": "baseline",
+                "resourceVersion": "301357",
+                "uid": "42cc2603-fb7b-4b09-b1c8-aa266e1b49b8"
+            },
+            "reason": "Scheduled",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:14:07Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:14:07Z",
+            "message": "Pulling image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:07Z",
+                "name": "baseline-hub-003.18ab6cbf745cd5ef",
+                "namespace": "baseline",
+                "resourceVersion": "301369",
+                "uid": "126e4c13-5b46-49ea-bf71-1a86682f2efb"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:14:13Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:14:13Z",
+            "message": "Successfully pulled image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\" in 5.656s (5.656s including waiting). Image size: 125889031 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:13Z",
+                "name": "baseline-hub-003.18ab6cc0c57ed285",
+                "namespace": "baseline",
+                "resourceVersion": "301396",
+                "uid": "b2d57af3-b5f6-4dc2-8e1d-8a0d89bb6edc"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:14:13Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:14:13Z",
+            "message": "Created container: model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:13Z",
+                "name": "baseline-hub-003.18ab6cc0c69725e1",
+                "namespace": "baseline",
+                "resourceVersion": "301397",
+                "uid": "104f901a-dc74-4277-931d-870b072bddea"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:14:13Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:14:13Z",
+            "message": "Started container model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:13Z",
+                "name": "baseline-hub-003.18ab6cc0ced99d31",
+                "namespace": "baseline",
+                "resourceVersion": "301398",
+                "uid": "508561eb-9a4d-4e78-8c3d-3946e1256d1e"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:14:49Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:14:49Z",
+            "message": "Pulling image \"vllm/vllm-openai:v0.19.0\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:14:49Z",
+                "name": "baseline-hub-003.18ab6cc920936f24",
+                "namespace": "baseline",
+                "resourceVersion": "301555",
+                "uid": "b615f921-7c16-4f7d-a2ae-f7882cde4399"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:19:38Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:19:38Z",
+            "message": "Successfully pulled image \"vllm/vllm-openai:v0.19.0\" in 4m49.621s (4m49.621s including waiting). Image size: 9577342091 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:19:38Z",
+                "name": "baseline-hub-003.18ab6d0c8f634b1d",
+                "namespace": "baseline",
+                "resourceVersion": "302768",
+                "uid": "fa08e6d3-f06a-4501-81d7-afa16d66dfce"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:19:38Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:19:38Z",
+            "message": "Created container: vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:19:38Z",
+                "name": "baseline-hub-003.18ab6d0c9f8d9c5f",
+                "namespace": "baseline",
+                "resourceVersion": "302770",
+                "uid": "a376e35e-dc24-485a-8356-4ccee4f9088c"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:19:47Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:19:47Z",
+            "message": "Started container vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:19:47Z",
+                "name": "baseline-hub-003.18ab6d0e9ae7e022",
+                "namespace": "baseline",
+                "resourceVersion": "302807",
+                "uid": "985dff19-895f-4a0b-8321-eecc5858a6fe"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 5,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:21:47Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-hub-003",
+                "namespace": "baseline",
+                "resourceVersion": "301355",
+                "uid": "fa4d4fc1-4d32-4050-a505-7425845392d4"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:22:17Z",
+            "message": "Readiness probe failed: Get \"http://10.5.30.163:8000/health\": dial tcp 10.5.30.163:8000: connect: connection refused",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:21:47Z",
+                "name": "baseline-hub-003.18ab6d2a834cd080",
+                "namespace": "baseline",
+                "resourceVersion": "303442",
+                "uid": "3bd563d7-b91c-44ec-8878-b7cae7d01054"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-28-81.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-28-81.ec2.internal"
+            },
+            "type": "Warning"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

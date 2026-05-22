@@ -1,0 +1,36 @@
+# grafana-image-renderer-values.yaml — Enable Grafana Image Renderer plugin.
+#
+# WHY: Grafana's /render API (used to export dashboard panels as PNGs) requires
+# the Image Renderer plugin. kube-prometheus-stack doesn't install it by default.
+# Without it, /render returns 404 and we can only save dashboard URLs.
+#
+# HOW IT WORKS: The image renderer runs as a separate sidecar container alongside
+# Grafana. When Grafana receives a /render request, it delegates to the renderer
+# via HTTP. The renderer uses headless Chromium to screenshot the panel.
+#
+# RESOURCE COST: ~200Mi memory for the renderer container. Fits within our CPU
+# node capacity (2x t3.medium = 8GB total, ~4GB headroom after Phase 2 stack).
+#
+# APPLY WITH:
+#   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     -n monitoring \
+#     -f phase2/k8s/monitoring/prometheus-values.yaml \
+#     -f phase3/k8s/grafana-image-renderer-values.yaml
+
+grafana:
+  # Install the image renderer as a sidecar container in the Grafana pod.
+  # WHY sidecar (not standalone deployment): simpler — one pod, no extra Service
+  # or networking. The renderer only talks to Grafana over localhost.
+  imageRenderer:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # NOTE: GF_RENDERING_SERVER_URL and GF_RENDERING_CALLBACK_URL env vars are
+  # set automatically by the Helm chart when imageRenderer.enabled=true.
+  # Do NOT set them manually here — it causes duplicate key errors.

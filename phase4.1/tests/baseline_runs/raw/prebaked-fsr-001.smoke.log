@@ -1,0 +1,4 @@
+data: {"id":"cmpl-8088a9860edc6045","object":"text_completion","created":1777639751,"model":"/models/Qwen2.5-7B-Instruct-AWQ","choices":[{"index":0,"text":".","logprobs":null,"finish_reason":"length","stop_reason":null,"prompt_token_ids":null,"token_ids":null}],"usage":null}
+
+data: [DONE]
+

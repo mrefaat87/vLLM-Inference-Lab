@@ -1,0 +1,43 @@
+# servicemonitor-vllm.yaml — Tell Prometheus to scrape vLLM inference metrics.
+#
+# WHAT THIS SCRAPES: vLLM's built-in /metrics endpoint on port 8000, which
+# exposes inference-specific metrics in Prometheus text format:
+#   - vllm:gpu_cache_usage_perc       — KV cache pressure (the #1 scaling signal)
+#   - vllm:num_requests_running       — current batch size on GPU
+#   - vllm:num_requests_waiting       — queued inside vLLM's scheduler
+#   - vllm:time_to_first_token_seconds — TTFT histogram (user-perceived latency)
+#   - vllm:time_per_output_token_seconds — TBT histogram (streaming quality)
+#   - vllm:e2e_request_latency_seconds — total request duration
+#   - vllm:generation_tokens_total    — throughput counter
+#
+# HOW IT WORKS: Prometheus Operator watches for ServiceMonitor CRDs and
+# automatically configures Prometheus to scrape the matching Service endpoints.
+# No manual prometheus.yml editing needed.
+#
+# ANALOGY: This is like a CloudWatch metric filter — declaratively saying
+# "scrape these targets at this interval and store the results."
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-metrics
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  selector:
+    matchLabels:
+      # WHY match on vllm-worker: finds the headless Service we created
+      # in vllm-metrics-service.yaml, which selects vLLM worker pods.
+      app.kubernetes.io/name: vllm-worker
+  endpoints:
+    - port: vllm-metrics
+      # WHY port name (not number): refers to the named port in the Service spec.
+      # More resilient to port number changes.
+      interval: 15s
+      # WHY 15s: balances metric freshness vs scrape overhead. vLLM metrics
+      # change on every request, but 15s is fine for dashboard visualization
+      # and alerting. Lower intervals (5s) would add unnecessary load.
+      path: /metrics
+      # WHY /metrics: the standard Prometheus endpoint path. vLLM exposes
+      # its metrics here by default.

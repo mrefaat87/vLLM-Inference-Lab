@@ -1,0 +1,184 @@
+# baseline-pod-prebaked-warmed.yaml — Variant F of the cold-start comparison.
+#
+# DELTA FROM baseline-pod-prebaked.yaml (variant D):
+#   - nodeSelector image-source: prebaked-warmed (routes to the warmed NodePool)
+#   - Adds 5 cache-pinning env vars on the vLLM container so torch.compile,
+#     Triton, FlashInfer, vLLM, and HuggingFace caches all live at /opt/vllm-cache —
+#     the same absolute paths used at AMI build time. This is critical: torch.compile
+#     and Triton embed absolute paths in cache keys; a path mismatch silently
+#     invalidates everything.
+#   - Adds compile-cache hostPath volume (read-only mount of /opt/vllm-cache).
+#     hostPath type=Directory means kubelet refuses to start the pod if the path
+#     doesn't exist on the node — that's intentional. If a pod accidentally lands
+#     on a non-warmed node, we want a hard fail, not a silent slow run.
+#   - Init container model-download stays — caches cover compiled kernels, not weights.
+#
+# WHY THIS DESIGN ISOLATES THE VARIABLE:
+#   F vs D differs ONLY in: (a) the AMI in containerd's cache also has /opt/vllm-cache
+#   pre-populated, (b) the pod sets cache-dir env vars and mounts that hostPath.
+#   Same image, same model, same init container, same Spot AZ. Any vllm_init_cuda_ctx
+#   delta is attributable to JIT cache hits.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+    image-source: prebaked-warmed
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never
+
+  # ─── Routes to the warmed NodePool (Variant=prebaked-stock-warmed AMI) ────
+  nodeSelector:
+    node-role: gpu
+    image-source: prebaked-warmed
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  initContainers:
+    - name: model-download
+      image: public.ecr.aws/aws-cli/aws-cli:2.17.18
+      command:
+        - sh
+        - -c
+        - |
+          set -euxo pipefail
+          mkdir -p /models/Qwen2.5-7B-Instruct-AWQ
+          aws s3 cp --recursive --no-progress \
+            s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \
+            /models/Qwen2.5-7B-Instruct-AWQ/
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+
+  containers:
+    - name: vllm
+      image: vllm/vllm-openai:v0.19.0
+      imagePullPolicy: IfNotPresent
+
+      # ─── CACHE PINNING — these env vars MUST mirror the AMI build's exactly ──
+      # See gpu-node-stock-warmed.pkr.hcl Step "warmup". Absolute paths matter.
+      env:
+        - name: TORCHINDUCTOR_CACHE_DIR
+          value: /opt/vllm-cache/torchinductor
+        - name: TRITON_CACHE_DIR
+          value: /opt/vllm-cache/triton
+        - name: FLASHINFER_JIT_DIR
+          value: /opt/vllm-cache/flashinfer
+        - name: VLLM_CACHE_ROOT
+          value: /opt/vllm-cache/vllm_compile
+        - name: HF_HOME
+          value: /opt/vllm-cache/hf
+
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        - --model=/models/Qwen2.5-7B-Instruct-AWQ
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+          readOnly: true
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+        # ─── The whole point of variant F: the pre-baked JIT cache directory ──
+        # type=Directory: kubelet hard-fails the pod if /opt/vllm-cache is missing.
+        # That's intentional — a silent fallback to recompile would invalidate the
+        # experiment without anyone noticing.
+        #
+        # readOnly: false is REQUIRED — torch.compile / torchinductor write a
+        # temp file during cache LOAD (atomic-rename pattern). A read-only mount
+        # causes "[Errno 30] Read-only file system" and vLLM falls back to a
+        # full recompile, defeating the whole point of variant F. The cache is
+        # per-node hostPath; pod-side writes don't persist past node consolidation,
+        # so the AMI snapshot stays clean.
+        - name: compile-cache
+          mountPath: /opt/vllm-cache
+          readOnly: false
+
+  volumes:
+    - name: model-cache
+      emptyDir:
+        sizeLimit: 8Gi
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate
+    - name: compile-cache
+      hostPath:
+        path: /opt/vllm-cache
+        type: Directory

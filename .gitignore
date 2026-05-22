@@ -5,3 +5,18 @@ __pycache__/
 venv/
 .venv/
 *.egg-info/
+.ipynb_checkpoints/
+.playwright-mcp/
+
+# Terraform
+*.tfvars
+!terraform.tfvars.example
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+phase*/.kubeconfig
+apply.tfplan
+
+# Raw AWS API dumps — contain account IDs, role names, temp access key IDs
+*.cloudtrail.json

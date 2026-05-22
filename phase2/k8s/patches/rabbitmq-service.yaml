@@ -1,0 +1,36 @@
+# rabbitmq/service.yaml — Phase 2 patch: adds Prometheus metrics port.
+#
+# WHAT CHANGED FROM PHASE 1:
+#   Added port 15692 (prometheus) so ServiceMonitor can discover and scrape
+#   RabbitMQ metrics. Without this port in the Service, Prometheus has no
+#   endpoint to scrape.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: messaging
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: management
+      protocol: TCP
+    # NEW: Prometheus scrape endpoint
+    - name: prometheus
+      port: 15692
+      targetPort: prometheus
+      protocol: TCP
+      # WHY expose :15692 via Service: Prometheus ServiceMonitor discovers
+      # scrape targets through Service endpoints. Without this port in the
+      # Service spec, the ServiceMonitor can't find the metrics endpoint.

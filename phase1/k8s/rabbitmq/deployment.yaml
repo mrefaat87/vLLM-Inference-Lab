@@ -1,0 +1,110 @@
+# rabbitmq/deployment.yaml — Message broker for the inference request queue.
+#
+# ARCHITECTURE ROLE: RabbitMQ decouples the API gateway from vLLM workers.
+# Requests go into a queue; workers pull at their own pace. This is the same
+# pattern as SQS + Auto Scaling: queue depth drives scaling decisions.
+#
+# WHY RabbitMQ over SQS: we need sub-millisecond enqueue latency and AMQP
+# features (prefetch count, publisher confirms, dead-letter exchanges) that
+# SQS doesn't support. Also keeps everything in-cluster for the learning lab.
+#
+# WHY single replica: Phase 1 learning lab. Production would use a StatefulSet
+# with 3 replicas in a quorum queue cluster (like multi-AZ RDS).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: messaging
+spec:
+  replicas: 1
+  # WHY 1 replica: acceptable for Phase 1. Queue data is transient (inference
+  # requests, not durable business events). If RabbitMQ restarts, in-flight
+  # requests are lost — clients retry. Production would use a StatefulSet.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rabbitmq
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: messaging
+    spec:
+      # WHY affinity for CPU nodes: RabbitMQ doesn't need a GPU. Scheduling it
+      # on a GPU node would waste expensive capacity. This is a soft preference
+      # (preferred, not required) so it still schedules if no CPU node exists.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - cpu
+
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.12-management
+          # WHY 3.12-management: includes the management UI on :15672 for
+          # inspecting queue depth, connection count, and message rates.
+          # Essential for observability in Phase 3.
+
+          ports:
+            - name: amqp
+              containerPort: 5672
+              # AMQP protocol port — where producers and consumers connect
+            - name: management
+              containerPort: 15672
+              # Management UI + HTTP API — used for monitoring and Phase 3 metrics
+
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: "inference"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "inference123"
+              # WHY plaintext creds: Phase 1 learning lab only. Production would
+              # use a Kubernetes Secret (or better, External Secrets Operator
+              # pulling from AWS Secrets Manager). Tagged as tech debt.
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+              # WHY these requests: RabbitMQ idles at ~100MB. 256Mi gives
+              # headroom for queue buffering during traffic spikes.
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              # WHY limits: prevents a message storm from starving other pods.
+              # RabbitMQ's flow control kicks in well before 512Mi.
+
+          livenessProbe:
+            # WHY TCP probe: fastest way to check if the AMQP port is accepting
+            # connections. If the Erlang VM crashes, this fails immediately.
+            tcpSocket:
+              port: amqp
+            initialDelaySeconds: 30
+            # WHY 30s delay: RabbitMQ's Erlang VM takes ~15-25s to fully boot
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            # WHY exec probe with rabbitmq-diagnostics: a deeper check than TCP.
+            # Verifies the broker is actually ready to accept messages, not just
+            # that the port is open. Like an ELB health check hitting /health
+            # instead of just checking the TCP handshake.
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6

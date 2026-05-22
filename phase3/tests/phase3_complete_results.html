@@ -187,8 +187,19 @@ We tested this on the 7B model across three bottleneck metrics, expecting reacti
 <p><strong>The result was humbling.</strong> Static won every round. Here's how we got there.</p>
 
 <h3>Round A: Gating on Memory Bandwidth (decode_throughput)</h3>
-<p>The T4's memory bandwidth is the bottleneck during decode on 7B. We gated on concurrent decode tokens in flight.
-Baseline TPOT: 31.78ms. SLA target: 63.56ms (2&times; baseline). 9 configs.</p>
+<p>The T4's memory bandwidth is the bottleneck during decode on 7B. We gated on concurrent decode tokens in flight.</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round A</div>
+  <ul>
+    <li><strong>Model:</strong> Qwen2.5-7B-Instruct-AWQ on T4 16GB (gpu-memory-utilization=0.85)</li>
+    <li><strong>Bottleneck metric:</strong> <code>decode_throughput</code> &mdash; concurrent output tokens in flight during decode. Capacity: 500 tokens (SLA boundary at ~7 concurrent requests)</li>
+    <li><strong>Workload:</strong> <code>pareto_heavy</code> &mdash; 1.2 req/s open-loop, 90s duration. Distribution: 80% short (20 tok), 15% medium (150 tok), 4% long (300 tok), 1% XL (2048 tok)</li>
+    <li><strong>Sweep:</strong> Static pf={1,3,8,15}, Reactive th={0.50,0.70,0.90}, Predictive th={0.60,0.80} = 9 configs</li>
+    <li><strong>Baseline TPOT:</strong> 31.78ms (uncontested). <strong>SLA target:</strong> 63.56ms (2&times; baseline)</li>
+    <li><strong>Methodology:</strong> Each config: patch worker env via kubectl &rarr; rollout &rarr; pipeline probe &rarr; 90s open-loop load &rarr; discard 20s warmup + 10s drain &rarr; measure steady-state</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -217,8 +228,16 @@ Baseline TPOT: 31.78ms. SLA target: 63.56ms (2&times; baseline). 9 configs.</p>
 compute (which is bursty during prefill) would reveal where predictive shines.</p>
 
 <h3>Round B: Gating on GPU Compute (gpu_compute)</h3>
-<p>Prefill is compute-bound. We gated on concurrent input tokens during prefill phase.
-Same baseline. 9 configs.</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round B</div>
+  <ul>
+    <li><strong>Change from A:</strong> Switched bottleneck metric only. Same model, workload, sweep methodology.</li>
+    <li><strong>Bottleneck metric:</strong> <code>gpu_compute</code> &mdash; concurrent input tokens during prefill. Capacity: 300 tokens. Prefill is a one-time compute burst per request (~90ms for 50 tokens), then GPU budget releases.</li>
+    <li><strong>Hypothesis:</strong> Prefill is bursty and compute-bound (unlike steady-state decode). Reactive should catch GPU saturation. Predictive should gate long prompts that monopolize SMs.</li>
+    <li><strong>Sweep:</strong> Static pf={2,5,10,20}, Reactive th={0.60,0.80}, Predictive th={0.50,0.70,0.90} = 9 configs</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -247,7 +266,16 @@ Same baseline. 9 configs.</p>
 which gates on whichever resource is more constrained. With the full 18-config sweep, this should be the definitive 7B test.</p>
 
 <h3>Round C: Gating on Both (compound)</h3>
-<p>Compound metric: max of GPU and decode fractions. Full sweep: 8 static + 5 reactive + 5 predictive = 18 configs.</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round C</div>
+  <ul>
+    <li><strong>Change from A/B:</strong> Compound metric <code>max(gpu_fraction, decode_fraction)</code> &mdash; gates on whichever resource is more constrained at admission time. Full parameter sweep (not reduced).</li>
+    <li><strong>Hypothesis:</strong> Compound catches both prefill bursts and decode saturation. Should be the definitive 7B test &mdash; if smart gating helps anywhere, it should show here.</li>
+    <li><strong>Sweep:</strong> Static pf={1,2,3,5,8,10,15,20}, Reactive th={0.50,0.60,0.70,0.80,0.90}, Predictive th={0.50,0.60,0.70,0.80,0.90} = 18 configs</li>
+    <li><strong>Note:</strong> This was re-run after fixing Phase 4 cluster contamination (wrong images, stale envFrom, VPC tag mismatch). Previous partial data discarded.</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -299,7 +327,19 @@ At 8 concurrent XL requests: 4.7 GB = 89% of the KV budget. <em>Now</em> the sys
 <p>Workload: <code>kv_stress_14b</code> &mdash; 0.15 req/s, all XL prompts, 300s duration. Each request takes ~128s to complete.</p>
 
 <h3>Round D: The Original 14B Experiment</h3>
-<p>Baseline TPOT: 62.32ms. SLA target: 124.64ms. 9 configs (8 with data).</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round D</div>
+  <ul>
+    <li><strong>Model change:</strong> Qwen2.5-14B-Instruct-AWQ (gpu-memory-utilization=0.90, enforce-eager). ~7.7GB model weights, leaving ~5.3GB for KV cache.</li>
+    <li><strong>Bottleneck metric:</strong> <code>kv_cache</code> &mdash; KV memory in bytes. Capacity: 5,300,000,000 bytes. KV per token: 196,608 bytes (48 layers &times; 8 KV heads &times; 128 dim &times; 2B &times; 2).</li>
+    <li><strong>Workload:</strong> <code>kv_stress_14b</code> &mdash; 0.15 req/s, all XL prompts (660 input + 2048 output = 3048 tokens, ~587MB KV each). 300s duration. Each request takes ~128s on 14B.</li>
+    <li><strong>Why this workload:</strong> At prefetch=8, 8 concurrent XL = 4.7GB = 89% of 5.3GB budget. This creates genuine KV pressure that never existed on 7B (where KV peaked at 11%).</li>
+    <li><strong>Sweep:</strong> Static pf={1,2,3,5,8,10}, Reactive th={0.80}, Predictive th={0.50,0.80} = 9 configs</li>
+    <li><strong>Infrastructure fixes applied:</strong> Rollout timeout 300s&rarr;600s (14B needs ~5 min to load). SSE timeout 120s&rarr;600s. Rate dropped from 0.5 to 0.15 req/s. Queue purge between configs.</li>
+    <li><strong>Baseline TPOT:</strong> 62.32ms. <strong>SLA target:</strong> 124.64ms</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -355,7 +395,19 @@ static's throughput on 7B (by correcting the overestimate) while maintaining pre
 under-correcting).</p>
 
 <h3>Round E: Adaptive on 7B (decode_throughput)</h3>
-<p>All 4 strategies head-to-head. Baseline TPOT: 34.87ms. SLA target: 69.74ms. 12 configs.</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round E</div>
+  <ul>
+    <li><strong>What's new:</strong> Fourth strategy added &mdash; <span class="badge badge-adaptive">adaptive</span>. Reran all 4 strategies head-to-head on fresh cluster with corrected deployment (rollout restart fix, 18-retry probe, isolated KUBECONFIG).</li>
+    <li><strong>Model:</strong> Qwen2.5-7B-Instruct-AWQ (same as Rounds A&ndash;C)</li>
+    <li><strong>Bottleneck metric:</strong> <code>decode_throughput</code> (same as Round A &mdash; the most representative 7B metric)</li>
+    <li><strong>Adaptive params:</strong> EMA alpha={0.05, 0.10, 0.20}. Initial ratio=1.0 (starts identical to predictive). Pressure reset=0.80. Threshold=0.80 (fixed, only alpha varies).</li>
+    <li><strong>Hypothesis:</strong> Adaptive should learn that requests use ~35% of max_tokens, reducing cost estimates by ~3&times;, allowing more concurrent requests than predictive while maintaining TPOT quality.</li>
+    <li><strong>Sweep:</strong> Static pf={1,3,5,8}, Reactive th={0.50,0.70,0.90}, Predictive th={0.50,0.80}, Adaptive &alpha;={0.05,0.10,0.20} = 12 configs</li>
+    <li><strong>Baseline TPOT:</strong> 34.87ms (fresh calibration). <strong>SLA target:</strong> 69.74ms</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -394,7 +446,18 @@ under-correcting).</p>
 without degrading.</p>
 
 <h3>Round F: Adaptive on 14B (kv_cache)</h3>
-<p>All 4 strategies on 14B. kv_stress_14b workload. Baseline TPOT: 62.32ms. SLA target: 124.64ms. 11 configs.</p>
+
+<div class="card" style="margin: 14px 0;">
+  <div class="card-title">Experiment Design &mdash; Round F</div>
+  <ul>
+    <li><strong>Purpose:</strong> Validate that adaptive doesn't <em>hurt</em> on 14B (where predictive already wins). If the EMA ratio stays near 1.0, adaptive should converge toward predictive's behavior.</li>
+    <li><strong>Model:</strong> Qwen2.5-14B-Instruct-AWQ (same as Round D). KV capacity: 5.3GB. KV per token: 196KB.</li>
+    <li><strong>Workload:</strong> <code>kv_stress_14b</code> &mdash; 0.15 req/s, all XL, 300s duration (same as Round D)</li>
+    <li><strong>Sweep:</strong> Static pf={2,3,5,8}, Reactive th={0.50,0.80}, Predictive th={0.50,0.80}, Adaptive &alpha;={0.05,0.10,0.20} = 11 configs</li>
+    <li><strong>Prediction:</strong> Since 14B XL requests generate ~100% of max_tokens, the EMA ratio should stay near 1.0. Adaptive = predictive with no improvement. This is the "do no harm" test.</li>
+    <li><strong>Baseline TPOT:</strong> 62.32ms. <strong>SLA target:</strong> 124.64ms</li>
+  </ul>
+</div>
 <table>
   <thead><tr>
     <th>Strategy</th><th>Config</th><th>Throughput</th><th>TPOT P95</th>
@@ -534,6 +597,174 @@ without degrading.</p>
   On 14B, adaptive correctly converges toward predictive &mdash; when the cost model is already accurate,
   there's nothing to learn. <strong>The engineering lesson: adaptive vs static cost estimation is the lever,
   not which resource to gate on.</strong>
+</div>
+
+<h3>Reframing in Light of Stage 2.5 (added 2026-05-14)</h3>
+<div class="callout callout-warning">
+  <strong>The 14B-on-T4 setup put us in the regime where <code>B_SLA &asymp; B_crit</code> &mdash; a pathological
+  operating point that Stage 2.5's sizing flow would have rejected up front.</strong>
+  <br><br>
+  T4 has 16GB. 14B AWQ weights consume ~7.7GB, leaving ~5.3GB for KV cache. 14B's KV-per-token is roughly 2&times;
+  a 7B's, so the KV ceiling (B_crit) on this config sits at ~8&ndash;10 concurrent XL requests. The latency-inverted
+  B_SLA for 130ms TPOT lands in the same range. <strong>The safe band between B_SLA and B_crit collapses to
+  near zero.</strong> That's the worst possible operating point: no value of static prefetch_N can work, because
+  no margin exists.
+  <br><br>
+  Stage 2.5 Insight #2 is explicit about this case: when throughput at the SLA-feasible B is insufficient,
+  <strong>add replicas, not more batch</strong>. If we'd done the sizing math first, we'd have moved 14B to
+  A10G/L4 24GB (KV budget 2&times; &rarr; B_crit &raquo; B_SLA, band reopens) or sharded across two T4s with TP=2.
+  Either way we land back in the wide-band regime where Act I (7B) showed static prefetch_N wins.
+  <br><br>
+  <strong>So the 14B "predictive wins" result is predictive being the least-bad option at a pathologically
+  bad operating point</strong> &mdash; a salvage strategy for an undersized replica, not evidence that adaptive
+  admission belongs in the steady-state design.
+</div>
+
+<div class="callout callout-success">
+  <strong>The corrected Phase 3 conclusion:</strong>
+  <br><br>
+  Static prefetch_N is sufficient whenever the (hardware, model, quant) combo gives <code>B_SLA &laquo; B_crit</code>
+  (Act I &mdash; 7B on T4). When the two collapse together (Round D &mdash; 14B on T4), no admission policy is
+  good, but predictive degrades most gracefully. <strong>The right fix isn't a better admission policy; it's
+  sizing the replica so the safe band exists in the first place.</strong>
+  <br><br>
+  Adaptive admission still earns its keep &mdash; but as a <em>transient</em> defense for moments when traffic
+  spikes, long prompts, or prefix-cache misses temporarily push a well-sized replica near B_crit. Not as
+  compensation for a wrong instance choice. This is the Phase 7 framing: Mooncake-style early rejection
+  detects the boundary at admission time per-request; Phase 3's 14B sweep was the slow-motion offline version
+  of the same detection.
+  <br><br>
+  <strong>Honest interview narrative:</strong> we discovered the Stage 2.5 sizing principle the hard way, by
+  operating below it. Phase 3 taught us what "near B_crit" feels like empirically; Stage 2.5 taught us how
+  to compute the boundary ahead of time and stay off it by design.
+</div>
+
+<div class="callout callout-info">
+  <strong>Where admission control actually belongs: the gateway, not the worker.</strong>
+  <br><br>
+  Phase 3's deeper finding: <strong>worker-level admission control on top of vLLM is not useful.</strong>
+  vLLM's scheduler already inspects free KV blocks every step and admits waiting requests when capacity
+  exists. SGLang's <code>new_token_ratio</code> (the basis for the adaptive strategy) is the same logic
+  inside the engine. External policies on top just re-implement vLLM's scheduler &mdash; worse, because
+  they lack visibility into the engine's internal state. Act I proved it: any static prefetch_N from 3&ndash;20
+  hits 100% SLA with zero NACKs on 7B. When vLLM has capacity it handles things; when it doesn't, no
+  external policy can manufacture capacity that doesn't exist.
+  <br><br>
+  <strong>But vLLM cannot say no.</strong> It queues, and when KV runs out it preempts (swap-to-CPU or
+  recompute). That means "just send and scale" works for latency degradation but not for client-visible
+  backpressure. Four cases where admission control upstream of vLLM is genuinely needed &mdash; and not
+  redundant with the engine:
+  <ol>
+    <li><strong>Scale-up latency window.</strong> vLLM cold start is 200&ndash;700s (Phase 1/4). During the
+    Karpenter spin-up window, requests pile into vLLM's waiting queue and miss SLA silently. Mooncake-style
+    early reject at the gateway (predict <code>queue_wait + prefill + decode</code>; if &gt; SLA, return 503)
+    fails fast instead of failing slow. vLLM has no concept of SLA.</li>
+    <li><strong>Priority / SLA tiers.</strong> vLLM treats all waiting requests identically (FIFO). A QLM-style
+    priority queue upstream is the only way to honor interactive vs batch SLA differentiation. Orthogonal to
+    vLLM, not duplicative.</li>
+    <li><strong>Cache-aware routing (Phase 5).</strong> Prefix reuse requires a router that places requests on
+    the replica with the cached prefix &mdash; vLLM has no view across replicas. The router isn't admitting,
+    it's <em>placing</em>; but once you have it, it's the natural place to also admit.</li>
+    <li><strong>Retry / failure semantics (Phase 7).</strong> vLLM errors create requeue races with the
+    prefetch window. That's a queue-layer policy, not an engine-layer one.</li>
+  </ol>
+  <strong>The rule:</strong> admission control belongs at the gateway, not at the worker, and answers
+  questions vLLM doesn't even ask (SLA feasibility, priority, placement, retry). The primary scaling lever
+  is still Stage 2.5: size each replica so <code>B_SLA &laquo; B_crit</code>, then add replicas. Gateway
+  admission is the <em>transient</em> defense during scale-up windows and the <em>policy</em> layer for
+  multi-tenant SLAs &mdash; not a substitute for correct sizing.
+</div>
+
+<h3>Layered Defense: What To Do When Load Exceeds Capacity</h3>
+<p>If <code>prefetch_count</code> is high (or the gateway is generous) and vLLM gets overloaded internally,
+"wait for Karpenter" is not the only answer &mdash; and it shouldn't be the first. Below is the full layered
+defense, ordered from earliest (cheapest, fastest) to last-resort (slowest):</p>
+
+<table>
+  <thead><tr>
+    <th>Layer</th>
+    <th>What it does</th>
+    <th>When it fires</th>
+    <th>Speed</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Sizing (Stage 2.5)</strong></td>
+      <td>Choose hardware/quant so <code>B_SLA &laquo; B_crit</code> at peak arrival rate</td>
+      <td>Design time &mdash; always</td>
+      <td class="sla-met">Free</td>
+    </tr>
+    <tr>
+      <td><strong>Engine cap</strong> (<code>max-num-seqs</code>, <code>max-num-batched-tokens</code>)</td>
+      <td>Hard cap on running batch inside vLLM; excess requests sit in vLLM's waiting queue, don't cause KV thrashing</td>
+      <td>Engine reaches B_SLA</td>
+      <td class="sla-met">Instant</td>
+    </tr>
+    <tr>
+      <td><strong>Gateway 503</strong> (Mooncake-style)</td>
+      <td>Predict <code>queue_wait + prefill + decode</code>; reject if &gt; SLA</td>
+      <td>Predicted total time exceeds SLO</td>
+      <td class="sla-met">Sub-ms</td>
+    </tr>
+    <tr>
+      <td><strong>Priority queue</strong> (QLM)</td>
+      <td>Shed low-priority traffic first; preserve interactive SLAs</td>
+      <td>Tier-mixed traffic + capacity contention</td>
+      <td class="sla-met">Sub-ms</td>
+    </tr>
+    <tr>
+      <td><strong>Cap <code>max_tokens</code> dynamically</strong></td>
+      <td>Truncate output budget under saturation; decodes finish sooner, KV releases sooner</td>
+      <td>Detected saturation, client allows quality tradeoff</td>
+      <td class="sla-met">Per-request</td>
+    </tr>
+    <tr>
+      <td><strong>Circuit-break consumer</strong> (<code>basic_cancel</code>)</td>
+      <td>Worker stops consuming; messages park at broker; broker memory alarm eventually blocks publishers</td>
+      <td>Worker self-detects overload (KV high, queue growing)</td>
+      <td>Seconds (broker alarm trip)</td>
+    </tr>
+    <tr>
+      <td><strong>Abort in-flight</strong> (<code>abort_request</code>)</td>
+      <td>Cancel youngest/lowest-priority running requests so the rest can meet SLO instead of all failing together</td>
+      <td>Running batch projected to miss SLO</td>
+      <td>Per-step</td>
+    </tr>
+    <tr>
+      <td><strong>Karpenter scale-out</strong></td>
+      <td>Add replicas</td>
+      <td>Sustained overload</td>
+      <td class="sla-miss">200&ndash;700s cold start</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout callout-warning">
+  <strong>What Phase 3 actually configured.</strong> The vLLM deployment ran with both engine caps at their
+  defaults: <code>--max-num-seqs</code> unset (default = 256) and <code>--max-num-batched-tokens</code> unset
+  (default &asymp; 2048). The full args were <code>--quantization awq --max-model-len 4096
+  --gpu-memory-utilization 0.85 --enforce-eager</code> &mdash; nothing else.
+  <br><br>
+  <strong>The engine cap (256) was 13&times; larger than the largest prefetch_N we tested (20).</strong> So
+  the engine cap was never the binding constraint &mdash; we tuned <code>prefetch_N</code> as an external,
+  worse proxy for a flag we never set. Had we set <code>--max-num-seqs = B_SLA</code> (e.g. 8 from Stage 2.5
+  math for 14B-on-T4) and left prefetch_N unbounded, the engine would have cleanly done what six rounds of
+  external admission control were trying to approximate.
+</div>
+
+<div class="callout callout-success">
+  <strong>Production-ready order of operations:</strong>
+  <ol>
+    <li><strong>Size</strong> the replica per Stage 2.5 so <code>B_SLA &laquo; B_crit</code>.</li>
+    <li><strong>Set <code>--max-num-seqs = B_SLA</code></strong> at engine start. This alone replaces Phase 3's entire admission layer.</li>
+    <li><strong>Gateway early-reject</strong> based on predicted SLA feasibility (Phase 7 / Mooncake).</li>
+    <li><strong>Priority queues</strong> at the gateway for multi-tenant traffic.</li>
+    <li><strong>Cap <code>max_tokens</code></strong> dynamically under saturation when quality tradeoff is acceptable.</li>
+    <li><strong>Circuit-break</strong> the consumer when the worker can't keep up, letting broker push back on publishers.</li>
+    <li><strong>Abort doomed in-flight</strong> requests so the savable ones still meet SLO.</li>
+    <li><strong>Scale out</strong> as the structural fix &mdash; but never the only fix.</li>
+  </ol>
+  Most production systems leak straight from step 1 to step 8 and call steps 2&ndash;7 an outage.
 </div>
 
 </div>

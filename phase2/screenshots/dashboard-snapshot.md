@@ -1,0 +1,334 @@
+- generic [ref=e7]:
+  - generic [ref=e8]:
+    - link "Skip to main content" [ref=e9] [cursor=pointer]:
+      - /url: "#pageContent"
+      - generic [ref=e10]: Skip to main content
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - link "Grafana" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - img "Grafana" [ref=e15]
+          - generic [ref=e16]: Grafana
+        - button "Undock menu" [active] [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+        - button "Close menu" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+      - navigation [ref=e23]:
+        - list "Navigation" [ref=e27]:
+          - listitem [ref=e28]:
+            - link "Home" [ref=e32] [cursor=pointer]:
+              - /url: /
+              - generic [ref=e34]:
+                - img [ref=e35]
+                - paragraph [ref=e37]: Home
+          - listitem [ref=e38]:
+            - generic [ref=e39]:
+              - link "Bookmarks" [ref=e42] [cursor=pointer]:
+                - /url: /bookmarks
+                - generic [ref=e44]:
+                  - img [ref=e45]
+                  - paragraph [ref=e47]: Bookmarks
+              - 'button "Expand section: Bookmarks" [ref=e49] [cursor=pointer]':
+                - img [ref=e50]
+          - listitem [ref=e52]:
+            - generic [ref=e53]:
+              - link "Starred" [ref=e56] [cursor=pointer]:
+                - /url: /dashboards?starred
+                - generic [ref=e58]:
+                  - img [ref=e59]
+                  - paragraph [ref=e61]: Starred
+              - 'button "Expand section: Starred" [ref=e63] [cursor=pointer]':
+                - img [ref=e64]
+          - listitem [ref=e66]:
+            - generic [ref=e67]:
+              - link "Dashboards" [ref=e70] [cursor=pointer]:
+                - /url: /dashboards
+                - generic [ref=e72]:
+                  - img [ref=e73]
+                  - paragraph [ref=e75]: Dashboards
+              - 'button "Expand section: Dashboards" [ref=e77] [cursor=pointer]':
+                - img [ref=e78]
+          - listitem [ref=e80]:
+            - link "Explore" [ref=e84] [cursor=pointer]:
+              - /url: /explore
+              - generic [ref=e86]:
+                - img [ref=e87]
+                - paragraph [ref=e89]: Explore
+          - listitem [ref=e90]:
+            - generic [ref=e91]:
+              - link "Drilldown" [ref=e94] [cursor=pointer]:
+                - /url: /drilldown
+                - generic [ref=e96]:
+                  - img [ref=e97]
+                  - paragraph [ref=e102]: Drilldown
+              - 'button "Expand section: Drilldown" [ref=e104] [cursor=pointer]':
+                - img [ref=e105]
+          - listitem [ref=e107]:
+            - generic [ref=e108]:
+              - link "Alerting" [ref=e111] [cursor=pointer]:
+                - /url: /alerting
+                - generic [ref=e113]:
+                  - img [ref=e114]
+                  - paragraph [ref=e116]: Alerting
+              - 'button "Expand section: Alerting" [ref=e118] [cursor=pointer]':
+                - img [ref=e119]
+          - listitem [ref=e121]:
+            - generic [ref=e122]:
+              - link "Connections" [ref=e125] [cursor=pointer]:
+                - /url: /connections
+                - generic [ref=e127]:
+                  - img [ref=e128]
+                  - paragraph [ref=e130]: Connections
+              - 'button "Expand section: Connections" [ref=e132] [cursor=pointer]':
+                - img [ref=e133]
+          - listitem [ref=e135]:
+            - generic [ref=e136]:
+              - link "Administration" [ref=e139] [cursor=pointer]:
+                - /url: /admin
+                - generic [ref=e141]:
+                  - img [ref=e142]
+                  - paragraph [ref=e144]: Administration
+              - 'button "Expand section: Administration" [ref=e146] [cursor=pointer]':
+                - img [ref=e147]
+    - banner [ref=e149]:
+      - generic [ref=e150]:
+        - navigation "Breadcrumbs" [ref=e152]:
+          - list [ref=e153]:
+            - listitem [ref=e154]:
+              - link "Dashboards" [ref=e155] [cursor=pointer]:
+                - /url: /dashboards
+              - img [ref=e157]
+            - listitem [ref=e159]:
+              - generic "Inference Platform" [ref=e160]
+        - generic [ref=e161]:
+          - generic [ref=e163]:
+            - img [ref=e165]
+            - button "Search..." [ref=e167] [cursor=pointer]
+            - generic [ref=e169]: ⌘+k
+          - button "New" [ref=e170] [cursor=pointer]:
+            - img [ref=e171]
+            - img [ref=e173]
+          - button "Help" [ref=e176] [cursor=pointer]:
+            - img [ref=e177]
+          - button "Profile" [ref=e180] [cursor=pointer]:
+            - img "User avatar" [ref=e181]
+      - generic [ref=e185]:
+        - button "Mark \"Inference Platform\" as favorite" [ref=e187] [cursor=pointer]:
+          - img [ref=e188]
+        - img [ref=e192]
+        - button "Edit" [ref=e197] [cursor=pointer]:
+          - generic [ref=e198]: Edit
+        - button "Export dashboard" [ref=e203] [cursor=pointer]:
+          - generic [ref=e204]:
+            - text: Export
+            - img [ref=e205]
+        - generic [ref=e208]:
+          - button "Share" [ref=e209] [cursor=pointer]:
+            - generic [ref=e210]: Share
+          - button "Toggle share menu" [ref=e211] [cursor=pointer]:
+            - img [ref=e212]
+    - main [ref=e216]:
+      - generic [ref=e219]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - button "Move 30m backward" [ref=e225] [cursor=pointer]:
+              - img [ref=e226]
+            - 'button "Time range selected: Last 1 hour" [ref=e228] [cursor=pointer]':
+              - img [ref=e229]
+              - generic [ref=e233]: Last 1 hour
+              - img [ref=e234]
+            - button "Move time range forwards" [ref=e236] [cursor=pointer]:
+              - img [ref=e237]
+            - button "Zoom out time range" [ref=e239] [cursor=pointer]:
+              - img [ref=e240]
+          - generic [ref=e242]:
+            - button "Refresh" [ref=e906] [cursor=pointer]:
+              - img [ref=e907]
+              - generic [ref=e909]: Refresh
+            - button "Choose refresh time interval with current interval 10 seconds selected" [ref=e247] [cursor=pointer]:
+              - generic [ref=e248]: 10s
+              - img [ref=e249]
+        - generic [ref=e255]:
+          - button "Collapse row" [ref=e259] [cursor=pointer]:
+            - img [ref=e260]
+            - heading "GPU Hardware (DCGM)" [ref=e262]
+          - region "GPU Compute Utilization %" [ref=e268]:
+            - generic [ref=e269]:
+              - heading "GPU Compute Utilization %" [level=2] [ref=e271]
+              - img [ref=e794]
+            - generic [ref=e276]:
+              - generic [ref=e278]:
+                - generic [ref=e910]: 0%
+                - generic [ref=e283]: GPU 0
+              - generic [ref=e285]:
+                - generic [ref=e911]: 0%
+                - generic [ref=e290]: GPU 0
+              - generic [ref=e292]:
+                - generic [ref=e912]: 0%
+                - generic [ref=e297]: GPU 0
+          - region "Memory Bandwidth Utilization %" [ref=e303]:
+            - generic [ref=e304]:
+              - heading "Memory Bandwidth Utilization %" [level=2] [ref=e306]
+              - img [ref=e799]
+            - generic [ref=e311]:
+              - generic [ref=e313]:
+                - generic [ref=e913]: 0%
+                - generic [ref=e318]: GPU 0
+              - generic [ref=e320]:
+                - generic [ref=e914]: 0%
+                - generic [ref=e325]: GPU 0
+              - generic [ref=e327]:
+                - generic [ref=e915]: 0%
+                - generic [ref=e332]: GPU 0
+          - region "VRAM Usage (MiB)" [ref=e338]:
+            - generic [ref=e339]:
+              - heading "VRAM Usage (MiB)" [level=2] [ref=e341]
+              - img [ref=e804]
+            - list [ref=e353]:
+              - listitem [ref=e354]:
+                - button "Used" [ref=e358] [cursor=pointer]
+              - listitem [ref=e359]:
+                - button "Used" [ref=e363] [cursor=pointer]
+              - listitem [ref=e364]:
+                - button "Used" [ref=e368] [cursor=pointer]
+              - listitem [ref=e369]:
+                - button "Free" [ref=e373] [cursor=pointer]
+              - listitem [ref=e374]:
+                - button "Free" [ref=e378] [cursor=pointer]
+              - listitem [ref=e379]:
+                - button "Free" [ref=e383] [cursor=pointer]
+          - region "GPU Temperature" [ref=e389]:
+            - generic [ref=e390]:
+              - heading "GPU Temperature" [level=2] [ref=e392]
+              - img [ref=e815]
+            - generic [ref=e397]:
+              - generic [ref=e399]:
+                - generic [ref=e916]: 34 °C
+                - generic [ref=e404]: GPU 0
+              - generic [ref=e406]:
+                - generic [ref=e917]: 38 °C
+                - generic [ref=e411]: GPU 0
+              - generic [ref=e413]:
+                - generic [ref=e918]: 32 °C
+                - generic [ref=e418]: GPU 0
+          - button "Collapse row" [ref=e422] [cursor=pointer]:
+            - img [ref=e423]
+            - heading "Inference Engine (vLLM)" [ref=e425]
+          - region "KV Cache Usage %" [ref=e431]:
+            - generic [ref=e432]:
+              - heading "KV Cache Usage %" [level=2] [ref=e434]
+              - img [ref=e820]
+              - button "Menu for panel KV Cache Usage %" [ref=e438] [cursor=pointer]:
+                - img [ref=e822]
+            - generic [ref=e441]:
+              - generic [ref=e443]:
+                - generic [ref=e919]: 0%
+                - generic [ref=e448]: KV Cache %
+              - generic [ref=e450]:
+                - generic [ref=e920]: 0%
+                - generic [ref=e455]: KV Cache %
+              - generic [ref=e457]:
+                - generic [ref=e921]: 0%
+                - generic [ref=e462]: KV Cache %
+          - region "Requests Running vs Waiting" [ref=e468]:
+            - generic [ref=e469]:
+              - heading "Requests Running vs Waiting" [level=2] [ref=e471]
+              - img [ref=e827]
+            - list [ref=e483]:
+              - listitem [ref=e484]:
+                - button "Running" [ref=e488] [cursor=pointer]
+              - listitem [ref=e489]:
+                - button "Running" [ref=e493] [cursor=pointer]
+              - listitem [ref=e494]:
+                - button "Running" [ref=e498] [cursor=pointer]
+              - listitem [ref=e499]:
+                - button "Waiting" [ref=e503] [cursor=pointer]
+              - listitem [ref=e504]:
+                - button "Waiting" [ref=e508] [cursor=pointer]
+              - listitem [ref=e509]:
+                - button "Waiting" [ref=e513] [cursor=pointer]
+          - region "Throughput (tok/s)" [ref=e519]:
+            - generic [ref=e520]:
+              - heading "Throughput (tok/s)" [level=2] [ref=e522]
+              - img [ref=e838]
+            - generic [ref=e527]:
+              - generic [ref=e530]:
+                - generic [ref=e531]: tok/s
+                - generic [ref=e533]: "0"
+              - generic [ref=e544]:
+                - generic [ref=e545]: tok/s
+                - generic [ref=e547]: "0"
+              - generic [ref=e558]:
+                - generic [ref=e559]: tok/s
+                - generic [ref=e561]: "0"
+          - button "Collapse row" [ref=e573] [cursor=pointer]:
+            - img [ref=e574]
+            - heading "Latency & Traffic" [ref=e576]
+          - region "TTFT (Time to First Token)" [ref=e582]:
+            - generic [ref=e583]:
+              - heading "TTFT (Time to First Token)" [level=2] [ref=e585]
+              - img [ref=e855]
+            - list [ref=e597]:
+              - listitem [ref=e598]:
+                - button "p50" [ref=e602] [cursor=pointer]
+              - listitem [ref=e603]:
+                - button "p50" [ref=e607] [cursor=pointer]
+              - listitem [ref=e608]:
+                - button "p99" [ref=e612] [cursor=pointer]
+              - listitem [ref=e613]:
+                - button "p99" [ref=e617] [cursor=pointer]
+          - region "TBT (Time Between Tokens)" [ref=e623]:
+            - generic [ref=e624]:
+              - heading "TBT (Time Between Tokens)" [level=2] [ref=e626]
+              - img [ref=e866]
+            - list [ref=e638]:
+              - listitem [ref=e639]:
+                - button "p50" [ref=e643] [cursor=pointer]
+              - listitem [ref=e644]:
+                - button "p50" [ref=e648] [cursor=pointer]
+              - listitem [ref=e649]:
+                - button "p99" [ref=e653] [cursor=pointer]
+              - listitem [ref=e654]:
+                - button "p99" [ref=e658] [cursor=pointer]
+          - region "Request Rate & Errors" [ref=e664]:
+            - generic [ref=e665]:
+              - heading "Request Rate & Errors" [level=2] [ref=e667]
+              - img [ref=e877]
+            - list [ref=e679]:
+              - listitem [ref=e680]:
+                - button "200" [ref=e684] [cursor=pointer]
+              - listitem [ref=e685]:
+                - button "202" [ref=e689] [cursor=pointer]
+          - button "Collapse row" [ref=e693] [cursor=pointer]:
+            - img [ref=e694]
+            - heading "Queue & Scaling" [ref=e696]
+          - region "RabbitMQ Queue Depth" [ref=e702]:
+            - generic [ref=e703]:
+              - heading "RabbitMQ Queue Depth" [level=2] [ref=e705]
+              - img [ref=e888]
+            - generic [ref=e711]: No data
+          - 'region "Queue: Ready vs Unacked" [ref=e717]':
+            - generic [ref=e718]:
+              - 'heading "Queue: Ready vs Unacked" [level=2] [ref=e720]'
+              - img [ref=e890]
+            - generic [ref=e726]: No data
+          - region "Worker Replicas" [ref=e732]:
+            - generic [ref=e733]:
+              - heading "Worker Replicas" [level=2] [ref=e735]
+              - img [ref=e892]
+            - generic [ref=e740]:
+              - generic [ref=e743]:
+                - generic [ref=e744]: Desired
+                - generic [ref=e746]: "1"
+              - generic [ref=e757]:
+                - generic [ref=e758]: Ready
+                - generic [ref=e760]: "1"
+          - region "GPU Nodes" [ref=e774]:
+            - generic [ref=e775]:
+              - heading "GPU Nodes" [level=2] [ref=e777]
+              - img [ref=e904]
+            - generic [ref=e787]: No data
+  - generic [ref=e788]:
+    - img
+    - tooltip "Undock menu" [ref=e789]

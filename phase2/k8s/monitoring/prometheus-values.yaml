@@ -1,0 +1,184 @@
+# prometheus-values.yaml — Helm values for kube-prometheus-stack.
+#
+# WHAT THIS DEPLOYS:
+#   - Prometheus server (metrics storage + query engine)
+#   - Grafana (dashboards + visualization)
+#   - Prometheus Operator (manages ServiceMonitor CRDs)
+#   - node-exporter (host-level CPU/memory/disk metrics)
+#   - kube-state-metrics (K8s object state: pod counts, deployment replicas, etc.)
+#
+# WHY kube-prometheus-stack (not standalone Prometheus):
+#   The stack bundles everything needed for K8s observability in one Helm chart.
+#   ServiceMonitor CRDs let us declaratively define scrape targets — no editing
+#   prometheus.yml manually. Same idea as using CloudWatch Container Insights
+#   instead of manually configuring a CloudWatch agent.
+#
+# RESOURCE BUDGET:
+#   Total additional memory: ~1.1Gi across all monitoring components
+#   Available on 2x t3.medium: ~6.4Gi (minus ~1Gi for Phase 1 workloads)
+#   Headroom: ~4.3Gi — comfortable fit.
+
+# ---------------------------------------------------------------------------
+# Prometheus server
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # WHY 3d retention: learning lab, not production. 3 days is enough to
+    # compare load test results across sessions. Keeps disk usage under 5Gi.
+    retention: 3d
+    retentionSize: 5GB
+
+    # WHY these selectors: by default, kube-prometheus-stack only discovers
+    # ServiceMonitors and PodMonitors that match its own Helm release labels.
+    # Setting these to empty {} means "discover ALL ServiceMonitors in ALL
+    # namespaces" — including our custom ones in inference-system.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # WHY storage: without persistent storage, Prometheus loses all data on
+    # pod restart. 10Gi gp3 is enough for 3 days of metrics from 5-6 targets.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    # WHY CPU node affinity: Prometheus is a CPU+memory workload. Scheduling
+    # it on a GPU node would waste expensive GPU capacity.
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: role
+                  operator: In
+                  values:
+                    - cpu
+
+# ---------------------------------------------------------------------------
+# Grafana
+# ---------------------------------------------------------------------------
+grafana:
+  adminUser: admin
+  adminPassword: inference-lab
+  # WHY simple password: learning lab, accessed only via port-forward.
+  # Production would use SSO/OIDC integration.
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  # WHY sidecar: the Grafana sidecar watches for ConfigMaps with the label
+  # grafana_dashboard=1 and auto-loads them as dashboards. This means we can
+  # ship dashboards as K8s manifests — declarative, version-controlled.
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      # WHY searchNamespace null: search ALL namespaces for dashboard ConfigMaps.
+      # Our dashboard ConfigMap lives in inference-system, not the monitoring namespace.
+      searchNamespace: null
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu
+
+# ---------------------------------------------------------------------------
+# Alertmanager — disabled for Phase 2
+# ---------------------------------------------------------------------------
+alertmanager:
+  enabled: false
+  # WHY disabled: Phase 2 focuses on visibility (see the system), not alerting
+  # (react to the system). We'll add alert rules in a later phase when we have
+  # baseline metrics to set thresholds against. Saves ~200Mi memory.
+
+# ---------------------------------------------------------------------------
+# Prometheus Operator
+# ---------------------------------------------------------------------------
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu
+
+# ---------------------------------------------------------------------------
+# node-exporter — host-level metrics (CPU, memory, disk, network)
+# ---------------------------------------------------------------------------
+nodeExporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  # WHY no affinity: node-exporter is a DaemonSet — it runs on ALL nodes
+  # including GPU nodes. That's the point: we want host metrics from everywhere.
+
+# ---------------------------------------------------------------------------
+# kube-state-metrics — K8s object state (deployment replicas, pod status, etc.)
+# ---------------------------------------------------------------------------
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu

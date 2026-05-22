@@ -1,0 +1,151 @@
+# dcgm-exporter.yaml — GPU hardware metrics for Prometheus.
+#
+# WHAT THIS IS: NVIDIA DCGM (Data Center GPU Manager) Exporter reads GPU
+# telemetry counters via the DCGM library and exposes them as Prometheus
+# metrics on :9400/metrics. It runs as a DaemonSet — one pod per GPU node.
+#
+# WHY WE NEED THIS: The NVIDIA device plugin (Phase 1) only registers
+# nvidia.com/gpu as a schedulable K8s resource. It does NOT export metrics.
+# Without DCGM, we're blind to GPU utilization, memory bandwidth, temperature,
+# and VRAM usage — like running EC2 without CloudWatch detailed monitoring.
+#
+# KEY METRICS FOR INFERENCE:
+#   DCGM_FI_DEV_GPU_UTIL     — SM (compute) utilization %
+#   DCGM_FI_DEV_MEM_COPY_UTIL — Memory bandwidth utilization % (THE decode bottleneck)
+#   DCGM_FI_DEV_FB_USED      — Framebuffer (VRAM) used in MiB
+#   DCGM_FI_DEV_FB_FREE      — Framebuffer free in MiB
+#   DCGM_FI_DEV_GPU_TEMP     — GPU temperature in Celsius
+#   DCGM_FI_DEV_POWER_USAGE  — Power draw in watts
+#
+# ANALOGY: DCGM is the CloudWatch agent for GPU instances. It reads hardware
+# performance counters that the OS and K8s don't expose natively.
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dcgm-exporter
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: dcgm-exporter
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: monitoring
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dcgm-exporter
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: monitoring
+    spec:
+      # WHY toleration: GPU nodes are tainted with nvidia.com/gpu=true:NoSchedule.
+      # Without this, the DaemonSet pod would never schedule on GPU nodes — the
+      # exact nodes where it needs to run to read GPU counters.
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+      # WHY required affinity: DCGM only works on nodes with NVIDIA GPUs.
+      # Scheduling on CPU nodes would waste resources and produce no metrics.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role
+                    operator: In
+                    values:
+                      - gpu
+
+      containers:
+        - name: dcgm-exporter
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04
+          # WHY this version: 3.3.5 is the latest stable release compatible
+          # with T4 GPUs (Turing architecture). The Ubuntu 22.04 variant
+          # matches the NVIDIA driver version on AL2 EKS GPU AMIs.
+
+          ports:
+            - name: metrics
+              containerPort: 9400
+              # WHY :9400: default DCGM exporter port. Prometheus ServiceMonitor
+              # scrapes this endpoint for GPU hardware telemetry.
+
+          env:
+            - name: DCGM_EXPORTER_LISTEN
+              value: ":9400"
+            - name: DCGM_EXPORTER_KUBERNETES
+              value: "true"
+              # WHY kubernetes=true: adds pod/namespace/node labels to metrics,
+              # enabling per-pod GPU attribution in Grafana dashboards.
+
+          securityContext:
+            # WHY runAsNonRoot false: DCGM needs access to /dev/nvidia* device files
+            # which are owned by root. This is the same privilege level as the
+            # NVIDIA device plugin DaemonSet.
+            runAsNonRoot: false
+            runAsUser: 0
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+              # WHY modest resources: DCGM is a lightweight polling agent.
+              # It reads GPU counters every few seconds — no heavy computation.
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          volumeMounts:
+            - name: device-nvidia
+              mountPath: /dev/nvidia0
+              readOnly: true
+            - name: device-nvidiactl
+              mountPath: /dev/nvidiactl
+              readOnly: true
+            - name: device-nvidia-uvm
+              mountPath: /dev/nvidia-uvm
+              readOnly: true
+              # WHY mount /dev/nvidia*: DCGM communicates with the GPU driver
+              # through these device files. Without them, it can't read any
+              # hardware counters. readOnly because we're only reading, not
+              # configuring the GPU.
+
+      volumes:
+        - name: device-nvidia
+          hostPath:
+            path: /dev/nvidia0
+        - name: device-nvidiactl
+          hostPath:
+            path: /dev/nvidiactl
+        - name: device-nvidia-uvm
+          hostPath:
+            path: /dev/nvidia-uvm
+---
+# Service for DCGM Exporter — needed for Prometheus ServiceMonitor discovery.
+# WHY a Service for a DaemonSet: Prometheus discovers scrape targets through
+# Service endpoints. Even though DCGM runs as a DaemonSet (one pod per node),
+# the ServiceMonitor still needs a Service to find those pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dcgm-exporter
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: dcgm-exporter
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: dcgm-exporter
+  ports:
+    - name: metrics
+      port: 9400
+      targetPort: metrics
+      protocol: TCP

@@ -1,0 +1,70 @@
+# policy-b-queue-eager.yaml — KEDA ScaledObject: queue depth only, value=3.
+#
+# POLICY B (EAGER QUEUE): Same as Policy A but with a lower threshold.
+# Scales earlier — even 3 messages in the queue triggers a second worker.
+#
+# SCALING FORMULA: desiredReplicas = ceil(currentQueueLength / value)
+#   - queue=3  -> ceil(3/3) = 1 replica (but activationValue=2 so scaling starts)
+#   - queue=4  -> ceil(4/3) = 2 replicas
+#   - queue=7  -> ceil(7/3) = 3 replicas
+#   - queue=10 -> ceil(10/3) = 4 replicas (max)
+#
+# WHY VALUE=3 (down from 5): tests whether scaling earlier improves latency.
+# With prefetch_count=10, a single worker can buffer up to 10 messages. At
+# value=3, KEDA scales before the worker's buffer is even half full.
+#
+# HYPOTHESIS: If value=3 performs well, it means the extra GPU capacity outweighs
+# the cost of premature scale-up. If it performs poorly, it means we're adding
+# workers that sit idle — wasting Spot budget without latency benefit.
+#
+# ANALOGY: Aggressive step scaling policy with a low threshold (like scaling
+# when SQS depth > 3 instead of > 5).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-worker-scaler
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-scaler
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+    scaling-policy: queue-eager
+spec:
+  scaleTargetRef:
+    name: vllm-worker
+
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  # WHY 300s: cooldown must exceed scale-up latency (~165s with optimizations).
+  # See policy-a for the full explanation of the 2x rule.
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: inference_queue
+        mode: QueueLength
+        value: "3"
+        # WHY 3 (down from 5): lower threshold = scale sooner.
+        activationValue: "2"
+        # WHY activationValue 2 (down from 3): also lowered to match the more
+        # aggressive posture. Even 2 messages in the queue activates scaling.
+      authenticationRef:
+        name: rabbitmq-trigger-auth

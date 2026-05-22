@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 4 — Cold Start Benchmark: 8 Optimizations</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+  background: #0d1117; color: #c9d1d9;
+  max-width: 960px; margin: 0 auto; padding: 32px 24px 80px;
+  line-height: 1.75; font-size: 15px;
+}
+h1 { font-size: 32px; font-weight: 700; color: #e6edf3; line-height: 1.25; margin-bottom: 8px; }
+h2 { font-size: 22px; font-weight: 600; color: #e6edf3; margin: 56px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+h3 { font-size: 17px; font-weight: 600; color: #e6edf3; margin: 32px 0 12px; }
+p { margin-bottom: 16px; }
+.subtitle { color: #8b949e; font-size: 13px; margin-bottom: 32px; }
+.lead { font-size: 17px; color: #e6edf3; line-height: 1.7; margin-bottom: 24px; }
+strong { color: #e6edf3; }
+.callout { padding: 16px 20px; border-radius: 6px; margin: 20px 0; font-size: 14px; line-height: 1.7; }
+.callout-blue { background: #0d1117; border-left: 3px solid #58a6ff; }
+.callout-blue strong { color: #58a6ff; }
+.callout-green { background: #0d1117; border-left: 3px solid #7ee787; }
+.callout-green strong { color: #7ee787; }
+.callout-yellow { background: #0d1117; border-left: 3px solid #e3b341; }
+.callout-yellow strong { color: #e3b341; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #30363d; color: #8b949e; font-weight: 600; }
+td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+tr:hover td { background: #161b22; }
+.mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0; }
+.stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; text-align: center; }
+.stat-card .num { font-size: 32px; font-weight: 700; line-height: 1.2; font-family: 'SF Mono', 'Fira Code', monospace; }
+.stat-card .desc { font-size: 11px; color: #8b949e; margin-top: 4px; }
+.num.green { color: #7ee787; }
+.num.yellow { color: #e3b341; }
+.num.red { color: #f85149; }
+.num.blue { color: #58a6ff; }
+.bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+.bar-label { width: 160px; font-size: 12px; color: #8b949e; flex-shrink: 0; font-family: 'SF Mono', 'Fira Code', monospace; }
+.bar-track { flex: 1; height: 26px; background: #21262d; border-radius: 4px; position: relative; overflow: hidden; display: flex; }
+.bar-fill { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; min-width: 1px; }
+.bar-value { font-size: 12px; color: #8b949e; width: 60px; text-align: right; flex-shrink: 0; margin-left: 8px; font-family: 'SF Mono', 'Fira Code', monospace; }
+.opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+@media (max-width: 700px) { .opt-grid { grid-template-columns: 1fr; } }
+.opt-card { background: #161b22; border-radius: 8px; padding: 20px; border: 1px solid #30363d; }
+.opt-card .title { font-weight: 600; font-size: 15px; color: #e6edf3; margin-bottom: 8px; }
+.opt-card .saved { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; margin-bottom: 8px; }
+.opt-card .body { font-size: 13px; color: #8b949e; line-height: 1.6; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; font-size: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+.footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #21262d; text-align: center; font-size: 12px; color: #484f58; }
+</style>
+</head>
+<body>
+
+<h1>Cold Start Benchmark: 8 Optimizations</h1>
+<p class="subtitle">Phase 4 — cumulative optimization progression. 2026-04-07T23:03:48.981051+00:00</p>
+
+<p class="lead">Each config adds one optimization on top of the previous. The stacked bar chart shows which pipeline stage shrinks with each addition — from the v0.19.0 baseline (~744s) down to a compilation cache hit (~519s) and vLLM sleep mode wake (—).</p>
+
+<h2>Results at a Glance</h2>
+<div class="stats-row">
+  <div class="stat-card"><div class="num red">744s</div><div class="desc">Naked Baseline</div></div>
+  <div class="stat-card"><div class="num green">575s</div><div class="desc">Fully Optimized</div></div>
+  <div class="stat-card"><div class="num green">23%</div><div class="desc">Improvement</div></div>
+  <div class="stat-card"><div class="num green">519s</div><div class="desc">Cache Hit (2nd start)</div></div>
+  <div class="stat-card"><div class="num blue">—</div><div class="desc">Wake from Sleep</div></div>
+</div>
+
+<h2>Optimization Progression</h2>
+<p>Each bar shows the 5 cold start stages. Watch how each optimization shrinks a different segment.</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#e3b341"></div>Stage 1: Node Provision</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f85149"></div>Stage 2: Image Pull</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#58a6ff"></div>Stage 3: Model Loading</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#bc8cff"></div>Stage 4: Runtime Init</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#7ee787"></div>Stage 5: Readiness</div>
+</div>
+
+
+        <div class="bar-row">
+          <div class="bar-label">naked</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">743.9s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+s3-init</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">625.8s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+prebaked-ami</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">644.3s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+warmup</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">661.1s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+startup-probe</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">637.4s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+soci</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">555.5s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+streamer</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">574.6s</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">+cache-hit</div>
+          <div class="bar-track"></div>
+          <div class="bar-value">519.0s</div>
+        </div>
+
+<div class="callout callout-green">
+<strong>Biggest single win:</strong> +s3-init — saved 118s from the previous config.
+</div>
+
+<div class="callout callout-yellow">
+<strong>Biggest disappointment:</strong> Pre-baked AMI + FSR — layer decompression (I/O), not network download, was the real bottleneck. SOCI solved this properly by eliminating decompression entirely.
+</div>
+
+<h2>Per-Stage Results</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Config</th><th>Stage</th>
+      <th>Stage 1</th><th>Stage 2</th><th>Stage 3</th><th>Stage 4</th><th>Stage 5</th>
+      <th>Total</th><th>1st TTFT</th>
+    </tr>
+  </thead>
+  <tbody>
+        <tr>
+          <td><strong>naked</strong></td>
+          <td style="font-size:12px;color:#8b949e">all</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>743.9s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+s3-init</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 3</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>625.8s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+prebaked-ami</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 2</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>644.3s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+warmup</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 4 / TTFT</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>661.1s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+startup-probe</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 5</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>637.4s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+soci</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 2</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>555.5s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+streamer</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 3</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>574.6s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>+cache-hit</strong></td>
+          <td style="font-size:12px;color:#8b949e">Stage 4</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>519.0s</strong></td>
+          <td class="mono">—</td>
+        </tr>
+        <tr>
+          <td><strong>wake-from-sleep</strong></td>
+          <td style="font-size:12px;color:#8b949e">Wake</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="mono"><strong>—</strong></td>
+          <td class="mono">—</td>
+        </tr></tbody>
+</table>
+
+<h2>Optimizations</h2>
+<h3>Phase 4v1 (Infrastructure)</h3><div class="opt-grid">
+        <div class="opt-card">
+          <div class="title">S3 Init Container</div>
+          <div class="saved" style="color:#58a6ff">Stage 3: —</div>
+          <div class="body">S3 model cache replaces HuggingFace download. Init container checks EBS → S3 → HF fallback.</div>
+        </div>
+        <div class="opt-card">
+          <div class="title">Pre-baked AMI</div>
+          <div class="saved" style="color:#f85149">Stage 2: —</div>
+          <div class="body">vLLM image cached in containerd on AMI. Only saves ~7s — layer unpack is the bottleneck, not download.</div>
+        </div></div><h3>Phase 4v2 (Runtime)</h3><div class="opt-grid">
+        <div class="opt-card">
+          <div class="title">Model Warmup</div>
+          <div class="saved" style="color:#bc8cff">TTFT: —</div>
+          <div class="body">Synthetic 50-token request absorbs CUDA JIT compilation. Same cold start total, but first real request TTFT drops dramatically.</div>
+        </div></div><h3>Phase 4v3 (Cold Start)</h3><div class="opt-grid">
+        <div class="opt-card">
+          <div class="title">Startup Probe</div>
+          <div class="saved" style="color:#7ee787">Stage 5: —</div>
+          <div class="body">Replaces fixed initialDelaySeconds:120. Detects readiness the instant /health returns 200.</div>
+        </div>
+        <div class="opt-card">
+          <div class="title">SOCI Lazy Loading</div>
+          <div class="saved" style="color:#f85149">Stage 2: —</div>
+          <div class="body">containerd FUSE mount — files fetched on demand from ECR. Eliminates decompression bottleneck.</div>
+        </div>
+        <div class="opt-card">
+          <div class="title">RunAI Model Streamer</div>
+          <div class="saved" style="color:#58a6ff">Stage 3: —</div>
+          <div class="body">Concurrent C++ threads stream tensors from disk to GPU. 3.3x faster than safetensors.</div>
+        </div>
+        <div class="opt-card">
+          <div class="title">Compilation Cache</div>
+          <div class="saved" style="color:#bc8cff">Stage 4: —</div>
+          <div class="body">hostPath volume persists compiled Triton kernels across pod restarts on same node.</div>
+        </div>
+        <div class="opt-card">
+          <div class="title">vLLM Sleep Mode</div>
+          <div class="saved" style="color:#e3b341">Wake: —</div>
+          <div class="body">Offloads weights to CPU RAM, preserves CUDA graphs. Wake copies weights back in 0.3-0.9s.</div>
+        </div></div>
+
+<h2>Cost</h2>
+<table>
+  <thead><tr><th>Config</th><th>Duration</th><th>GPU-Hours</th><th>Cost</th></tr></thead>
+  <tbody>
+        <tr>
+          <td>naked</td>
+          <td class="mono">743.9s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+s3-init</td>
+          <td class="mono">625.8s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+prebaked-ami</td>
+          <td class="mono">644.3s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+warmup</td>
+          <td class="mono">661.1s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+startup-probe</td>
+          <td class="mono">637.4s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+soci</td>
+          <td class="mono">555.5s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+streamer</td>
+          <td class="mono">574.6s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>+cache-hit</td>
+          <td class="mono">519.0s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr>
+          <td>wake-from-sleep</td>
+          <td class="mono">0.0s</td>
+          <td class="mono">0.0000</td>
+          <td class="mono">$0.0000</td>
+        </tr>
+        <tr style="border-top:2px solid #30363d">
+          <td><strong>Total</strong></td><td></td><td></td>
+          <td class="mono"><strong>$0.0000</strong></td>
+        </tr></tbody>
+</table>
+
+<h2>Methodology</h2>
+<div class="callout callout-blue">
+<strong>How measurements are taken:</strong> Each config gets a fresh cold start (GPU nodes deleted, new node provisioned by Karpenter). K8s events provide Scheduled and Pulled timestamps (~1s precision). Worker logs provide WARMUP and READY timestamps (~1s). Pod Ready condition provides readiness timestamp. Exception: +cache-hit reuses the node from +streamer to test compilation cache. Wake-from-sleep keeps the pod running and measures wake latency from worker logs.
+</div>
+
+<div class="callout callout-blue">
+<strong>Timing precision:</strong> Stage boundaries are extracted retroactively from K8s events and worker logs after the pod reaches Ready state. kubectl polling runs every 5s during the wait. All timestamps are UTC epoch seconds with ~1s precision.
+</div>
+
+<div class="footer">
+  Generated by <code>cold_start_benchmark.py</code> | Phase 4 — Inference Learning Lab
+</div>
+
+</body>
+</html>

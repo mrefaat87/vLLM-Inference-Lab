@@ -1,0 +1,98 @@
+# nvidia-device-plugin.yaml — Makes GPUs visible to the Kubernetes scheduler.
+#
+# WHY this is needed: Kubernetes doesn't natively understand GPU hardware.
+# The NVIDIA device plugin runs as a DaemonSet on every GPU node and:
+#   1. Discovers GPUs on the host (like an EC2 instance reporting its capacity)
+#   2. Registers them as "nvidia.com/gpu" extended resources with the kubelet
+#   3. Handles GPU allocation/deallocation for pods
+#
+# Without this, pods requesting nvidia.com/gpu would stay Pending forever —
+# the scheduler wouldn't know any node has GPUs available.
+#
+# ANALOGY: This is like the Auto Scaling health check agent — it reports
+# the node's GPU capacity to the control plane so scheduling decisions work.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+  # WHY kube-system: this is cluster infrastructure, not application workload.
+  # Same reason kube-proxy and CoreDNS live in kube-system.
+  labels:
+    app.kubernetes.io/name: nvidia-device-plugin
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-device-plugin
+  updateStrategy:
+    # WHY RollingUpdate: avoids taking all GPU nodes offline simultaneously
+    # during plugin upgrades. One node at a time keeps inference capacity up.
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nvidia-device-plugin
+        app.kubernetes.io/part-of: inference-lab
+    spec:
+      # WHY toleration: GPU nodes have the nvidia.com/gpu taint (set in NodePool).
+      # The device plugin MUST tolerate it — otherwise it can't run on GPU nodes,
+      # which is the only place it's useful.
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+
+      # WHY nodeAffinity: only schedule on nodes that actually have GPUs.
+      # Prevents wasting resources running this pod on CPU-only nodes where
+      # there are no GPUs to discover. The label is set automatically by
+      # Karpenter based on the instance type's GPU count.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role
+                    operator: In
+                    values:
+                      - gpu
+
+      # WHY no restart backoff: if the plugin crashes, we need it back ASAP
+      # or GPU scheduling breaks for the entire node.
+      priorityClassName: system-node-critical
+
+      containers:
+        - name: nvidia-device-plugin
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.14.3
+          # WHY v0.14.3: stable release with CUDA 12 support and MPS (Multi-Process
+          # Service) capability. Pinned version, not :latest, for reproducibility.
+
+          securityContext:
+            # WHY privileged: the plugin needs direct access to /dev/nvidia* device
+            # files and the NVIDIA kernel driver. There's no way around this —
+            # GPU device management requires host-level hardware access.
+            privileged: true
+
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+              # WHY this path: the kubelet's device plugin registration socket lives
+              # here. The plugin creates a Unix socket that kubelet connects to for
+              # GPU allocation requests. It's the "API endpoint" between plugin and kubelet.
+
+          resources:
+            # WHY modest resources: the plugin is lightweight — it just monitors
+            # GPU state and handles allocation RPCs. No heavy computation.
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            # WHY hostPath: must access the actual kubelet directory on the host
+            # filesystem, not an ephemeral container volume.

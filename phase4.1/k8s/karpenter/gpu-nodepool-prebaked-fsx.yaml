@@ -1,0 +1,114 @@
+# gpu-nodepool-prebaked-fsx.yaml — Karpenter NodePool for Variant H.
+#
+# DELTA FROM gpu-nodepool-prebaked-streamer.yaml:
+#   1. amiSelectorTerms: Variant=prebaked-fsx (the AMI built by
+#      packer/lustre-client/gpu-node-lustre.pkr.hcl). That AMI has BOTH the
+#      stock vLLM image cached AND the lustre-client kernel module installed.
+#   2. Labels image-source=prebaked-fsx. baseline-pod-fsx-weights.yaml's
+#      nodeSelector requires this label match — without it the pod could
+#      land on a non-lustre node and the FSx CSI mount would fail at runtime.
+#   3. Same g4dn.xlarge / Spot / us-east-1a constraints — Variant H must
+#      land in 1a to mount the FSx Lustre filesystem (FSx is per-AZ and ours
+#      lives in 1a per terraform/fsx.tf).
+#
+# WHY VOLUME SIZE STAYS 100Gi
+#   The H AMI doesn't bake model weights (those are on FSx). It's the same
+#   size as the stock prebake (~14 GB). 100 GB matches D's snapshot size, so
+#   Karpenter won't reject the launch on volumeSize mismatch.
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes-prebaked-fsx
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  amiFamily: AL2
+
+  # Targets the AMI built by packer/lustre-client. If the build produces
+  # multiple AMIs (e.g. iterative debugging), Karpenter selects the most recent.
+  amiSelectorTerms:
+    - tags:
+        Project: inference-lab
+        Stage: phase4.1
+        Variant: prebaked-fsx
+
+  role: "inference-phase4-1-karpenter-node"
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: inference-lab
+    Stage: phase4.1
+    NodePool: prebaked-fsx
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool-prebaked-fsx
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  template:
+    metadata:
+      labels:
+        # Both labels are required by baseline-pod-fsx-weights.yaml's
+        # nodeSelector. node-role=gpu is the standard guard; image-source
+        # disambiguates the FSx NodePool from prebaked-stock / streamer / etc.
+        node-role: gpu
+        image-source: prebaked-fsx
+    spec:
+      nodeClassRef:
+        name: gpu-nodes-prebaked-fsx
+
+      requirements:
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        # us-east-1a — co-located with the prebaked-fsx AMI's snapshot,
+        # the FSR enablement scope, AND the FSx Lustre filesystem (per-AZ).
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+
+  limits:
+    cpu: "8"
+    memory: 32Gi
+
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 300s
+    expireAfter: 6h
+    budgets:
+      - nodes: "1"

@@ -1,0 +1,76 @@
+# vllm-worker/pv.yaml — S3-backed persistent storage for model weight cache.
+#
+# WHY S3 for model cache (not EBS):
+#   1. ReadWriteMany: multiple vLLM pods across nodes can share the same cache
+#      (EBS is ReadWriteOnce — locked to one node). This matters when scaling
+#      from 1 to N GPU workers.
+#   2. No AZ affinity: S3 is region-wide, so pods in us-east-1a and 1b can
+#      both read cached weights. EBS volumes are AZ-locked.
+#   3. Survives node termination: Spot interruptions destroy local storage.
+#      S3 persists independently of any instance lifecycle.
+#   4. Cost: S3 Standard is ~$0.023/GB/month. 100GB of model weights = ~$2.30.
+#      A 100GB gp3 EBS volume = ~$8/month per AZ.
+#
+# ANALOGY: S3 model cache is like a shared AMI — every new instance (pod)
+# starts with the model already available instead of downloading fresh.
+#
+# PREREQUISITE: Mountpoint for Amazon S3 CSI driver must be installed:
+#   aws eks create-addon --cluster-name inference-lab \
+#     --addon-name aws-mountpoint-s3-csi-driver
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: model-cache-pv
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  capacity:
+    storage: 100Gi
+    # WHY 100Gi: this is metadata only for S3 — the actual storage is virtually
+    # unlimited. 100Gi signals to K8s that this PV can satisfy PVCs up to 100Gi.
+    # It's like setting a logical quota, not a physical limit.
+  accessModes:
+    - ReadWriteMany
+    # WHY ReadWriteMany: multiple vLLM pods on different nodes need to read
+    # (and potentially write) cached model weights simultaneously.
+  persistentVolumeReclaimPolicy: Retain
+  # WHY Retain: don't delete the S3 bucket contents if the PV is removed.
+  # Model weights are expensive to re-download. Manual cleanup is safer.
+  csi:
+    driver: s3.csi.aws.com
+    # WHY S3 CSI: AWS-native driver that mounts an S3 bucket as a POSIX
+    # filesystem. Uses Mountpoint for Amazon S3 under the hood.
+    volumeHandle: s3-model-cache
+    # WHY unique handle: K8s uses this to identify the volume. Must be unique
+    # across all PVs in the cluster.
+    volumeAttributes:
+      bucketName: inference-lab-model-cache-019167255542
+      # PLACEHOLDER: the deploy script will replace this with the actual
+      # S3 bucket name (e.g., inference-lab-model-cache-123456789012).
+      # We don't hardcode it because bucket names must be globally unique.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache-pvc
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: model-cache
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+      # WHY match the PV: PVC requests must be ≤ PV capacity for binding.
+  storageClassName: ""
+  # WHY empty string: tells K8s this is a pre-provisioned (static) PV.
+  # Without this, K8s would try to dynamically provision a new volume
+  # via the default StorageClass, ignoring our S3 PV entirely.
+  volumeName: model-cache-pv
+  # WHY explicit volumeName: binds this PVC to our specific PV.
+  # Without it, K8s would match based on capacity and access mode alone,
+  # which could bind to the wrong PV in a cluster with multiple volumes.

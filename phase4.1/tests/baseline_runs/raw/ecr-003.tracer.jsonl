@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777636289781, "run_id": "ecr-003"}
+{"event": "vllm_import_done", "epoch_ms": 1777636301721, "run_id": "ecr-003"}
+{"event": "cuda_context_ready", "epoch_ms": 1777636302568, "run_id": "ecr-003"}
+{"event": "weight_load_start", "epoch_ms": 1777636338225, "run_id": "ecr-003"}
+{"event": "weight_load_done", "epoch_ms": 1777636380404, "run_id": "ecr-003"}
+{"event": "graph_capture_start", "epoch_ms": 1777636436158, "run_id": "ecr-003"}
+{"event": "warmup_done", "epoch_ms": 1777636445906, "run_id": "ecr-003"}
+{"event": "server_ready", "epoch_ms": 1777636448304, "run_id": "ecr-003"}

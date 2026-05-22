@@ -1,0 +1,68 @@
+# worker-strategy-patch.yaml — Strategic JSON merge patch for admission control.
+#
+# This file is a REFERENCE for what deploy.sh does imperatively.
+# You can also apply it directly with:
+#   kubectl patch deployment vllm-worker -n inference-system --patch-file phase3/k8s/worker-strategy-patch.yaml
+#
+# WHY a patch (not a full deployment manifest): we only change the queue-worker
+# container image and env vars. Everything else (vllm-server, volumes, tolerations,
+# resource limits) stays the same as Phase 1. This minimizes drift between phases.
+#
+# To switch strategies, change ADMISSION_STRATEGY value and re-apply:
+#   "static"      → Fixed prefetch_count, no runtime checks (RabbitMQ is the gate)
+#   "reactive"    → Local tracker monitors current load against threshold
+#   "predictive"  → Local tracker + per-request cost estimation before admitting
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-worker
+  namespace: inference-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: queue-worker
+          # WHY phase3 tag: separate from "latest" so we can roll back to Phase 1
+          # worker by reverting to the "latest" tag. Like blue-green deployment.
+          # Replace 019167255542 with your AWS account ID.
+          image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/worker:phase3
+          env:
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "inference"
+            - name: RABBITMQ_PASS
+              value: "inference123"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: VLLM_HOST
+              value: "localhost"
+            - name: VLLM_PORT
+              value: "8000"
+            - name: VLLM_MODEL
+              value: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+            - name: PREFETCH_COUNT
+              value: "10"
+            # ── Phase 3 v2 — Local AdmissionTracker ──
+            - name: ADMISSION_STRATEGY
+              value: "reactive"  # static | reactive | predictive
+            - name: ADMISSION_THRESHOLD
+              value: "0.80"  # fraction of bottleneck capacity (0.0-1.0)
+            - name: BOTTLENECK_METRIC
+              value: "decode_throughput"  # decode_throughput | gpu_compute | kv_cache | compound
+            - name: DECODE_CAPACITY
+              value: "500.0"  # total concurrent decode tokens at SLA boundary
+            - name: GPU_COMPUTE_CAPACITY
+              value: "300.0"  # total concurrent prefill tokens at SLA boundary
+            - name: KV_CACHE_CAPACITY_BYTES
+              value: "9600000000"  # KV cache budget in bytes
+            # Cost estimation constants (used internally by predictive strategy)
+            - name: KV_BYTES_PER_TOKEN
+              value: "401408"
+            - name: CHARS_PER_TOKEN
+              value: "4"

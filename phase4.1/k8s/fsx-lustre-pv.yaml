@@ -1,0 +1,61 @@
+# fsx-lustre-pv.yaml — Static PersistentVolume backed by the FSx for Lustre
+# filesystem provisioned by phase4.1/terraform/fsx.tf.
+#
+# WHY STATIC (NOT DYNAMIC PROVISIONING)
+#   The FSx CSI driver supports dynamic provisioning via StorageClass, but each
+#   PVC bind would create a NEW filesystem (10-15 min provisioning per run).
+#   Variant H uses ONE filesystem populated once with weights, mounted by all
+#   pods across all 3 measurement runs. Static PV is the right pattern here AND
+#   it's what NIMCache does in production (one cache, many consumers).
+#
+# PLACEHOLDERS FILLED AT APPLY TIME
+#   FSX_FS_ID         → terraform output fsx_id          (e.g. fs-0a1b2c3d4e5f...)
+#   FSX_DNS_NAME      → terraform output fsx_dns_name    (e.g. fs-...fsx.us-east-1.amazonaws.com)
+#   FSX_MOUNT_NAME    → terraform output fsx_mount_name  (8-char random suffix)
+#
+#   Substitute with:
+#     fsx_id=$(cd phase4.1/terraform && terraform output -raw fsx_id)
+#     fsx_dns=$(cd phase4.1/terraform && terraform output -raw fsx_dns_name)
+#     fsx_mnt=$(cd phase4.1/terraform && terraform output -raw fsx_mount_name)
+#     sed "s/FSX_FS_ID/${fsx_id}/; s/FSX_DNS_NAME/${fsx_dns}/; s/FSX_MOUNT_NAME/${fsx_mnt}/" \
+#       phase4.1/k8s/fsx-lustre-pv.yaml | kubectl apply -f -
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: model-weights-fsx-pv
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+    variant: fsx-lustre
+spec:
+  # Lustre filesystems advertise their full capacity to clients. The PV's
+  # capacity field is metadata only — it doesn't affect runtime quota. We
+  # report the provisioned 1.2 TiB so kubectl describe pv reads honestly.
+  capacity:
+    storage: 1200Gi
+
+  # ReadWriteMany — multiple inference pods on multiple nodes will mount this
+  # PV concurrently in Phase 6. For Variant H's measurement we mount RO from
+  # a single pod at a time, but the PV access mode has to permit RWX so the
+  # Phase 6 pattern works without re-creating the PV.
+  accessModes:
+    - ReadWriteMany
+
+  # Retain — never auto-delete the FSx FS when the PVC is removed. The FS is
+  # owned by Terraform; lifecycle stays under operator control.
+  persistentVolumeReclaimPolicy: Retain
+
+  # Empty storageClassName + a static PV makes this PV bindable only by a
+  # PVC that explicitly references it (storageClassName: "" + selector or
+  # volumeName). Prevents the default StorageClass from picking it up.
+  storageClassName: ""
+
+  csi:
+    driver: fsx.csi.aws.com
+    # The volumeHandle is what the CSI driver presents to the kubelet at mount
+    # time. Format: <fs-id>::<mountname> (the double-colon is intentional —
+    # FSx CSI driver uses it as the separator).
+    volumeHandle: FSX_FS_ID
+    volumeAttributes:
+      dnsname: FSX_DNS_NAME
+      mountname: FSX_MOUNT_NAME

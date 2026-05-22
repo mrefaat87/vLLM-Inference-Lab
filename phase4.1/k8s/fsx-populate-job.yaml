@@ -1,0 +1,126 @@
+# fsx-populate-job.yaml — One-time K8s Job that copies Qwen2.5-7B-Instruct-AWQ
+# weights from S3 onto the FSx Lustre filesystem.
+#
+# WHY A JOB (NOT TERRAFORM null_resource)
+#   Per-direction call: keep infra and data lifecycles decoupled, mirror
+#   NIMCache's pattern (a CRD controller that launches a K8s Job to populate
+#   the cache). Easy to re-run if a copy fails. terraform destroy of the FS
+#   doesn't accidentally drop the data step.
+#
+# IRSA
+#   Reuses the existing baseline-runner ServiceAccount (annotated with
+#   inference-phase4-1-vllm-worker role). That role already has S3 read for
+#   inference-lab-model-cache — verified by D's runtime init container.
+#
+# WHERE THIS RUNS
+#   The CPU node group (role=cpu label). No GPU needed; we just copy bytes.
+#   The CPU nodes don't have the lustre kernel module — but they don't need
+#   it because this Job's pod will land on a node where the FSx CSI driver
+#   handles the mount. The CSI driver's node DaemonSet runs on every node
+#   that has a kubelet, and `mount.lustre` will autoload the module... wait,
+#   the module isn't AVAILABLE on CPU nodes (we only baked it into the GPU
+#   AMI for Variant H). So the populate Job HAS to run on a node that has
+#   the lustre client installed.
+#
+#   Workarounds:
+#     (a) Move the populate Job to land on the H GPU NodePool (wasteful — a
+#         g4dn.xlarge for an aws-s3-cp). But cheap if quick (5-10 min @ ~$0.05).
+#     (b) Add lustre client install as a quick provisioner on the CPU AMI.
+#         More invasive than Variant H needs.
+#     (c) Use the sidecar-bundled approach: the FSx CSI driver itself does
+#         the mount; we just need ANY node where the kernel module is loaded.
+#
+#   We pick (a). The Job runs on a Variant H GPU node. After it completes,
+#   Karpenter consolidates the node away (5 min) before measurement runs
+#   start, so we still have a clean cold-node measurement.
+#
+# WHAT IT DOES
+#   1. aws s3 cp --recursive from the model bucket onto the mounted FSx PVC.
+#   2. find + sha256sum the result and write a manifest file. Lets the
+#      runtime pod (or a debug shell) verify integrity before vLLM loads.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fsx-populate
+  namespace: baseline
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+    variant: fsx-lustre
+    purpose: populate-once
+spec:
+  # Don't auto-cleanup — we want logs available for audit after success.
+  ttlSecondsAfterFinished: 3600 # 1 hour
+  backoffLimit: 1               # One retry; copy is idempotent (aws s3 cp)
+  template:
+    metadata:
+      labels:
+        app: fsx-populate
+    spec:
+      serviceAccountName: baseline-runner
+      restartPolicy: OnFailure
+
+      # Run on a Variant H GPU node (the only ones with the lustre client).
+      # Reusing the same Karpenter pool the inference pods use also means
+      # we're testing the full mount path under realistic conditions.
+      nodeSelector:
+        node-role: gpu
+        image-source: prebaked-fsx
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+      containers:
+        - name: populate
+          image: public.ecr.aws/aws-cli/aws-cli:2.17.18
+          command:
+            - sh
+            - -c
+            - |
+              set -euxo pipefail
+              # mkdir is idempotent — safe on Job retry.
+              mkdir -p /mnt/fsx/qwen2.5-7b-awq
+
+              echo "=== Pre-flight: list source ==="
+              aws s3 ls --recursive --summarize \
+                s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/
+
+              echo ""
+              echo "=== Copy from S3 to FSx ==="
+              aws s3 cp --recursive --no-progress \
+                s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \
+                /mnt/fsx/qwen2.5-7b-awq/
+
+              echo ""
+              echo "=== Audit: file count + size ==="
+              find /mnt/fsx/qwen2.5-7b-awq -type f | wc -l
+              du -sh /mnt/fsx/qwen2.5-7b-awq
+
+              echo ""
+              echo "=== SHA256 manifest ==="
+              cd /mnt/fsx/qwen2.5-7b-awq
+              find . -type f -exec sha256sum {} \; | sort > .sha256.tmp
+              mv .sha256.tmp ../qwen2.5-7b-awq.sha256
+              cat /mnt/fsx/qwen2.5-7b-awq.sha256
+              echo ""
+              echo "=== Populate complete ==="
+
+          volumeMounts:
+            - name: model-fsx
+              mountPath: /mnt/fsx
+          # Tight resources — this is just an aws s3 cp, not GPU work.
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+      volumes:
+        - name: model-fsx
+          persistentVolumeClaim:
+            claimName: model-weights-fsx
+            readOnly: false

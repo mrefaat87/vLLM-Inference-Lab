@@ -1,0 +1,395 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "action": "Scheduling",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T12:54:12.486830Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328305",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "0/2 nodes are available: 2 node(s) didn't match Pod's node affinity/selector. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:54:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab72359afc0301",
+                "namespace": "baseline",
+                "resourceVersion": "328307",
+                "uid": "03957f0f-b15a-4de4-8771-c2a24812827f"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:54:13Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328306",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:54:13Z",
+            "message": "Pod should schedule on: nodeclaim/gpu-pool-prebaked-qg65k",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:54:13Z",
+                "name": "baseline-prebaked-fsr-003.18ab7235db7c77e1",
+                "namespace": "baseline",
+                "resourceVersion": "328312",
+                "uid": "9d0aaeaa-b84b-4152-823a-898686ffdf6a"
+            },
+            "reason": "Nominated",
+            "reportingComponent": "karpenter",
+            "reportingInstance": "",
+            "source": {
+                "component": "karpenter"
+            },
+            "type": "Normal"
+        },
+        {
+            "action": "Binding",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T12:55:12.145671Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328306",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "Successfully assigned baseline/baseline-prebaked-fsr-003 to ip-10-5-6-142.ec2.internal",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab72437eedb13d",
+                "namespace": "baseline",
+                "resourceVersion": "328708",
+                "uid": "82d879c6-526c-4dd4-8a4b-bde33c542a9f"
+            },
+            "reason": "Scheduled",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:12Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:12Z",
+            "message": "Pulling image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab72439d239a67",
+                "namespace": "baseline",
+                "resourceVersion": "328717",
+                "uid": "74572064-fa38-4779-8a0b-7e7ecc8a6171"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:12Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:12Z",
+            "message": "Successfully pulled image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\" in 175ms (175ms including waiting). Image size: 125889031 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab7243a795c8d5",
+                "namespace": "baseline",
+                "resourceVersion": "328718",
+                "uid": "22b99137-9ea3-4612-8d29-6a0c3b8fd9a8"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:12Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:12Z",
+            "message": "Created container: model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab7243a95a4403",
+                "namespace": "baseline",
+                "resourceVersion": "328719",
+                "uid": "468e16c2-85d0-4c2a-9dfd-e8c65e5ecb61"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:12Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:12Z",
+            "message": "Started container model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:12Z",
+                "name": "baseline-prebaked-fsr-003.18ab7243afa6c00a",
+                "namespace": "baseline",
+                "resourceVersion": "328720",
+                "uid": "6270a507-993a-458b-a923-29ec6fbd486a"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:49Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:49Z",
+            "message": "Pulling image \"vllm/vllm-openai:v0.19.0\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:49Z",
+                "name": "baseline-prebaked-fsr-003.18ab724c35f5c0b6",
+                "namespace": "baseline",
+                "resourceVersion": "328879",
+                "uid": "d2e61d9d-0a7d-4b0c-8ebc-956a3fb4387b"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:50Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:50Z",
+            "message": "Successfully pulled image \"vllm/vllm-openai:v0.19.0\" in 1.28s (1.28s including waiting). Image size: 9577341348 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:50Z",
+                "name": "baseline-prebaked-fsr-003.18ab724c82495947",
+                "namespace": "baseline",
+                "resourceVersion": "328885",
+                "uid": "19cbf2ff-c9e1-4ca7-9e9e-36f0df19eae1"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:51Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:51Z",
+            "message": "Created container: vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:51Z",
+                "name": "baseline-prebaked-fsr-003.18ab724c9742e4ab",
+                "namespace": "baseline",
+                "resourceVersion": "328888",
+                "uid": "28a37773-3407-4ef4-ade9-cef35c273e2a"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:55:52Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:55:52Z",
+            "message": "Started container vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:55:52Z",
+                "name": "baseline-prebaked-fsr-003.18ab724ce7198a50",
+                "namespace": "baseline",
+                "resourceVersion": "328895",
+                "uid": "987713f5-7166-4d8f-ba8d-f57f701cdc50"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 2,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T12:57:52Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-prebaked-fsr-003",
+                "namespace": "baseline",
+                "resourceVersion": "328707",
+                "uid": "69f28bb0-de4c-423f-b1c4-2bab7bf3b9a3"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T12:58:02Z",
+            "message": "Readiness probe failed: Get \"http://10.5.26.225:8000/health\": dial tcp 10.5.26.225:8000: connect: connection refused",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T12:57:52Z",
+                "name": "baseline-prebaked-fsr-003.18ab7268d26b3800",
+                "namespace": "baseline",
+                "resourceVersion": "329442",
+                "uid": "4cea2adc-8ec2-4c69-b19b-942d7bd9ebdf"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-6-142.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-6-142.ec2.internal"
+            },
+            "type": "Warning"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

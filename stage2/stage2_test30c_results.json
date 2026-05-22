@@ -1,0 +1,599 @@
+{
+  "test": "30C",
+  "title": "FP8 KV Cache \u2014 Accuracy Preservation",
+  "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+  "kv_cache_dtype": "fp8_e4m3 (A10G Ampere)",
+  "num_questions": 60,
+  "summary": {
+    "per_category": {
+      "Code Generation": {
+        "pass": 3,
+        "total": 5,
+        "accuracy_pct": 60.0,
+        "avg_latency_s": 1.41
+      },
+      "Factual Recall": {
+        "pass": 7,
+        "total": 10,
+        "accuracy_pct": 70.0,
+        "avg_latency_s": 0.16
+      },
+      "GSM8K-Style": {
+        "pass": 1,
+        "total": 10,
+        "accuracy_pct": 10.0,
+        "avg_latency_s": 3.79
+      },
+      "HumanEval-Style": {
+        "pass": 2,
+        "total": 5,
+        "accuracy_pct": 40.0,
+        "avg_latency_s": 3.61
+      },
+      "Instruction Following": {
+        "pass": 8,
+        "total": 10,
+        "accuracy_pct": 80.0,
+        "avg_latency_s": 0.11
+      },
+      "MMLU-Style": {
+        "pass": 10,
+        "total": 10,
+        "accuracy_pct": 100.0,
+        "avg_latency_s": 0.05
+      },
+      "Math Reasoning": {
+        "pass": 5,
+        "total": 10,
+        "accuracy_pct": 50.0,
+        "avg_latency_s": 0.34
+      }
+    },
+    "overall_pass": 36,
+    "overall_total": 60,
+    "overall_accuracy_pct": 60.0,
+    "overall_avg_latency_s": 1.16
+  },
+  "per_question": [
+    {
+      "index": 1,
+      "category": "Math Reasoning",
+      "prompt": "What is 17 * 23?",
+      "expected_desc": "contains '391'",
+      "response_text": "231",
+      "passed": false,
+      "latency_s": 0.058
+    },
+    {
+      "index": 2,
+      "category": "Math Reasoning",
+      "prompt": "What is 144 / 12?",
+      "expected_desc": "contains '12'",
+      "response_text": "12",
+      "passed": true,
+      "latency_s": 0.045
+    },
+    {
+      "index": 3,
+      "category": "Math Reasoning",
+      "prompt": "What is 256 + 389?",
+      "expected_desc": "contains '645'",
+      "response_text": "645",
+      "passed": true,
+      "latency_s": 0.056
+    },
+    {
+      "index": 4,
+      "category": "Math Reasoning",
+      "prompt": "What is 1000 - 427?",
+      "expected_desc": "contains '573'",
+      "response_text": "578",
+      "passed": false,
+      "latency_s": 0.056
+    },
+    {
+      "index": 5,
+      "category": "Math Reasoning",
+      "prompt": "If a train travels 120 miles in 2 hours, what is its speed in mph?",
+      "expected_desc": "contains '60'",
+      "response_text": "The speed of the train is \\(60\\) mph.",
+      "passed": true,
+      "latency_s": 0.153
+    },
+    {
+      "index": 6,
+      "category": "Math Reasoning",
+      "prompt": "A rectangle has length 8 and width 5. What is its area?",
+      "expected_desc": "contains '40'",
+      "response_text": "\\[\ntext\n The area of the rectangle is \\( 40 \\).",
+      "passed": true,
+      "latency_s": 0.192
+    },
+    {
+      "index": 7,
+      "category": "Math Reasoning",
+      "prompt": "What is 15% of 200?",
+      "expected_desc": "contains '30'",
+      "response_text": "22",
+      "passed": false,
+      "latency_s": 0.046
+    },
+    {
+      "index": 8,
+      "category": "Math Reasoning",
+      "prompt": "If you buy 3 items at $7 each and pay with $50, how much change do you get?",
+      "expected_desc": "contains '29'",
+      "response_text": "To calculate the change amount you you get back:\n\n1. Cost of 3 item: = $ $\n \\ price\n2 = \\$7\n2. Total cost \\ = 3 number of items s \u00d7 \\(\\ \\* \\ = 3 \\ 3 \\ \\  3 \\ \\ \\  3 \\ \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\ \\ \\ \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  3 \\  ",
+      "passed": false,
+      "latency_s": 2.116
+    },
+    {
+      "index": 9,
+      "category": "Math Reasoning",
+      "prompt": "What is the square root of 169?",
+      "expected_desc": "contains '13'",
+      "response_text": "The square root of 119 is \\( \\sqrt{119}",
+      "passed": false,
+      "latency_s": 0.198
+    },
+    {
+      "index": 10,
+      "category": "Math Reasoning",
+      "prompt": "How many seconds are in 2 hours?",
+      "expected_desc": "contains '7200'",
+      "response_text": "There are \\( 7boxed{7 \\, 7200} \\) \\) \\) \\) \\) \\) \\) \\) \\) \\) \\seconds\\) in 2 hours.",
+      "passed": true,
+      "latency_s": 0.485
+    },
+    {
+      "index": 11,
+      "category": "Factual Recall",
+      "prompt": "What is the capital of Australia?",
+      "expected_desc": "contains 'Canberra'",
+      "response_text": "The capital of Australia is Canberra.",
+      "passed": true,
+      "latency_s": 0.098
+    },
+    {
+      "index": 12,
+      "category": "Factual Recall",
+      "prompt": "What year did the Berlin Wall fall?",
+      "expected_desc": "contains '1989'",
+      "response_text": "The Berlin Wall fell in 1989,, specifically on November 9,, 19893.",
+      "passed": true,
+      "latency_s": 0.296
+    },
+    {
+      "index": 13,
+      "category": "Factual Recall",
+      "prompt": "What planet is closest to the Sun?",
+      "expected_desc": "contains 'Mercury'",
+      "response_text": "The planet closest to the Sun is Mercury.",
+      "passed": true,
+      "latency_s": 0.119
+    },
+    {
+      "index": 14,
+      "category": "Factual Recall",
+      "prompt": "Who wrote Romeo and Juliet?",
+      "expected_desc": "contains 'Shakespeare'",
+      "response_text": "Rome\u00e9o et Juliette was writtenuserlescope error",
+      "passed": false,
+      "latency_s": 0.171
+    },
+    {
+      "index": 15,
+      "category": "Factual Recall",
+      "prompt": "What is the chemical symbol for gold?",
+      "expected_desc": "contains 'Au'",
+      "response_text": "Au",
+      "passed": true,
+      "latency_s": 0.035
+    },
+    {
+      "index": 16,
+      "category": "Factual Recall",
+      "prompt": "How many continents are there?",
+      "expected_desc": "contains '7'",
+      "response_text": " ThereContinents: There",
+      "passed": false,
+      "latency_s": 0.077
+    },
+    {
+      "index": 17,
+      "category": "Factual Recall",
+      "prompt": "What is the boiling point of water in Celsius?",
+      "expected_desc": "contains '100'",
+      "response_text": "The boiling point of water is not a valid input as \" does not represent to any known substance or substance. Please provide a specific substance or compound for an accurate boiling point in Celsius..",
+      "passed": false,
+      "latency_s": 0.422
+    },
+    {
+      "index": 18,
+      "category": "Factual Recall",
+      "prompt": "What is the largest ocean on Earth?",
+      "expected_desc": "contains 'Pacific'",
+      "response_text": "The largest ocean on Earth is the Pacific Ocean.",
+      "passed": true,
+      "latency_s": 0.129
+    },
+    {
+      "index": 19,
+      "category": "Factual Recall",
+      "prompt": "Who painted the Mona Lisa?",
+      "expected_desc": "contains 'da Vinci' or 'Leonardo'",
+      "response_text": "The Mona Lisa was painted by Leonardo da Vinci.",
+      "passed": true,
+      "latency_s": 0.129
+    },
+    {
+      "index": 20,
+      "category": "Factual Recall",
+      "prompt": "What gas do plants absorb from the atmosphere?",
+      "expected_desc": "contains 'carbon dioxide' or 'CO2'",
+      "response_text": "Plantsts absorb carbon dioxide (CO2) from the atmosphere.",
+      "passed": true,
+      "latency_s": 0.171
+    },
+    {
+      "index": 21,
+      "category": "Instruction Following",
+      "prompt": "List exactly 3 benefits of exercise. Use a numbered list.",
+      "expected_desc": "exactly 3 numbered items",
+      "response_text": "1. Improves Cardiovascular Health: \n",
+      "passed": false,
+      "latency_s": 0.234
+    },
+    {
+      "index": 22,
+      "category": "Instruction Following",
+      "prompt": "Is the Earth flat? Answer with only yes or no.",
+      "expected_desc": "first word is 'no'",
+      "response_text": " No",
+      "passed": true,
+      "latency_s": 0.035
+    },
+    {
+      "index": 23,
+      "category": "Instruction Following",
+      "prompt": "Explain gravity in exactly one sentence.",
+      "expected_desc": "response is a single sentence",
+      "response_text": "Gravity is the curvature of spacetime caused by mass and energy,",
+      "passed": true,
+      "latency_s": 0.16
+    },
+    {
+      "index": 24,
+      "category": "Instruction Following",
+      "prompt": "Name 5 colors. Separate them with commas on a single line.",
+      "expected_desc": "has at least 4 commas (5 items)",
+      "response_text": "Red,,, line, comma,,\u9ec4\u7eff\u8272",
+      "passed": true,
+      "latency_s": 0.14
+    },
+    {
+      "index": 25,
+      "category": "Instruction Following",
+      "prompt": "What is 2+2? Reply with just the number, nothing else.",
+      "expected_desc": "contains '4' and response is very short",
+      "response_text": "4",
+      "passed": true,
+      "latency_s": 0.035
+    },
+    {
+      "index": 26,
+      "category": "Instruction Following",
+      "prompt": "List exactly 5 fruits. Use a numbered list.",
+      "expected_desc": "exactly 5 numbered items",
+      "response_text": "1. Apple\n2. banana\n\n3. orange\n\n4. grape\n\n5. mango",
+      "passed": true,
+      "latency_s": 0.223
+    },
+    {
+      "index": 27,
+      "category": "Instruction Following",
+      "prompt": "Say 'hello world' in uppercase letters only.",
+      "expected_desc": "contains 'HELLO WORLD'",
+      "response_text": "HELLO WORLD",
+      "passed": true,
+      "latency_s": 0.056
+    },
+    {
+      "index": 28,
+      "category": "Instruction Following",
+      "prompt": "Is 7 greater than 10? Answer with only yes or no.",
+      "expected_desc": "first word is 'no'",
+      "response_text": "No",
+      "passed": true,
+      "latency_s": 0.035
+    },
+    {
+      "index": 29,
+      "category": "Instruction Following",
+      "prompt": "Write exactly 3 words.",
+      "expected_desc": "response is exactly 3 words",
+      "response_text": "1. Precise\n2. Concise \n33. Formatting",
+      "passed": false,
+      "latency_s": 0.171
+    },
+    {
+      "index": 30,
+      "category": "Instruction Following",
+      "prompt": "Respond with the word 'acknowledged' and nothing else.",
+      "expected_desc": "contains 'acknowledged' and is short",
+      "response_text": " acknowledged",
+      "passed": true,
+      "latency_s": 0.035
+    },
+    {
+      "index": 31,
+      "category": "Code Generation",
+      "prompt": "Write a Python function that returns the factorial of n.",
+      "expected_desc": "contains 'def' and 'factorial'",
+      "response_text": "```python\ndef factorial(n):\n:\n    ifuserparalleled(n):\n    if n == 0:\n        return\n\n    else * *-1 factorial(n---\n\ndef factorial(n):\n :\n    if n == 0\n     return 1\n    else\n     return n * factorial(n-",
+      "passed": true,
+      "latency_s": 0.925
+    },
+    {
+      "index": 32,
+      "category": "Code Generation",
+      "prompt": "Write a Python function called 'is_palindrome' that checks if a string is a palindrome.",
+      "expected_desc": "contains 'def is_palindrome' and reverse/slicing logic",
+      "response_text": "```python\ndef is_palindrome(s):\n    \"\"\"\n    Checks if the given string s is a palindrome.\n    \n    Args:\n    s (strstrstring'):):):\n    \n    Returns:\n    bool:\n    \n    Examples:\n    >>> is_palindrome(\"racecar\")\n    True\n    >>> is_palindrome(\"python\n    False\n    \"\"\"\n    # Remove spaces and convertuser quotation\n    s = ''.join(s.split())\n    # Compare",
+      "passed": false,
+      "latency_s": 1.051
+    },
+    {
+      "index": 33,
+      "category": "Code Generation",
+      "prompt": "Write a Python function called 'fizzbuzz' that takes n and returns 'Fizz' if divisible by 3, 'Buzz' if by 5, 'FizzBuzz' if by both, else the number.",
+      "expected_desc": "contains 'def fizzbuzz' and modulo checks",
+      "response_text": "```python\ndef fizzbuzz(n):\n    if n % 3n == 0 and n % 5 == 0:\n        return = 'FizzBuzz'\n    elif n % 3 n == 0\n        n return = 'Fizz'\n    elif n % 5 == 0\n        n n return = \"Buzz'\n    else\n\n return return return str(n)\n``\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n n\n\n n\n\n\n\n\n\n\n\n\n n\n\n\n\n\n\n n\n n n\n n n n n\n n n n n\n\n\n n\n\n\n n n n n\n n n n n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n n n n n n\n\n n n n n n n n n n n\n\n\n n n n n n\n n n n n n\n n n n n n\n",
+      "passed": true,
+      "latency_s": 2.121
+    },
+    {
+      "index": 34,
+      "category": "Code Generation",
+      "prompt": "Write a Python function called 'fibonacci' that returns the nth Fibonacci number.",
+      "expected_desc": "contains 'def fibonacci'",
+      "response_text": "```python\ndef fibonacci(n):\n    if n <= 0:\n        return = 0\n    elif n == 1\n        return return 1\n    else fibonacci(n - 1) + fibonacci(n - 2\n\n# Example Usage\nprint(fibonacci(10))\n```\n\nNote. Note = 10\nreturn fibonacci(n)\n```python\n\ndef fibonacci(n\n    if n <= 0\n        return return 0\n    elif n == 1\n        n return 1\n    else\n        n return fibonacci(n - 1) + fibonacci(n - 2\n    return n\n\n# Example Usage\nprint(fibonacci(10))\n`````python\n\ndef fibonacci(n\n    if n <= 0\n        return return 0\n    elif n == 1\n        n 1\n    else\n        n fibonacci(n - 1) fibonacci(n 2\n    return n\n\n#* Usage\nprint",
+      "passed": true,
+      "latency_s": 2.109
+    },
+    {
+      "index": 35,
+      "category": "Code Generation",
+      "prompt": "Write a Python function called 'max_of_three' that returns the largest of three numbers.",
+      "expected_desc": "contains 'def max_of_three'",
+      "response_text": "```python\ndefndef max_of three(a,, b,, c):\n):\n    return max(a,,)\n)\n\n# Example Example example usage\nprint(max of three(10, 23, 39)))  # Output: 23\n```\n\nNote note The function statement statement `max_of_three max_of_three` to find the largest of three numbers.",
+      "passed": false,
+      "latency_s": 0.858
+    },
+    {
+      "index": 36,
+      "category": "MMLU-Style",
+      "prompt": "Which of the following best describes the function of telomerase?\nA) It repairs misfolded proteins\nB) It adds repetitive nucleotide sequences to the ends of chromosomes\nC) It unwinds double-stranded DNA during replication\nD) It catalyzes the splicing of pre-mRNA\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 37,
+      "category": "MMLU-Style",
+      "prompt": "In microeconomics, what does the term 'deadweight loss' refer to?\nA) The total cost of production that exceeds revenue\nB) The loss in total surplus that occurs when the market is not at equilibrium\nC) The depreciation of capital goods over time\nD) The opportunity cost of choosing one investment over another\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 38,
+      "category": "MMLU-Style",
+      "prompt": "The Treaty of Westphalia (1648) is most significant because it:\nA) Ended the Hundred Years' War between England and France\nB) Established the principle of state sovereignty in international relations\nC) Created the first international court of justice\nD) United the German states under a single emperor\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 39,
+      "category": "MMLU-Style",
+      "prompt": "Which logical fallacy is committed when one argues that a claim must be true because it has not been proven false?\nA) Straw man\nB) Ad hominem\nC) Appeal to ignorance\nD) False dilemma\nRespond with just the letter.",
+      "expected_desc": "answer is C",
+      "response_text": "C",
+      "passed": true,
+      "latency_s": 0.042
+    },
+    {
+      "index": 40,
+      "category": "MMLU-Style",
+      "prompt": "In the human heart, which valve separates the left atrium from the left ventricle?\nA) Tricuspid valve\nB) Pulmonary valve\nC) Aortic valve\nD) Mitral valve (bicuspid valve)\nRespond with just the letter.",
+      "expected_desc": "answer is D",
+      "response_text": "D",
+      "passed": true,
+      "latency_s": 0.05
+    },
+    {
+      "index": 41,
+      "category": "MMLU-Style",
+      "prompt": "What is the Heisenberg Uncertainty Principle?\nA) Energy can neither be created nor destroyed\nB) The position and momentum of a particle cannot both be precisely determined simultaneously\nC) An object at rest stays at rest unless acted upon by a force\nD) The entropy of an isolated system always increases\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 42,
+      "category": "MMLU-Style",
+      "prompt": "In Kant's moral philosophy, the categorical imperative requires that one:\nA) Maximize overall happiness for the greatest number\nB) Act only according to maxims that one could will to be universal laws\nC) Follow the virtues defined by one's community\nD) Obey the commands of a sovereign authority\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 43,
+      "category": "MMLU-Style",
+      "prompt": "Which of the following is an autoimmune disease?\nA) Tuberculosis\nB) Type 1 Diabetes\nC) Malaria\nD) Influenza\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.042
+    },
+    {
+      "index": 44,
+      "category": "MMLU-Style",
+      "prompt": "The Krebs cycle (citric acid cycle) primarily takes place in which part of the cell?\nA) Cytoplasm\nB) Nucleus\nC) Mitochondrial matrix\nD) Endoplasmic reticulum\nRespond with just the letter.",
+      "expected_desc": "answer is C",
+      "response_text": "C",
+      "passed": true,
+      "latency_s": 0.05
+    },
+    {
+      "index": 45,
+      "category": "MMLU-Style",
+      "prompt": "In international trade theory, the Heckscher-Ohlin model predicts that a country will export goods that:\nA) Have the highest absolute production cost\nB) Intensively use the factors of production it has in abundance\nC) Are demanded least by its domestic consumers\nD) Require the most advanced technology to produce\nRespond with just the letter.",
+      "expected_desc": "answer is B",
+      "response_text": "B",
+      "passed": true,
+      "latency_s": 0.051
+    },
+    {
+      "index": 46,
+      "category": "GSM8K-Style",
+      "prompt": "A store sells apples for $2 each and oranges for $3 each. Sarah buys twice as many apples as oranges. If she spends $28 total, how many oranges did she buy?",
+      "expected_desc": "answer is 4",
+      "response_text": "Let's denote the number of oranges Sarah buys as \\( x \\). Since she she she Sarah buys twice as many apples as oranges,A,, she, she she spends $28,,,,,,,,,,,A, sells apples for $2 each and oranges for $A each,. We1. The cost number number of apples Sarah buys is \\( 2x \\).\n\nThe total total total total cost total total total total total total total total total's's total total total total. The costThe total total1. The. Total cost spent by Sarah canA is:\n\n\\[ 2 \\begin\\[\n2 \\times 2 + x \\times A = 28\n\n\n\\]\n\nSince. Simplifyinging this equation:\n\n\\:\n\n\\.\n\n\\4 + + + + +.\n\n\\.\n\n\\.\n\n\\.\n\n\\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n \\.\n\n",
+      "passed": true,
+      "latency_s": 5.278
+    },
+    {
+      "index": 47,
+      "category": "GSM8K-Style",
+      "prompt": "A tank is being filled by two pipes. Pipe A fills it in 6 hours alone, and Pipe B fills it in 4 hours alone. If both pipes are opened together, how many hours does it take to fill the tank? Express your answer as a decimal rounded to one decimal place.",
+      "expected_desc": "answer is 2.4",
+      "response_text": "To determine the time of filling the tank when both pipes \\( A \\) and \\( B \\) are working together,, can can be calculated calculated calculated:\n\n:\n\n1. **\\ A's A's fills the tank in 6 hours,, be A s rate working alone,, A s rate be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be be",
+      "passed": false,
+      "latency_s": 5.283
+    },
+    {
+      "index": 48,
+      "category": "GSM8K-Style",
+      "prompt": "Maria has 120 stamps. She gives 25% of them to her brother, then gives one-third of the remaining stamps to her friend. How many stamps does Maria have left?",
+      "expected_desc": "answer is 60",
+      "response_text": "Maria starts with 120 stamps.\n\n1. She gives 25% of her stamps to her brother:\n   - 25% of 120 = 3 0.25 \\times 120 = 32\n   - Stamps left after giving some to her brother:  120 - 32 = 88\n\n2. She one-third of the remaining stamps to her friend\n   - One-third of 88 =  \\frac{}{324} \\times 88 = 29.37692342472895\n   - Since the number number11umber of stamps must be an integer, we we rounded to 29 29\n   - Stamps left after giving some to her friend:  82\n\n3. Therefore, the number number 28\n\nSo, the111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "passed": false,
+      "latency_s": 5.274
+    },
+    {
+      "index": 49,
+      "category": "GSM8K-Style",
+      "prompt": "A car travels from City A to City B at 60 mph and returns at 40 mph. If the distance between the cities is 120 miles, what is the average speed for the entire round trip in mph?",
+      "expected_desc": "answer is 48",
+      "response_text": "To find the average speed for the entire round trip,:\n\n1. **Calculate the time each leg of the trip:**\n\n   - From A to B (at 60 mph):\n:\n   \\[\n \\text{Time} = \\frac{\\text{Distance}}}{ \\text{Speed}} = \\frac{120 \\text{ miles}}}{ 60 \\text{ mph}}} = 2 \\text{ hours}\n \\]\n\n   - From B to A (at 40 mph)\n\n \\[\n \\text{Time} = \\frac{120 \\text{ miles}}}{ 40 \\text{ mph}} = 33.5 \\text{ hours} \n \\]\n\n2. **Calculate the total total total of the trip in hours:**\n\n \\ \\text{Total timeime\n\n",
+      "passed": false,
+      "latency_s": 1.845
+    },
+    {
+      "index": 50,
+      "category": "GSM8K-Style",
+      "prompt": "A bookstore offers a 15% discount on all books. After the discount, a 10% sales tax is applied. If a book's original price is $40, what is the final price the customer pays?",
+      "expected_desc": "answer is $37.40",
+      "response_text": "To find the final price the customer pays for the book, we through a 11% discount and then a 10% sales tax, follow these steps:\n\n1. **Calculate the discounted price:**\n  \n Original Price \\(\\ 11\\\\% = 40 \\times (1 - 0.11)) = 40 \\times 0.899\\ = = 3.32\n\n   Discounted Price \\(= 3.32 \\times 40 = 3.32 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 3.12 \\times 40 = 1.12 \\times 40 = 1.12 \\times 40 = 1.12 \\times 40 = 1.12 \\times 40 = 44.40\n\n2. **Calculate the final price after adding the 10% sales tax  \\**\n\n   Final Price \\(= 44.40 \\times (1 + 0.10) \\) = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 44.40 \\times 1.10 = 4",
+      "passed": false,
+      "latency_s": 5.278
+    },
+    {
+      "index": 51,
+      "category": "GSM8K-Style",
+      "prompt": "In a class of 40 students, 65% passed the math test. Of those who passed, 75% scored above 80. How many students scored above 80?",
+      "expected_desc": "answer is 19 or 20 (depending on rounding)",
+      "response_text": "To determine, the number of students who scored above 80, we the following steps:\n\n1. Calculate the number of students who passed the math test:\n   \\[\n 40 \\times 0.65 = 26 \\]\n\n2. Calculate the number of students who passed and scored above 80\n   \\[\n 26 \\times 0.77 = 18.9 \\]\n\nSince. Since the number of students must be an integer, round,, 12.\n\nTherefore,, 12 students scored above 80.",
+      "passed": false,
+      "latency_s": 1.287
+    },
+    {
+      "index": 52,
+      "category": "GSM8K-Style",
+      "prompt": "A rectangular garden is 3 times as long as it is wide. If the perimeter of the garden is 64 meters, what is the area in square meters?",
+      "expected_desc": "answer is 192",
+      "response_text": "Let the width of the garden be \\( \\( w \\) meters. Then, length \\( l = A \\cdot w \\ \\( \\).\n\nThe perimeter of the rectangle is given by:\n \\22",
+      "passed": false,
+      "latency_s": 0.447
+    },
+    {
+      "index": 53,
+      "category": "GSM8K-Style",
+      "prompt": "Tom invests $5000 at a simple interest rate of 8% per year. How much total money (principal + interest) will he have after 3 years?",
+      "expected_desc": "answer is 6200",
+      "response_text": "To determine the total total total money (principal + interest), after 3,, we we can use the formula for simple simple interest:\n\n\\[ \\text{Total Amount} = \\text{Principal}} + \\left(\\ \\text{Principal}} \\times \\text{Rate}} \\times \\text{Time}\\}\n\nGiven:\n- Principal (\\P))):))):):):):):):):):):):):):):):): = $5000\n5000\n5000P5000\n5000\n5000\n5000\n5000\n5000\n5000P5000\n5000\n5000\n5000P5000P5000\n5000P5000\n5000P5k00P5P00\n5P00P5P00P5P00P5P00P5P00P5P00P5P00P5P00P5P0\n5000P5000P5000P5000P5000P5000P5000P5000P5000P5000P5000P5000P5000P5000P5000\n5000\n5000P5000P5000P5000P5000P5000\n\n-5000P5000P5000P5000P5000P5000P5000\n\nP5000P5000P5000P5000P5000P5000P500\n\nP5000P5000P5000P5000P5000P5000P5P0\n\nP5P00P5P00P5P00P5P00P5P00P5P0\n\nP5P00P5P0",
+      "passed": false,
+      "latency_s": 5.278
+    },
+    {
+      "index": 54,
+      "category": "GSM8K-Style",
+      "prompt": "A train leaves Station A at 9:00 AM traveling at 80 km/h. Another train leaves Station B (which is 400 km from A) at 10:00 AM traveling toward A at 120 km/h. At what time do the trains meet?",
+      "expected_desc": "answer is 11:36 AM",
+      "response_text": "To determine,,:\n\nThe trains will meet when they the distances traveled by both trains sum equal the total distance between them.\n\n1. ** Calculate the head distance traveled by AA before BB starts:\n   \\ \\begin{aligned}\n\\text{Distance}}_{_{ \\text{AA travels before BB starts}}}} &= \\text{Speed of AA}} \\times \\text{Time before BB starts (1 hour)}\\\\ \\\\\n& \\end &= 8 80 \\, \\text{km/h} \\, \\times \\, 1 \\, \\text{hour} \\, = \\\\\n \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\ \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\, \\,",
+      "passed": false,
+      "latency_s": 5.284
+    },
+    {
+      "index": 55,
+      "category": "GSM8K-Style",
+      "prompt": "A bakery sells cupcakes in boxes of 6 and cookies in boxes of 8. If a customer buys 5 boxes of cupcakes and 3 boxes of cookies, and each cupcake costs $1.50 while each cookie costs $1.00, what is the total cost?",
+      "expected_desc": "answer is 69",
+      "response_text": "To determine the total cost for the customer's buying 3 boxes of cupcakes and 3 boxes of cookies:\n\n1. **Cost of cupcakes:**\n:\n   - Each box contains 6 cupcakes.\n  \n \\[ 6 \\ \\text{ of cupcakes} = 6 \\times 1.50 = 9. 9. \\]\n\n Total cost of cupcakes: \\ \\[ 3 \\ \\times 6 \\times 1.50 = 3. 4.5 \\ \\ \\]\n\n2. ** of cookies\\ \n\n  \n \\[  box of \\ \\text{ of of of of cookies} = 8 \\times 1. 1.00 = 8 \\times 1. 1.00 = 8.80 \\. \\]\n\n2. ** of total of cupcakes and cookies\\ \\[  box. 4.5 box + 8. 8. 8. 8. 8.8 8. 3. 3. 13.8  box. \\\n\nTherefore,,,,,,,,, of cupcakes and cookies costs **. \\$1. 11.50.",
+      "passed": false,
+      "latency_s": 2.673
+    },
+    {
+      "index": 56,
+      "category": "HumanEval-Style",
+      "prompt": "Write a Python function called 'binary_search' that takes a sorted list and a target value, and returns the index of the target if found, or -1 if not found. Use the binary search algorithm (not linear search).",
+      "expected_desc": "contains def binary_search, mid-point calculation, and comparison logic",
+      "response_text": "```python\ndef binary_search(arr, target):\n    \"\"\"\n    Perform a binary search search search search search search search search search11 search search search search111 search111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "passed": false,
+      "latency_s": 5.278
+    },
+    {
+      "index": 57,
+      "category": "HumanEval-Style",
+      "prompt": "Write a Python function called 'merge_sorted' that takes two sorted lists and returns a single merged sorted list. Do NOT use the built-in sort() or sorted() functions \u2014 implement the merge step manually.",
+      "expected_desc": "contains def merge_sorted with index-based merge logic",
+      "response_text": "```python\ndef merge_sorted(list1, list2):\n    \"\"\"\n    Merge two sorted lists into a single sorted list.\n    \n    Args:\n    list1 (list):: First sorted list\n    list2 (list): -- Second sorted list\n    \n    Returns:\n    list -- A single sorted list containing all elements from both input lists\n    \"\"\"\n    merged_result = []\n    i, j = 0\n    \n    while i < len(list1) and j < len(list2)\n    :\n        if list1[i] <= list2j]\n            result_result.append(list1i)\n            i += 1\n        else\n            urrent_result.append(list2j)\n            j += 1\n        end\n    \n    while i < len(list1)\n    .\n        t_result.extend(list1i:])\n        i += 1\n    .\n    \n    while j < len(list2)\n    .\n        t_result.extend(list2j:])\n        j += 1\n    .\n    \n    return result_result\n``\n\nNote Example Example\nprint(merge_sorted([1, 30], [22, 40]))\n)\n# Output: [1, 22, 10 40]\n\nprint(merge_sorted([5, 75] [ 10 20])\n)\n# Output # [5, 10 20 15]\n\nprint(merge_sorted([], [10 20])\n)\n# Output [ [11 22 22]\n\nprint(merge_sorted([11 12 22])\n)\n# Output [ [11 1 ]\n\n```",
+      "passed": true,
+      "latency_s": 3.57
+    },
+    {
+      "index": 58,
+      "category": "HumanEval-Style",
+      "prompt": "Write a Python function called 'is_prime' that takes an integer n and returns True if n is a prime number and False otherwise. Handle edge cases (n <= 1 should return False).",
+      "expected_desc": "contains def is_prime with modulo check and loop",
+      "response_text": "```python\ndef is_prime(n):\n    \"\"\"\n    Check if the given integer n is a prime number1r1.\n    \n <= 1: returns False\n    \"\"\"\n > 1 $ check for primality1tytyty\n    \"\"\"\n    if n <= 1:\n        return n\n    for i in range(2,)\n        if % % % i\n\n i * n\n\n        if n % % i == 0\n\n n % 1\n\n            return False n 1 n\n\n\n n 1 n\n\n 1\n\n 1 n\n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n 1 n ",
+      "passed": true,
+      "latency_s": 5.277
+    },
+    {
+      "index": 59,
+      "category": "HumanEval-Style",
+      "prompt": "Write a Python class called 'LRUCache' that implements a Least Recently Used cache with a given capacity. It should support 'get(key)' which returns the value or -1 if not found, and 'put(key, value)' which inserts or updates the key-value pair, evicting the least recently used item if the cache is at capacity.",
+      "expected_desc": "contains class LRUCache with get/put methods and eviction logic",
+      "response_text": "```python\npythonpythonpython\n Import necessary modules\nfrom collections import OrderedDict\n\nclass\n\n@class LR Recently used cache (LRUCache):\n \n __init__( (self,_capacity  int ):\n Import necessary modules\nfrom collections import OrderedDict\n\n def __init__( self,, cache_capacity ):\n     self super().__init__()\n     self self_capacity = cache_capacity\n \n\n def\n\n def def recently used ( key  which ) \\[key \\ \\, cache \\ \\[ key \\] if \\[ key \\ \\ \\[ key \\] if \\ \\ \\ \\ \\ If cache \\ \\ setdefault \\[ key \\ \\ \\ \\ \\ \\[ None \\]\n\n\n def\n\n def put ( key  which \\ \\\n Inserts or updates the key-value pair. Evicts the lest recently used item if the cache aches at capacity.\n\n def \\ cache \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\[ key \\ \\ \\[ None \\ \\[ \\ \\ \\[ len \\ \\ \\ \\[ \\ self cache \\ \\ \\[ \\ \\ \\ \\ \\[ \\ delete \\[ next \\[ \\ \\ \\ \\[ return \\ cache c h a c k \\ \\[ \\[ else \\ \\ \\ \\ \\ \\ \\ \\ \\ \\[ return \\ \\ \\[ \\ \n\n\n\n ```",
+      "passed": false,
+      "latency_s": 2.854
+    },
+    {
+      "index": 60,
+      "category": "HumanEval-Style",
+      "prompt": "Write a Python function called 'longest_common_prefix' that takes a list of strings and returns the longest common prefix string. If there is no common prefix, return an empty string.",
+      "expected_desc": "contains def longest_common_prefix with character comparison logic",
+      "response_text": "def longest_common_prefix(strs):\n:\n    if not strs:\n\n        return \"\"\n\n    \n    # Sort the list to comparely access the first and last strings\n    strs.sort()\n    \n    first, = strs[0]\n    lastfirst,,, strs[-1\n    \n    # i from 0 to len(first) - minus 1\n        if char from first[i\n        if char != lastfirst[i\n            return first[: i\n        \n    return first\n\\end",
+      "passed": false,
+      "latency_s": 1.08
+    }
+  ]
+}

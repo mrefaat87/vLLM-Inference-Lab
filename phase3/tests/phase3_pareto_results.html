@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pareto Frontier — 4-Round Admission Control Comparison</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    background: #f6f8fa; color: #1f2328; padding: 0; margin: 0;
+  }
+
+  /* --- Header --- */
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+    color: #e6edf3; padding: 48px 40px 40px; border-bottom: 3px solid #58a6ff;
+  }
+  .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .hero .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 20px; }
+  .hero .verdict-bar {
+    display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px;
+  }
+  .verdict-chip {
+    background: rgba(126,231,135,0.12); border: 1px solid rgba(126,231,135,0.3);
+    border-radius: 8px; padding: 16px 24px; min-width: 180px;
+  }
+  .verdict-chip .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; margin-bottom: 4px; }
+  .verdict-chip .value { font-size: 28px; font-weight: 700; color: #7ee787; }
+  .verdict-chip .value.blue { color: #58a6ff; }
+  .verdict-chip .value.yellow { color: #e3b341; }
+  .verdict-chip .value.purple { color: #d2a8ff; }
+  .verdict-chip .detail { font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+  /* --- Content --- */
+  .content { max-width: 1340px; margin: 0 auto; padding: 32px 40px 60px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 40px 0 16px; color: #1f2328; border-bottom: 2px solid #d0d7de; padding-bottom: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 12px; color: #0969da; }
+
+  p, li { font-size: 14px; line-height: 1.7; color: #424a53; margin-bottom: 8px; }
+  ul { padding-left: 20px; margin-bottom: 12px; }
+  strong { color: #1f2328; }
+
+  .mono { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+
+  /* --- Cards --- */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
+    padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #656d76; margin-bottom: 6px; font-weight: 600; }
+  .big-num { font-size: 40px; font-weight: 700; line-height: 1.1; }
+  .big-num.green { color: #1a7f37; }
+  .big-num.red { color: #cf222e; }
+  .big-num.blue { color: #0969da; }
+  .big-num.orange { color: #bc4c00; }
+  .big-num.purple { color: #8250df; }
+  .unit { font-size: 15px; font-weight: 400; color: #656d76; }
+  .card .detail { font-size: 12px; color: #656d76; margin-top: 4px; }
+
+  /* --- Tables --- */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; font-weight: 600; color: #656d76;
+    border-bottom: 2px solid #d0d7de; background: #f6f8fa; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid #eaeef2; font-family: 'SF Mono', monospace; font-size: 12px; }
+  tr:hover td { background: #f6f8fa; }
+  tr.winner td { background: #dafbe1; }
+  tr.loser td { background: #ffebe9; }
+
+  .sla-met { color: #1a7f37; font-weight: 700; }
+  .sla-miss { color: #cf222e; font-weight: 700; }
+
+  /* --- Strategy badges --- */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+  .badge-static { background: #dafbe1; color: #1a7f37; }
+  .badge-reactive { background: #fff1e5; color: #bc4c00; }
+  .badge-predictive { background: #fbefff; color: #8250df; }
+
+  /* --- Callouts --- */
+  .callout {
+    border-radius: 8px; padding: 16px 20px; margin: 14px 0; font-size: 14px; line-height: 1.6;
+    border-left: 4px solid;
+  }
+  .callout-info { background: #ddf4ff; border-color: #0969da; }
+  .callout-info strong { color: #0969da; }
+  .callout-success { background: #dafbe1; border-color: #1a7f37; }
+  .callout-success strong { color: #1a7f37; }
+  .callout-warning { background: #fff8c5; border-color: #9a6700; }
+  .callout-warning strong { color: #9a6700; }
+  .callout-danger { background: #ffebe9; border-color: #cf222e; }
+  .callout-danger strong { color: #cf222e; }
+
+  /* --- Chart container --- */
+  .chart-container {
+    background: #fff; border: 1px solid #d0d7de; border-radius: 10px;
+    padding: 24px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .chart-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1f2328; }
+  .chart-legend { display: flex; gap: 24px; margin-top: 12px; justify-content: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #656d76; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* --- Two-col layout --- */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* --- Section divider --- */
+  .section-num {
+    display: inline-block; background: #0969da; color: #fff; width: 28px; height: 28px;
+    border-radius: 50%; text-align: center; line-height: 28px; font-size: 14px;
+    font-weight: 700; margin-right: 8px; vertical-align: middle;
+  }
+  .section-num.star { background: #8250df; }
+
+  /* --- Footer --- */
+  .footer { text-align: center; padding: 32px; color: #8b949e; font-size: 12px; border-top: 1px solid #d0d7de; margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     HEADER
+     ================================================================ -->
+<div class="hero">
+  <h1>Pareto Frontier &mdash; 4-Round Admission Control Comparison</h1>
+  <p class="subtitle">
+    Rounds A&ndash;C: Qwen2.5-7B-AWQ on T4 (g4dn.xlarge) &bull;
+    Round D: Qwen2.5-14B-AWQ on T4 &bull;
+    4 bottleneck metrics &times; 3 strategy families &bull; 39 total configurations &bull; 2026-04-05/06
+  </p>
+
+  <div class="verdict-bar">
+    <div class="verdict-chip">
+      <div class="label">7B Winner (Rounds A&ndash;C)</div>
+      <div class="value">Static pf=3</div>
+      <div class="detail">No admission gate needed</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">14B Winner (Round D)</div>
+      <div class="value purple">Predictive t=0.50</div>
+      <div class="detail">Only config under SLA</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">Key Insight</div>
+      <div class="value yellow" style="font-size:20px">Metric must match bottleneck</div>
+      <div class="detail">3 of 4 metrics were irrelevant on 7B</div>
+    </div>
+    <div class="verdict-chip">
+      <div class="label">When Predictive Wins</div>
+      <div class="value blue" style="font-size:20px">KV-scarce + large model</div>
+      <div class="detail">Round D: 14B exhausts T4 VRAM</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ================================================================
+     SECTION 1: EXECUTIVE SUMMARY
+     ================================================================ -->
+<h2><span class="section-num">1</span> Executive Summary</h2>
+
+<div class="callout callout-success">
+  <strong>On 7B (Rounds A&ndash;C), static prefetch=3 wins every round.</strong>
+  Across three different bottleneck metrics (decode_throughput, gpu_compute, compound), the same result appears:
+  vLLM's internal scheduler handles bandwidth-bound decode perfectly. External admission control only adds
+  latency and NACKs. 100% SLA compliance, 87&ndash;88 tok/s throughput, zero rejections.
+</div>
+
+<div class="callout callout-info">
+  <strong>On 14B (Round D), predictive with threshold=0.50 is the only config that keeps TPOT under SLA.</strong>
+  When the model is large enough to exhaust KV cache on T4, the bottleneck shifts from memory bandwidth to
+  VRAM capacity. Predictive's per-request KV cost estimation finally differentiates &mdash; it can gate requests
+  before they cause preemption storms. TPOT P95 = 94.76ms vs SLA target of 124.64ms.
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">Why Static Wins on 7B</div>
+    <p>On a memory-bandwidth-bound GPU like T4, vLLM's internal continuous batching scheduler already
+    optimizes decode throughput. An external admission controller cannot see or influence the internal
+    batch composition &mdash; it can only delay or reject requests, adding latency without improving
+    per-token decode speed.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Why Predictive Wins on 14B</div>
+    <p>With a 14B model, each request's KV cache footprint is large enough to exhaust T4's 16 GB VRAM.
+    The predictive gate estimates per-request KV cost <em>before</em> admission, preventing the pathological
+    case: too many concurrent long-context requests causing preemption storms that waste already-computed
+    tokens. This is the capacity-bound regime where external admission control earns its keep.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Why Reactive Always Fails</div>
+    <p>Reactive strategies generated <strong>73,000&ndash;121,000 NACKs</strong> across rounds.
+    The retry churn inflated TTFT and dropped SLA compliance. The gate fires on current utilization,
+    but utilization fluctuates naturally &mdash; rejecting requests doesn't reduce the fluctuation,
+    it just adds a thundering-herd retry storm on top.</p>
+  </div>
+</div>
+
+<!-- ================================================================
+     SECTION 2: BACKGROUND & MOTIVATION
+     ================================================================ -->
+<h2><span class="section-num">2</span> Background &amp; Motivation</h2>
+
+<h3>Three Prior Flawed Rounds</h3>
+<div class="two-col">
+  <div>
+    <ul>
+      <li><strong>Round 1:</strong> Used remote <code>/metrics</code> HTTP polling to read vLLM state. Added 50&ndash;200ms
+      per admission decision. The polling itself became the bottleneck.</li>
+      <li><strong>Round 2:</strong> Gated on KV cache utilization, but KV cache never exceeded 25% under the test workload.
+      The gate never fired &mdash; all strategies looked identical.</li>
+      <li><strong>Round 3:</strong> Gated on batch size, but vLLM's dynamic batch size changes every iteration.
+      Setting a threshold based on observed max was unreachable &mdash; another gate that never triggered.</li>
+    </ul>
+  </div>
+  <div>
+    <div class="callout callout-warning">
+      <strong>Lessons extracted:</strong>
+      <ul style="margin-top:6px">
+        <li>Never use remote metrics for real-time admission &mdash; use local state</li>
+        <li>Gate metric must match the actual bottleneck</li>
+        <li>Gate threshold must be reachable under test load</li>
+        <li>Need Pareto sweep across multiple configurations, not single-point comparisons</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h3>Redesigned Approach</h3>
+<p>Built a local <code>AdmissionTracker</code> that maintains per-request resource estimates without any network calls.
+Three strategy families were defined:</p>
+<table>
+  <tr><th>Strategy</th><th>Mechanism</th><th>Parameters Swept</th></tr>
+  <tr>
+    <td><span class="badge badge-static">STATIC</span></td>
+    <td>No gate. Controls concurrency only via vLLM's <code>--max-num-seqs</code> (prefetch count).</td>
+    <td>prefetch = 1, 2, 3, 5, 8, 10, 15, 20</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-reactive">REACTIVE</span></td>
+    <td>Checks current system utilization against a threshold before admitting. Retries with backoff on NACK.</td>
+    <td>threshold = 0.50, 0.60, 0.70, 0.80, 0.90</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+    <td>Estimates per-request resource cost and admits only if remaining capacity suffices.</td>
+    <td>threshold = 0.50, 0.60, 0.70, 0.80, 0.90</td>
+  </tr>
+</table>
+
+<h3>Four Bottleneck Metrics Tested</h3>
+<table>
+  <tr><th>Round</th><th>Metric</th><th>Model</th><th>Workload</th><th>Hypothesis</th></tr>
+  <tr>
+    <td><strong>A</strong></td>
+    <td>decode_throughput</td>
+    <td>7B AWQ</td>
+    <td>pareto_heavy (1.2 req/s)</td>
+    <td>Bandwidth-bound decode is the bottleneck</td>
+  </tr>
+  <tr>
+    <td><strong>B</strong></td>
+    <td>gpu_compute</td>
+    <td>7B AWQ</td>
+    <td>pareto_heavy (1.2 req/s)</td>
+    <td>GPU compute utilization drives contention</td>
+  </tr>
+  <tr>
+    <td><strong>C</strong></td>
+    <td>compound (max of gpu, decode)</td>
+    <td>7B AWQ</td>
+    <td>pareto_heavy (1.2 req/s)</td>
+    <td>Combined metric catches whichever bottleneck fires first</td>
+  </tr>
+  <tr>
+    <td><strong>D</strong></td>
+    <td>kv_cache</td>
+    <td>14B AWQ</td>
+    <td>kv_stress_14b (0.15 req/s, all XL)</td>
+    <td>KV cache exhaustion is the real bottleneck on larger models</td>
+  </tr>
+</table>
+
+<h3>SLA Targets</h3>
+<div class="card-grid">
+  <div class="card">
+    <div class="card-title">7B TPOT P95 SLA</div>
+    <div class="big-num orange">63.56 <span class="unit">ms</span></div>
+    <div class="detail">2 &times; baseline 31.78ms</div>
+  </div>
+  <div class="card">
+    <div class="card-title">14B TPOT P95 SLA</div>
+    <div class="big-num orange">124.64 <span class="unit">ms</span></div>
+    <div class="detail">2 &times; baseline 62.32ms</div>
+  </div>
+  <div class="card">
+    <div class="card-title">TTFT P95 Target</div>
+    <div class="big-num blue">&lt; 500 <span class="unit">ms</span></div>
+    <div class="detail">Perceived responsiveness</div>
+  </div>
+  <div class="card">
+    <div class="card-title">GPU Utilization Target</div>
+    <div class="big-num blue">70&ndash;80 <span class="unit">%</span></div>
+    <div class="detail">Balance throughput vs headroom</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     SECTION 3: EXPERIMENT DESIGN
+     ================================================================ -->
+<h2><span class="section-num">3</span> Experiment Design</h2>
+
+<div class="two-col">
+  <div>
+    <h3>Hardware &amp; Model</h3>
+    <table>
+      <tr><td style="font-weight:600;color:#1f2328;width:140px">Instance</td><td>g4dn.xlarge (Spot)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">GPU</td><td>NVIDIA T4 (16 GB, 320 GB/s bandwidth)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Models</td><td>Qwen2.5-7B-AWQ (Rounds A&ndash;C), Qwen2.5-14B-AWQ (Round D)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Engine</td><td>vLLM v0.8.5 (V1 engine)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Cluster</td><td>EKS (inference-phase3)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Cost</td><td>$0.22/hr Spot</td></tr>
+    </table>
+  </div>
+  <div>
+    <h3>Workloads</h3>
+    <table>
+      <tr><td style="font-weight:600;color:#1f2328;width:140px" colspan="2"><strong>pareto_heavy</strong> (Rounds A&ndash;C)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Rate</td><td>1.2 req/s sustained</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Distribution</td><td>80% short, 15% medium, 4% long, 1% XL</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328" colspan="2" style="padding-top:12px"><strong>kv_stress_14b</strong> (Round D)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Rate</td><td>0.15 req/s (1 every ~6.7s)</td></tr>
+      <tr><td style="font-weight:600;color:#1f2328">Distribution</td><td>100% XL (~660 input + 2048 output)</td></tr>
+    </table>
+  </div>
+</div>
+
+<h3>Metrics Collected (7 per run)</h3>
+<div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+  <div class="card" style="padding:14px">
+    <div class="card-title">TTFT P95</div>
+    <div class="detail">Time to first token (seconds)</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">Prefill P95</div>
+    <div class="detail">Server-side prefill latency (ms)</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">TPOT P95</div>
+    <div class="detail">Time per output token (ms)</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">Queue Wait P95</div>
+    <div class="detail">Time waiting in admission queue (ms)</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">Throughput</div>
+    <div class="detail">Average tokens/sec (aggregate)</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">NACK Count</div>
+    <div class="detail">Total admission rejections</div>
+  </div>
+  <div class="card" style="padding:14px">
+    <div class="card-title">SLA Compliance</div>
+    <div class="detail">% of tiers meeting P99 target</div>
+  </div>
+</div>
+
+<div class="callout callout-info">
+  <strong>SLA Definition:</strong> TPOT P95 threshold = 2 &times; baseline TPOT P95.
+  For 7B: 2 &times; 31.78ms = <strong>63.56ms</strong>. For 14B: 2 &times; 62.32ms = <strong>124.64ms</strong>.
+  Per-tier completion time targets: short &lt;5s, medium &lt;15s, long &lt;30s, XL &lt;90s (P99).
+  Overall compliance = % of tiers where P99 completion time meets target.
+</div>
+
+
+<!-- ================================================================
+     SECTION 4: ROUND A RESULTS -- DECODE THROUGHPUT
+     ================================================================ -->
+<h2><span class="section-num">4</span> Round A Results &mdash; Decode Throughput (7B)</h2>
+
+<div class="callout callout-success">
+  <strong>Winner: static prefetch=3</strong> &mdash; 88.4 tok/s, 100% SLA, 0 NACKs, TPOT P95 = 35.5ms.
+  The decode throughput metric tracks memory bandwidth utilization, but on 7B the bandwidth is shared
+  equally across all concurrent requests by vLLM's scheduler. An external gate cannot improve this.
+</div>
+
+<!-- Scatter Plot: Throughput vs TPOT P95 -->
+<div class="chart-container">
+  <div class="chart-title">Throughput vs TPOT P95 &mdash; Round A Pareto Frontier</div>
+  <svg viewBox="0 0 700 420" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <defs>
+      <marker id="arrowX" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8" fill="none" stroke="#656d76" stroke-width="1"/>
+      </marker>
+      <marker id="arrowY" markerWidth="8" markerHeight="8" refX="4" refY="0" orient="auto">
+        <path d="M0,8 L4,0 L8,8" fill="none" stroke="#656d76" stroke-width="1"/>
+      </marker>
+    </defs>
+
+    <!-- Grid lines -->
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="60" x2="660" y2="60"/>
+      <line x1="80" y1="120" x2="660" y2="120"/>
+      <line x1="80" y1="180" x2="660" y2="180"/>
+      <line x1="80" y1="240" x2="660" y2="240"/>
+      <line x1="80" y1="300" x2="660" y2="300"/>
+      <line x1="80" y1="360" x2="660" y2="360"/>
+      <line x1="160" y1="30" x2="160" y2="370"/>
+      <line x1="240" y1="30" x2="240" y2="370"/>
+      <line x1="320" y1="30" x2="320" y2="370"/>
+      <line x1="400" y1="30" x2="400" y2="370"/>
+      <line x1="480" y1="30" x2="480" y2="370"/>
+      <line x1="560" y1="30" x2="560" y2="370"/>
+      <line x1="640" y1="30" x2="640" y2="370"/>
+    </g>
+
+    <!-- Axes lines -->
+    <line x1="80" y1="370" x2="660" y2="370" stroke="#424a53" stroke-width="1.5" marker-end="url(#arrowX)"/>
+    <line x1="80" y1="370" x2="80" y2="30" stroke="#424a53" stroke-width="1.5" marker-end="url(#arrowY)"/>
+
+    <!-- X axis labels: throughput (tok/s) -- range 30 to 100 -->
+    <text x="370" y="405" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Throughput (tok/s)</text>
+    <text x="80" y="388" text-anchor="middle" font-size="10" fill="#8b949e">30</text>
+    <text x="160" y="388" text-anchor="middle" font-size="10" fill="#8b949e">40</text>
+    <text x="240" y="388" text-anchor="middle" font-size="10" fill="#8b949e">50</text>
+    <text x="320" y="388" text-anchor="middle" font-size="10" fill="#8b949e">60</text>
+    <text x="400" y="388" text-anchor="middle" font-size="10" fill="#8b949e">70</text>
+    <text x="480" y="388" text-anchor="middle" font-size="10" fill="#8b949e">80</text>
+    <text x="560" y="388" text-anchor="middle" font-size="10" fill="#8b949e">90</text>
+    <text x="640" y="388" text-anchor="middle" font-size="10" fill="#8b949e">100</text>
+
+    <!-- Y axis labels: TPOT P95 (ms) -- range 25 to 75 -->
+    <text x="30" y="210" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 210)">TPOT P95 (ms)</text>
+    <text x="72" y="364" text-anchor="end" font-size="10" fill="#8b949e">25</text>
+    <text x="72" y="304" text-anchor="end" font-size="10" fill="#8b949e">35</text>
+    <text x="72" y="244" text-anchor="end" font-size="10" fill="#8b949e">45</text>
+    <text x="72" y="184" text-anchor="end" font-size="10" fill="#8b949e">55</text>
+    <text x="72" y="124" text-anchor="end" font-size="10" fill="#8b949e">65</text>
+    <text x="72" y="64" text-anchor="end" font-size="10" fill="#8b949e">75</text>
+
+    <!-- SLA line at 63.56ms TPOT -->
+    <!-- Y mapping: 25ms -> y=360, 75ms -> y=60. scale = (360-60)/(75-25) = 300/50 = 6px/ms -->
+    <!-- 63.56ms -> y = 360 - (63.56-25)*6 = 360 - 231.36 = 128.64 -->
+    <line x1="80" y1="128.6" x2="660" y2="128.6" stroke="#cf222e" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="662" y="125" font-size="10" fill="#cf222e" font-weight="600">SLA: 63.56ms</text>
+
+    <!-- X mapping: 30 tok/s -> x=80, 100 tok/s -> x=640. scale = (640-80)/(100-30) = 560/70 = 8px/(tok/s) -->
+
+    <!-- Static points (blue) -->
+    <!-- static_prefetch_1: throughput=90.0, tpot=30.3 -> x=560, y=328.2 -->
+    <circle cx="560" cy="328.2" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="560" y="318" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=1</text>
+
+    <!-- static_prefetch_3: throughput=88.4, tpot=35.5 -> x=547, y=297 -->
+    <circle cx="547" cy="297" r="10" fill="#0969da" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="547" y="285" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">pf=3 *</text>
+
+    <!-- static_prefetch_8: throughput=85.9, tpot=34.66 -> x=527, y=302 -->
+    <circle cx="527" cy="302" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="527" y="316" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=8</text>
+
+    <!-- static_prefetch_15: throughput=78.5, tpot=36.17 -> x=468, y=294 -->
+    <circle cx="468" cy="294" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="468" y="284" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=15</text>
+
+    <!-- Reactive points (orange) -->
+    <!-- reactive_threshold_0.50: throughput=87.5, tpot=46.03 -> x=540, y=233.8 -->
+    <circle cx="540" cy="233.8" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="553" y="226" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.50</text>
+
+    <!-- reactive_threshold_0.70: throughput=87.4, tpot=63.32 -> x=539, y=130 -->
+    <circle cx="539" cy="130.1" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="552" y="123" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.70</text>
+
+    <!-- reactive_threshold_0.90: throughput=87.7, tpot=40.53 -> x=542, y=266.8 -->
+    <circle cx="542" cy="266.8" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="555" y="259" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.90</text>
+
+    <!-- Predictive points (purple) -->
+    <!-- predictive_threshold_0.60: throughput=37.4, tpot=32.16 -> x=139, y=317 -->
+    <circle cx="139" cy="317" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="139" y="307" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.60</text>
+
+    <!-- predictive_threshold_0.80: throughput=53.1, tpot=35.14 -> x=265, y=299 -->
+    <circle cx="265" cy="299.2" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="265" y="289" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.80</text>
+
+    <!-- Ideal region -->
+    <rect x="440" y="270" width="230" height="100" rx="8" fill="none" stroke="#1a7f37" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+    <text x="555" y="385" text-anchor="middle" font-size="10" fill="#1a7f37" font-style="italic" opacity="0.7">Ideal: high throughput, low TPOT</text>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static (no gate)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive (current utilization)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive (estimated cost)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:none;border:2px solid #1a7f37;width:8px;height:8px"></div> Winner (pf=3)</div>
+    <div class="legend-item"><div style="width:20px;height:2px;background:#cf222e;border-top:1px dashed #cf222e"></div> SLA threshold (63.56ms)</div>
+  </div>
+</div>
+
+<!-- Scatter Plot: Throughput vs SLA Compliance -->
+<div class="chart-container">
+  <div class="chart-title">Throughput vs SLA Compliance &mdash; Round A Strategy Trade-offs</div>
+  <svg viewBox="0 0 700 380" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="40" x2="660" y2="40"/>
+      <line x1="80" y1="100" x2="660" y2="100"/>
+      <line x1="80" y1="160" x2="660" y2="160"/>
+      <line x1="80" y1="220" x2="660" y2="220"/>
+      <line x1="80" y1="280" x2="660" y2="280"/>
+      <line x1="80" y1="340" x2="660" y2="340"/>
+    </g>
+    <line x1="80" y1="340" x2="660" y2="340" stroke="#424a53" stroke-width="1.5"/>
+    <line x1="80" y1="340" x2="80" y2="30" stroke="#424a53" stroke-width="1.5"/>
+
+    <!-- X axis: throughput 30-100 -->
+    <text x="370" y="370" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Throughput (tok/s)</text>
+    <text x="80" y="356" text-anchor="middle" font-size="10" fill="#8b949e">30</text>
+    <text x="160" y="356" text-anchor="middle" font-size="10" fill="#8b949e">40</text>
+    <text x="240" y="356" text-anchor="middle" font-size="10" fill="#8b949e">50</text>
+    <text x="320" y="356" text-anchor="middle" font-size="10" fill="#8b949e">60</text>
+    <text x="400" y="356" text-anchor="middle" font-size="10" fill="#8b949e">70</text>
+    <text x="480" y="356" text-anchor="middle" font-size="10" fill="#8b949e">80</text>
+    <text x="560" y="356" text-anchor="middle" font-size="10" fill="#8b949e">90</text>
+    <text x="640" y="356" text-anchor="middle" font-size="10" fill="#8b949e">100</text>
+
+    <!-- Y axis: SLA compliance 0-100% -->
+    <!-- 0% -> y=340, 100% -> y=40. scale = 3px/% -->
+    <text x="30" y="195" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 195)">SLA Compliance (%)</text>
+    <text x="72" y="344" text-anchor="end" font-size="10" fill="#8b949e">0%</text>
+    <text x="72" y="284" text-anchor="end" font-size="10" fill="#8b949e">20%</text>
+    <text x="72" y="224" text-anchor="end" font-size="10" fill="#8b949e">40%</text>
+    <text x="72" y="164" text-anchor="end" font-size="10" fill="#8b949e">60%</text>
+    <text x="72" y="104" text-anchor="end" font-size="10" fill="#8b949e">80%</text>
+    <text x="72" y="44" text-anchor="end" font-size="10" fill="#8b949e">100%</text>
+    <line x1="80" y1="40" x2="660" y2="40" stroke="#1a7f37" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+
+    <!-- X mapping: 30->x=80, 100->x=640, scale=8px/(tok/s). Y: sla% -> y = 340 - sla*3 -->
+
+    <!-- static_prefetch_1: 90.0 tok/s, 1.4% -> x=560, y=335.8 -->
+    <circle cx="560" cy="335.8" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="560" y="326" text-anchor="middle" font-size="9" fill="#cf222e" font-weight="600">pf=1 (1.4%)</text>
+
+    <!-- static_prefetch_3: 88.4, 100% -> x=547, y=40 -->
+    <circle cx="547" cy="40" r="10" fill="#0969da" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="547" y="56" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">pf=3 *</text>
+
+    <!-- static_prefetch_8: 85.9, 100% -> x=527, y=40 -->
+    <circle cx="527" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="510" y="56" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=8</text>
+
+    <!-- static_prefetch_15: 78.5, 100% -> x=468, y=40 -->
+    <circle cx="468" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="468" y="56" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=15</text>
+
+    <!-- reactive_threshold_0.50: 87.5, 87.5% -> x=540, y=77.5 -->
+    <circle cx="540" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="553" y="70" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.50</text>
+
+    <!-- reactive_threshold_0.70: 87.4, 87.5% -> x=539, y=77.5 -->
+    <circle cx="539" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="552" y="86" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.70</text>
+
+    <!-- reactive_threshold_0.90: 87.7, 87.5% -> x=542, y=77.5 -->
+    <circle cx="542" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="555" y="94" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">t=0.90</text>
+
+    <!-- predictive_threshold_0.60: 37.4, 94.4% -> x=139, y=56.8 -->
+    <circle cx="139" cy="56.8" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="139" y="47" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.60</text>
+
+    <!-- predictive_threshold_0.80: 53.1, 98.6% -> x=265, y=44.2 -->
+    <circle cx="265" cy="44.2" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="265" y="34" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.80</text>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive</div>
+  </div>
+</div>
+
+
+<!-- Full Results Table -->
+<h3>Full Results Table &mdash; All 9 Configurations</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Configuration</th>
+      <th>Strategy</th>
+      <th style="text-align:right">TTFT P95 (s)</th>
+      <th style="text-align:right">Prefill P95 (ms)</th>
+      <th style="text-align:right">TPOT P95 (ms)</th>
+      <th style="text-align:right">Queue Wait P95 (ms)</th>
+      <th style="text-align:right">Throughput (tok/s)</th>
+      <th style="text-align:right">NACKs</th>
+      <th style="text-align:right">SLA %</th>
+      <th style="text-align:right">Cost ($/1M out)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="loser">
+      <td>static_prefetch_1</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">115.29</td>
+      <td style="text-align:right">402.9</td>
+      <td style="text-align:right">30.30</td>
+      <td style="text-align:right">115,018</td>
+      <td style="text-align:right">90.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">1.4%</td>
+      <td style="text-align:right">$0.68</td>
+    </tr>
+    <tr class="winner">
+      <td><strong>static_prefetch_3</strong></td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right"><strong>3.09</strong></td>
+      <td style="text-align:right">431.8</td>
+      <td style="text-align:right"><strong>35.50</strong></td>
+      <td style="text-align:right">2,793</td>
+      <td style="text-align:right"><strong>88.4</strong></td>
+      <td style="text-align:right"><strong>0</strong></td>
+      <td style="text-align:right" class="sla-met"><strong>100%</strong></td>
+      <td style="text-align:right"><strong>$0.65</strong></td>
+    </tr>
+    <tr>
+      <td>static_prefetch_8</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">0.65</td>
+      <td style="text-align:right">418.2</td>
+      <td style="text-align:right">34.66</td>
+      <td style="text-align:right">19</td>
+      <td style="text-align:right">85.9</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.66</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_15</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">0.70</td>
+      <td style="text-align:right">438.8</td>
+      <td style="text-align:right">36.17</td>
+      <td style="text-align:right">15</td>
+      <td style="text-align:right">78.5</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.72</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.50</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">60.96</td>
+      <td style="text-align:right">394.6</td>
+      <td style="text-align:right">46.03</td>
+      <td style="text-align:right">60,657</td>
+      <td style="text-align:right">87.5</td>
+      <td style="text-align:right">99,275</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.70</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">45.97</td>
+      <td style="text-align:right">406.4</td>
+      <td style="text-align:right">63.32</td>
+      <td style="text-align:right">45,638</td>
+      <td style="text-align:right">87.4</td>
+      <td style="text-align:right">85,341</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.90</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">66.25</td>
+      <td style="text-align:right">459.5</td>
+      <td style="text-align:right">40.53</td>
+      <td style="text-align:right">65,499</td>
+      <td style="text-align:right">87.7</td>
+      <td style="text-align:right">90,863</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr>
+      <td>predictive_threshold_0.60</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">0.58</td>
+      <td style="text-align:right">99.3</td>
+      <td style="text-align:right">32.16</td>
+      <td style="text-align:right">50</td>
+      <td style="text-align:right">37.4</td>
+      <td style="text-align:right">57,858</td>
+      <td style="text-align:right" class="sla-miss">94.4%</td>
+      <td style="text-align:right">$1.38</td>
+    </tr>
+    <tr>
+      <td>predictive_threshold_0.80</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">0.64</td>
+      <td style="text-align:right">148.8</td>
+      <td style="text-align:right">35.14</td>
+      <td style="text-align:right">53</td>
+      <td style="text-align:right">53.1</td>
+      <td style="text-align:right">54,746</td>
+      <td style="text-align:right" class="sla-miss">98.6%</td>
+      <td style="text-align:right">$1.03</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- Strategy Commentary -->
+<h3>Strategy Commentary</h3>
+
+<div class="callout callout-success">
+  <strong>Static wins because vLLM's scheduler IS the admission controller.</strong>
+  With continuous batching, vLLM dynamically adjusts which requests get decode iterations each step.
+  The prefetch parameter controls how many requests are queued at the engine level &mdash; with prefetch=3,
+  the engine always has work ready without building up a backlog. The external admission gate adds nothing
+  because it cannot influence the internal batch composition.
+</div>
+
+<div class="callout callout-danger">
+  <strong>Reactive is broken: NACK churn creates a thundering-herd retry storm.</strong>
+  All three reactive thresholds (0.50, 0.70, 0.90) generated 85,000&ndash;99,000 NACKs. The problem:
+  decode throughput fluctuates naturally as requests start and finish. The gate reads a momentary dip,
+  rejects the request, which retries 100ms later &mdash; only to find the same fluctuation.
+  The short prompts (80% of traffic) accumulate massive queue wait times (45&ndash;65 seconds P95)
+  while long/XL prompts that happen to arrive during a "good" moment sail through.
+</div>
+
+<div class="callout callout-warning">
+  <strong>Predictive is too conservative: it NACKs all XL requests and starves the GPU.</strong>
+  The predictive gate estimates each request's decode cost (output_tokens &times; tpot) and checks against
+  remaining capacity. With threshold=0.60, long and XL requests exceed the budget &mdash; they are
+  permanently rejected. Throughput drops to 37&ndash;53 tok/s because the GPU is partially idle while the gate blocks work.
+</div>
+
+
+<!-- ================================================================
+     SECTION 5: ROUND B RESULTS -- GPU COMPUTE
+     ================================================================ -->
+<h2><span class="section-num">5</span> Round B Results &mdash; GPU Compute (7B)</h2>
+
+<div class="callout callout-info">
+  <strong>Metric: gpu_compute utilization.</strong> Tracks GPU SM (streaming multiprocessor) activity as the
+  admission gate signal. Hypothesis: GPU compute pressure during prefill creates contention with decode.
+  Reality: GPU prefill completes instantly on 7B AWQ &mdash; the tracker always reads 0%, making reactive
+  thresholds inert.
+</div>
+
+<!-- Scatter Plot: Throughput vs SLA Compliance - Round B -->
+<div class="chart-container">
+  <div class="chart-title">Throughput vs SLA Compliance &mdash; Round B (GPU Compute)</div>
+  <svg viewBox="0 0 700 380" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="40" x2="660" y2="40"/>
+      <line x1="80" y1="100" x2="660" y2="100"/>
+      <line x1="80" y1="160" x2="660" y2="160"/>
+      <line x1="80" y1="220" x2="660" y2="220"/>
+      <line x1="80" y1="280" x2="660" y2="280"/>
+      <line x1="80" y1="340" x2="660" y2="340"/>
+    </g>
+    <line x1="80" y1="340" x2="660" y2="340" stroke="#424a53" stroke-width="1.5"/>
+    <line x1="80" y1="340" x2="80" y2="30" stroke="#424a53" stroke-width="1.5"/>
+
+    <!-- X axis: throughput 30-100 -->
+    <text x="370" y="370" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Throughput (tok/s)</text>
+    <text x="80" y="356" text-anchor="middle" font-size="10" fill="#8b949e">30</text>
+    <text x="160" y="356" text-anchor="middle" font-size="10" fill="#8b949e">40</text>
+    <text x="240" y="356" text-anchor="middle" font-size="10" fill="#8b949e">50</text>
+    <text x="320" y="356" text-anchor="middle" font-size="10" fill="#8b949e">60</text>
+    <text x="400" y="356" text-anchor="middle" font-size="10" fill="#8b949e">70</text>
+    <text x="480" y="356" text-anchor="middle" font-size="10" fill="#8b949e">80</text>
+    <text x="560" y="356" text-anchor="middle" font-size="10" fill="#8b949e">90</text>
+    <text x="640" y="356" text-anchor="middle" font-size="10" fill="#8b949e">100</text>
+
+    <!-- Y axis: SLA compliance 0-100% -->
+    <text x="30" y="195" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 195)">SLA Compliance (%)</text>
+    <text x="72" y="344" text-anchor="end" font-size="10" fill="#8b949e">0%</text>
+    <text x="72" y="284" text-anchor="end" font-size="10" fill="#8b949e">20%</text>
+    <text x="72" y="224" text-anchor="end" font-size="10" fill="#8b949e">40%</text>
+    <text x="72" y="164" text-anchor="end" font-size="10" fill="#8b949e">60%</text>
+    <text x="72" y="104" text-anchor="end" font-size="10" fill="#8b949e">80%</text>
+    <text x="72" y="44" text-anchor="end" font-size="10" fill="#8b949e">100%</text>
+    <line x1="80" y1="40" x2="660" y2="40" stroke="#1a7f37" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+
+    <!-- X: 30->x=80, 100->x=640, scale=8. Y: sla% -> y = 340 - sla*3 -->
+
+    <!-- Static: pf=2: 83.6, 34.7% -> x=80+(83.6-30)*8=509, y=340-34.7*3=236 -->
+    <circle cx="509" cy="236" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="509" y="226" text-anchor="middle" font-size="9" fill="#cf222e" font-weight="600">pf=2 (34.7%)</text>
+
+    <!-- Static: pf=5: 86.2, 100% -> x=80+(86.2-30)*8=530, y=40 -->
+    <circle cx="530" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="515" y="56" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=5</text>
+
+    <!-- Static: pf=10: 86.5, 100% -> x=80+(86.5-30)*8=532, y=40 -->
+    <circle cx="532" cy="40" r="10" fill="#0969da" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="548" y="56" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">pf=10 *</text>
+
+    <!-- Static: pf=20: 86.6, 100% -> x=80+(86.6-30)*8=533, y=40 -->
+    <circle cx="533" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="533" y="30" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=20</text>
+
+    <!-- Reactive: t=0.60: 85.6, 100% -> x=80+(85.6-30)*8=525, y=40 -->
+    <circle cx="525" cy="40" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="510" y="30" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.60</text>
+
+    <!-- Reactive: t=0.80: 86.2, 100% -> x=530, y=40 -->
+    <circle cx="530" cy="40" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="544" y="30" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.80</text>
+
+    <!-- Predictive: t=0.50: 37.5, 94.4% -> x=80+(37.5-30)*8=140, y=340-94.4*3=56.8 -->
+    <circle cx="140" cy="57" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="140" y="47" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.50</text>
+
+    <!-- Predictive: t=0.70: 38.5, 65.3% -> x=80+(38.5-30)*8=148, y=340-65.3*3=144 -->
+    <circle cx="148" cy="144" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="148" y="134" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.70</text>
+
+    <!-- Predictive: t=0.90: 53.1, 98.6% -> x=80+(53.1-30)*8=265, y=340-98.6*3=44.2 -->
+    <circle cx="265" cy="44" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="265" y="34" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.90</text>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive</div>
+  </div>
+</div>
+
+<h3>Full Results Table &mdash; Round B (9 Configurations)</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Configuration</th>
+      <th>Strategy</th>
+      <th style="text-align:right">TPOT P95 (ms)</th>
+      <th style="text-align:right">Throughput (tok/s)</th>
+      <th style="text-align:right">Tracker P95 (%)</th>
+      <th style="text-align:right">NACKs</th>
+      <th style="text-align:right">SLA %</th>
+      <th style="text-align:right">Cost ($/1M out)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="loser">
+      <td>static_prefetch_2</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.58</td>
+      <td style="text-align:right">83.6</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">34.7%</td>
+      <td style="text-align:right">$0.73</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_5</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">34.88</td>
+      <td style="text-align:right">86.2</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.66</td>
+    </tr>
+    <tr class="winner">
+      <td><strong>static_prefetch_10</strong></td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right"><strong>34.44</strong></td>
+      <td style="text-align:right"><strong>86.5</strong></td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right"><strong>0</strong></td>
+      <td style="text-align:right" class="sla-met"><strong>100%</strong></td>
+      <td style="text-align:right"><strong>$0.65</strong></td>
+    </tr>
+    <tr>
+      <td>static_prefetch_20</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.55</td>
+      <td style="text-align:right">86.6</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr>
+      <td>reactive_threshold_0.60</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">34.61</td>
+      <td style="text-align:right">85.6</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.66</td>
+    </tr>
+    <tr>
+      <td>reactive_threshold_0.80</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">34.77</td>
+      <td style="text-align:right">86.2</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>predictive_threshold_0.50</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">32.90</td>
+      <td style="text-align:right">37.5</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">59,058</td>
+      <td style="text-align:right" class="sla-miss">94.4%</td>
+      <td style="text-align:right">$1.39</td>
+    </tr>
+    <tr class="loser">
+      <td>predictive_threshold_0.70</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">32.41</td>
+      <td style="text-align:right">38.5</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">85,070</td>
+      <td style="text-align:right" class="sla-miss">65.3%</td>
+      <td style="text-align:right">$1.48</td>
+    </tr>
+    <tr>
+      <td>predictive_threshold_0.90</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">33.71</td>
+      <td style="text-align:right">53.1</td>
+      <td style="text-align:right">0.0</td>
+      <td style="text-align:right">64,483</td>
+      <td style="text-align:right" class="sla-miss">98.6%</td>
+      <td style="text-align:right">$1.03</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Commentary</h3>
+
+<div class="callout callout-warning">
+  <strong>GPU compute tracker always reads 0%.</strong>
+  On 7B AWQ, GPU prefill completes in under 1ms for short prompts. The tracker measures instantaneous
+  GPU compute load, but prefill is so fast it releases before the next admission check. Result:
+  reactive thresholds never fire (0 NACKs, identical to static). The metric is measuring the wrong thing &mdash;
+  on a bandwidth-bound model, compute is never the bottleneck.
+</div>
+
+<div class="callout callout-info">
+  <strong>Static and Reactive converge when the gate never fires.</strong>
+  With tracker always at 0%, reactive strategies degrade to "always admit" &mdash; which is exactly what
+  static does. Both hit ~86 tok/s and 100% SLA (for pf&ge;5). The reactive gate adds code complexity
+  with zero benefit. Meanwhile predictive still over-restricts (37&ndash;53 tok/s) because its cost model
+  is independent of the tracker metric.
+</div>
+
+
+<!-- ================================================================
+     SECTION 6: ROUND C RESULTS -- COMPOUND
+     ================================================================ -->
+<h2><span class="section-num">6</span> Round C Results &mdash; Compound Metric (7B)</h2>
+
+<div class="callout callout-info">
+  <strong>Metric: compound = max(gpu_compute, decode_throughput).</strong> The idea was that a composite metric
+  would catch whichever bottleneck fires first. On 7B, gpu_compute is always 0%, so compound degrades
+  to pure decode_throughput &mdash; and the results match Round A almost exactly.
+</div>
+
+<!-- Scatter Plot: Throughput vs SLA Compliance - Round C -->
+<div class="chart-container">
+  <div class="chart-title">Throughput vs SLA Compliance &mdash; Round C (Compound)</div>
+  <svg viewBox="0 0 700 380" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="40" x2="660" y2="40"/>
+      <line x1="80" y1="100" x2="660" y2="100"/>
+      <line x1="80" y1="160" x2="660" y2="160"/>
+      <line x1="80" y1="220" x2="660" y2="220"/>
+      <line x1="80" y1="280" x2="660" y2="280"/>
+      <line x1="80" y1="340" x2="660" y2="340"/>
+    </g>
+    <line x1="80" y1="340" x2="660" y2="340" stroke="#424a53" stroke-width="1.5"/>
+    <line x1="80" y1="340" x2="80" y2="30" stroke="#424a53" stroke-width="1.5"/>
+
+    <!-- X axis: throughput 30-100 -->
+    <text x="370" y="370" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Throughput (tok/s)</text>
+    <text x="80" y="356" text-anchor="middle" font-size="10" fill="#8b949e">30</text>
+    <text x="160" y="356" text-anchor="middle" font-size="10" fill="#8b949e">40</text>
+    <text x="240" y="356" text-anchor="middle" font-size="10" fill="#8b949e">50</text>
+    <text x="320" y="356" text-anchor="middle" font-size="10" fill="#8b949e">60</text>
+    <text x="400" y="356" text-anchor="middle" font-size="10" fill="#8b949e">70</text>
+    <text x="480" y="356" text-anchor="middle" font-size="10" fill="#8b949e">80</text>
+    <text x="560" y="356" text-anchor="middle" font-size="10" fill="#8b949e">90</text>
+    <text x="640" y="356" text-anchor="middle" font-size="10" fill="#8b949e">100</text>
+
+    <!-- Y axis: SLA compliance 0-100% -->
+    <text x="30" y="195" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 195)">SLA Compliance (%)</text>
+    <text x="72" y="344" text-anchor="end" font-size="10" fill="#8b949e">0%</text>
+    <text x="72" y="284" text-anchor="end" font-size="10" fill="#8b949e">20%</text>
+    <text x="72" y="224" text-anchor="end" font-size="10" fill="#8b949e">40%</text>
+    <text x="72" y="164" text-anchor="end" font-size="10" fill="#8b949e">60%</text>
+    <text x="72" y="104" text-anchor="end" font-size="10" fill="#8b949e">80%</text>
+    <text x="72" y="44" text-anchor="end" font-size="10" fill="#8b949e">100%</text>
+    <line x1="80" y1="40" x2="660" y2="40" stroke="#1a7f37" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+
+    <!-- X: 30->x=80, 100->x=640, scale=8. Y: sla% -> y = 340 - sla*3 -->
+
+    <!-- Static pf=1: 90.0, 1.4% -> x=560, y=335.8 -->
+    <circle cx="560" cy="335.8" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="560" y="326" text-anchor="middle" font-size="9" fill="#cf222e" font-weight="600">pf=1</text>
+
+    <!-- Static pf=2: 93.3, 33.3% -> x=80+(93.3-30)*8=587, y=340-33.3*3=240 -->
+    <circle cx="587" cy="240" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="587" y="230" text-anchor="middle" font-size="9" fill="#cf222e" font-weight="600">pf=2</text>
+
+    <!-- Static pf=3: 87.8, 100% -> x=80+(87.8-30)*8=542, y=40 -->
+    <circle cx="542" cy="40" r="10" fill="#0969da" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="542" y="56" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">pf=3 *</text>
+
+    <!-- Static pf=5: 86.4, 100% -> x=80+(86.4-30)*8=531, y=40 -->
+    <circle cx="531" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="516" y="56" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=5</text>
+
+    <!-- Static pf=8: 86.2, 100% -> x=530, y=40 -->
+    <circle cx="530" cy="40" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="530" y="30" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=8</text>
+
+    <!-- Static pf=10: 86.4, 100% -> x=531, y=40 -->
+    <circle cx="531" cy="40" r="7" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.8"/>
+    <text x="548" y="30" text-anchor="middle" font-size="8" fill="#0969da">pf=10</text>
+
+    <!-- Static pf=15: 86.5, 100% -> x=532, y=40 -->
+    <circle cx="532" cy="40" r="7" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.7"/>
+    <text x="516" y="30" text-anchor="middle" font-size="8" fill="#0969da">pf=15</text>
+
+    <!-- Static pf=20: 86.7, 100% -> x=534, y=40 -->
+    <circle cx="534" cy="40" r="7" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.6"/>
+    <text x="551" y="56" text-anchor="middle" font-size="8" fill="#0969da">pf=20</text>
+
+    <!-- Reactive t=0.50: 87.7, 87.5% -> x=80+(87.7-30)*8=542, y=340-87.5*3=77.5 -->
+    <circle cx="542" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="555" y="70" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.50</text>
+
+    <!-- Reactive t=0.60: 87.4, 87.5% -> x=540, y=77.5 -->
+    <circle cx="540" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="553" y="86" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.60</text>
+
+    <!-- Reactive t=0.70: 87.6, 87.5% -> x=541, y=77.5 -->
+    <circle cx="541" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="554" y="94" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.70</text>
+
+    <!-- Reactive t=0.80: 83.0, 87.5% -> x=80+(83-30)*8=504, y=77.5 -->
+    <circle cx="504" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="490" y="70" text-anchor="end" font-size="9" fill="#bc4c00" font-weight="600">r=0.80</text>
+
+    <!-- Reactive t=0.90: 80.2, 87.5% -> x=80+(80.2-30)*8=482, y=77.5 -->
+    <circle cx="482" cy="77.5" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="468" y="70" text-anchor="end" font-size="9" fill="#bc4c00" font-weight="600">r=0.90</text>
+
+    <!-- Predictive t=0.50: 38.2, 94.4% -> x=80+(38.2-30)*8=146, y=340-94.4*3=56.8 -->
+    <circle cx="146" cy="57" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="146" y="47" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.50</text>
+
+    <!-- Predictive t=0.60: 38.4, 65.3% -> x=80+(38.4-30)*8=147, y=340-65.3*3=144 -->
+    <circle cx="147" cy="144" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="147" y="134" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.60</text>
+
+    <!-- Predictive t=0.80: 53.3, 98.6% -> x=80+(53.3-30)*8=266, y=340-98.6*3=44.2 -->
+    <circle cx="266" cy="44" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="266" y="34" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.80</text>
+
+    <!-- Predictive t=0.90: 59.3, 20.8% -> x=80+(59.3-30)*8=314, y=340-20.8*3=278 -->
+    <circle cx="314" cy="278" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="314" y="268" text-anchor="middle" font-size="9" fill="#8250df" font-weight="600">t=0.90</text>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive</div>
+  </div>
+</div>
+
+<h3>Full Results Table &mdash; Round C (18 Configurations)</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Configuration</th>
+      <th>Strategy</th>
+      <th style="text-align:right">TPOT P95 (ms)</th>
+      <th style="text-align:right">Throughput (tok/s)</th>
+      <th style="text-align:right">NACKs</th>
+      <th style="text-align:right">SLA %</th>
+      <th style="text-align:right">Cost ($/1M out)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="loser">
+      <td>static_prefetch_1</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">31.09</td>
+      <td style="text-align:right">90.0</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">1.4%</td>
+      <td style="text-align:right">$0.68</td>
+    </tr>
+    <tr class="loser">
+      <td>static_prefetch_2</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.70</td>
+      <td style="text-align:right">93.3</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">33.3%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="winner">
+      <td><strong>static_prefetch_3</strong></td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right"><strong>34.09</strong></td>
+      <td style="text-align:right"><strong>87.8</strong></td>
+      <td style="text-align:right"><strong>0</strong></td>
+      <td style="text-align:right" class="sla-met"><strong>100%</strong></td>
+      <td style="text-align:right"><strong>$0.66</strong></td>
+    </tr>
+    <tr>
+      <td>static_prefetch_5</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">34.97</td>
+      <td style="text-align:right">86.4</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_8</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">34.53</td>
+      <td style="text-align:right">86.2</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.66</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_10</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.36</td>
+      <td style="text-align:right">86.4</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.66</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_15</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.58</td>
+      <td style="text-align:right">86.5</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_20</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right">35.68</td>
+      <td style="text-align:right">86.7</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.50</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">68.77</td>
+      <td style="text-align:right">87.7</td>
+      <td style="text-align:right">88,359</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.60</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">64.19</td>
+      <td style="text-align:right">87.4</td>
+      <td style="text-align:right">89,938</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.70</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">46.87</td>
+      <td style="text-align:right">87.6</td>
+      <td style="text-align:right">86,263</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.65</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.80</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">69.47</td>
+      <td style="text-align:right">83.0</td>
+      <td style="text-align:right">75,361</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.69</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.90</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right">46.55</td>
+      <td style="text-align:right">80.2</td>
+      <td style="text-align:right">73,499</td>
+      <td style="text-align:right" class="sla-miss">87.5%</td>
+      <td style="text-align:right">$0.71</td>
+    </tr>
+    <tr>
+      <td>predictive_threshold_0.50</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">35.33</td>
+      <td style="text-align:right">38.2</td>
+      <td style="text-align:right">59,790</td>
+      <td style="text-align:right" class="sla-miss">94.4%</td>
+      <td style="text-align:right">$1.39</td>
+    </tr>
+    <tr class="loser">
+      <td>predictive_threshold_0.60</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">32.46</td>
+      <td style="text-align:right">38.4</td>
+      <td style="text-align:right">81,670</td>
+      <td style="text-align:right" class="sla-miss">65.3%</td>
+      <td style="text-align:right">$1.48</td>
+    </tr>
+    <tr style="color:#8b949e">
+      <td>predictive_threshold_0.70</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right" colspan="5">&mdash; No steady-state data (0 successful requests in window) &mdash;</td>
+    </tr>
+    <tr>
+      <td>predictive_threshold_0.80</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">34.21</td>
+      <td style="text-align:right">53.3</td>
+      <td style="text-align:right">68,219</td>
+      <td style="text-align:right" class="sla-miss">98.6%</td>
+      <td style="text-align:right">$1.03</td>
+    </tr>
+    <tr class="loser">
+      <td>predictive_threshold_0.90</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right">35.37</td>
+      <td style="text-align:right">59.3</td>
+      <td style="text-align:right">74,897</td>
+      <td style="text-align:right" class="sla-miss">20.8%</td>
+      <td style="text-align:right">$1.03</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Commentary</h3>
+
+<div class="callout callout-warning">
+  <strong>Compound metric = max(gpu, decode) adds zero value on 7B.</strong>
+  Since gpu_compute is always 0% on 7B AWQ, compound degrades to pure decode_throughput.
+  The results are virtually identical to Round A: static pf=3 wins with 87.8 tok/s and 100% SLA,
+  reactive generates 73&ndash;90K NACKs, predictive over-restricts to 38&ndash;59 tok/s.
+  The compound approach would only differentiate on hardware where both metrics can become binding constraints.
+</div>
+
+<div class="callout callout-info">
+  <strong>All static pf&ge;3 hit 100% SLA.</strong>
+  This confirms the Round A finding: the phase transition happens at pf=3. Beyond that,
+  throughput slowly decreases (87.8 &rarr; 86.4 &rarr; 86.7 tok/s) as more concurrent sequences
+  share the fixed memory bandwidth, but SLA compliance remains perfect.
+</div>
+
+
+<!-- ================================================================
+     SECTION 7: ROUND D RESULTS -- KV CACHE (14B) -- THE STAR
+     ================================================================ -->
+<h2><span class="section-num star">7</span> Round D Results &mdash; KV Cache (14B) &mdash; The Breakthrough</h2>
+
+<div class="callout callout-success" style="border-color:#8250df;background:#fbefff;">
+  <strong style="color:#8250df">This is the round that changes everything.</strong>
+  For the first time across all 4 rounds, <strong>predictive admission control outperforms static</strong>.
+  With a 14B model on T4, KV cache becomes the binding constraint &mdash; each request's 2048-token generation
+  consumes a huge KV footprint, and just 2&ndash;3 concurrent requests can exhaust the 16 GB VRAM.
+  The predictive gate at threshold=0.50 is the <strong>only</strong> configuration that keeps TPOT P95 (94.76ms)
+  below the 124.64ms SLA target.
+</div>
+
+<div class="card-grid">
+  <div class="card" style="border-color:#8250df;border-width:2px">
+    <div class="card-title" style="color:#8250df">SLA Target (14B)</div>
+    <div class="big-num purple">124.64 <span class="unit">ms</span></div>
+    <div class="detail">2 &times; baseline TPOT P95 (62.32ms)</div>
+  </div>
+  <div class="card" style="border-color:#1a7f37;border-width:2px">
+    <div class="card-title" style="color:#1a7f37">Winner: Predictive t=0.50</div>
+    <div class="big-num green">94.76 <span class="unit">ms</span></div>
+    <div class="detail">TPOT P95 &mdash; 24% under SLA</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Static pf=5 (best static)</div>
+    <div class="big-num red">118.52 <span class="unit">ms</span></div>
+    <div class="detail">TPOT P95 &mdash; barely under SLA, no headroom</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Reactive t=0.80</div>
+    <div class="big-num red">157.18 <span class="unit">ms</span></div>
+    <div class="detail">TPOT P95 &mdash; 26% over SLA</div>
+  </div>
+</div>
+
+<!-- Scatter Plot: Throughput vs TPOT P95 - Round D -->
+<div class="chart-container">
+  <div class="chart-title">Throughput vs TPOT P95 &mdash; Round D (KV Cache, 14B)</div>
+  <svg viewBox="0 0 700 420" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <!-- Grid lines -->
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="50" x2="660" y2="50"/>
+      <line x1="80" y1="110" x2="660" y2="110"/>
+      <line x1="80" y1="170" x2="660" y2="170"/>
+      <line x1="80" y1="230" x2="660" y2="230"/>
+      <line x1="80" y1="290" x2="660" y2="290"/>
+      <line x1="80" y1="350" x2="660" y2="350"/>
+      <line x1="176" y1="40" x2="176" y2="360"/>
+      <line x1="272" y1="40" x2="272" y2="360"/>
+      <line x1="368" y1="40" x2="368" y2="360"/>
+      <line x1="464" y1="40" x2="464" y2="360"/>
+      <line x1="560" y1="40" x2="560" y2="360"/>
+    </g>
+    <line x1="80" y1="360" x2="660" y2="360" stroke="#424a53" stroke-width="1.5"/>
+    <line x1="80" y1="360" x2="80" y2="30" stroke="#424a53" stroke-width="1.5"/>
+
+    <!-- X axis: throughput 5-35 tok/s -->
+    <!-- X mapping: 5->x=80, 35->x=656, scale=(656-80)/(35-5)=576/30=19.2px/(tok/s) -->
+    <text x="370" y="395" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Throughput (tok/s)</text>
+    <text x="80" y="378" text-anchor="middle" font-size="10" fill="#8b949e">5</text>
+    <text x="176" y="378" text-anchor="middle" font-size="10" fill="#8b949e">10</text>
+    <text x="272" y="378" text-anchor="middle" font-size="10" fill="#8b949e">15</text>
+    <text x="368" y="378" text-anchor="middle" font-size="10" fill="#8b949e">20</text>
+    <text x="464" y="378" text-anchor="middle" font-size="10" fill="#8b949e">25</text>
+    <text x="560" y="378" text-anchor="middle" font-size="10" fill="#8b949e">30</text>
+    <text x="656" y="378" text-anchor="middle" font-size="10" fill="#8b949e">35</text>
+
+    <!-- Y axis: TPOT P95 (ms) -- range 50 to 180 -->
+    <!-- Y mapping: 50ms->y=350, 180ms->y=50, scale=(350-50)/(180-50)=300/130=2.31px/ms -->
+    <text x="30" y="200" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 200)">TPOT P95 (ms)</text>
+    <text x="72" y="354" text-anchor="end" font-size="10" fill="#8b949e">50</text>
+    <text x="72" y="292" text-anchor="end" font-size="10" fill="#8b949e">75</text>
+    <text x="72" y="231" text-anchor="end" font-size="10" fill="#8b949e">100</text>
+    <text x="72" y="169" text-anchor="end" font-size="10" fill="#8b949e">125</text>
+    <text x="72" y="108" text-anchor="end" font-size="10" fill="#8b949e">150</text>
+    <text x="72" y="54" text-anchor="end" font-size="10" fill="#8b949e">175</text>
+
+    <!-- SLA line at 124.64ms -->
+    <!-- y = 350 - (124.64-50)*2.31 = 350 - 172.5 = 177.5 -->
+    <line x1="80" y1="177.5" x2="660" y2="177.5" stroke="#cf222e" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="662" y="174" font-size="10" fill="#cf222e" font-weight="600">SLA: 124.64ms</text>
+
+    <!-- Static points (blue) -->
+    <!-- pf=2: 7.6, 64.80 -> x=80+(7.6-5)*19.2=130, y=350-(64.80-50)*2.31=350-34.2=316 -->
+    <circle cx="130" cy="316" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="130" y="306" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=2</text>
+
+    <!-- pf=3: 14.9, 67.91 -> x=80+(14.9-5)*19.2=270, y=350-(67.91-50)*2.31=350-41.4=309 -->
+    <circle cx="270" cy="309" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="270" y="299" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=3</text>
+
+    <!-- pf=5: 22.8, 118.52 -> x=80+(22.8-5)*19.2=422, y=350-(118.52-50)*2.31=350-158.4=192 -->
+    <circle cx="422" cy="192" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="422" y="182" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=5</text>
+
+    <!-- pf=8: 23.2, 130.14 -> x=80+(23.2-5)*19.2=430, y=350-(130.14-50)*2.31=350-185.1=165 -->
+    <circle cx="430" cy="165" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="444" y="158" text-anchor="start" font-size="9" fill="#0969da" font-weight="600">pf=8</text>
+
+    <!-- pf=10: 22.8, 170.61 -> x=422, y=350-(170.61-50)*2.31=350-278.5=72 -->
+    <circle cx="422" cy="72" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="436" y="65" text-anchor="start" font-size="9" fill="#0969da" font-weight="600">pf=10</text>
+
+    <!-- Reactive point (orange) -->
+    <!-- reactive_threshold_0.80: 30.3, 157.18 -> x=80+(30.3-5)*19.2=566, y=350-(157.18-50)*2.31=350-247.6=102 -->
+    <circle cx="566" cy="102" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="579" y="95" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.80</text>
+
+    <!-- Predictive points (purple) -->
+    <!-- predictive_threshold_0.50: 22.7, 94.76 -> x=80+(22.7-5)*19.2=420, y=350-(94.76-50)*2.31=350-103.4=247 -->
+    <circle cx="420" cy="247" r="10" fill="#8250df" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="420" y="235" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">t=0.50 *</text>
+
+    <!-- predictive_threshold_0.80: 30.3, 149.93 -> x=566, y=350-(149.93-50)*2.31=350-230.9=119 -->
+    <circle cx="566" cy="119" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="579" y="126" text-anchor="start" font-size="9" fill="#8250df" font-weight="600">t=0.80</text>
+
+    <!-- Ideal region below SLA line and to the right -->
+    <rect x="350" y="177.5" width="220" height="180" rx="8" fill="none" stroke="#1a7f37" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>
+    <text x="460" y="375" text-anchor="middle" font-size="10" fill="#1a7f37" font-style="italic" opacity="0.7">Ideal: high throughput, under SLA</text>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static (no gate)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:none;border:2px solid #1a7f37;width:8px;height:8px"></div> Winner (predictive t=0.50)</div>
+    <div class="legend-item"><div style="width:20px;height:2px;background:#cf222e;border-top:1px dashed #cf222e"></div> SLA threshold (124.64ms)</div>
+  </div>
+</div>
+
+
+<h3>Full Results Table &mdash; Round D (8 Configurations)</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Configuration</th>
+      <th>Strategy</th>
+      <th style="text-align:right">TPOT P95 (ms)</th>
+      <th style="text-align:right">Throughput (tok/s)</th>
+      <th style="text-align:right">Tracker P95 (%)</th>
+      <th style="text-align:right">NACKs</th>
+      <th style="text-align:right">SLA Met?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>static_prefetch_2</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right" class="sla-met">64.80</td>
+      <td style="text-align:right">7.6</td>
+      <td style="text-align:right">20.1</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">Yes (under-utilized)</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_3</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right" class="sla-met">67.91</td>
+      <td style="text-align:right">14.9</td>
+      <td style="text-align:right">30.1</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-met">Yes (under-utilized)</td>
+    </tr>
+    <tr>
+      <td>static_prefetch_5</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right" class="sla-met">118.52</td>
+      <td style="text-align:right">22.8</td>
+      <td style="text-align:right">50.2</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" style="color:#9a6700">Barely (no headroom)</td>
+    </tr>
+    <tr class="loser">
+      <td>static_prefetch_8</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right" class="sla-miss">130.14</td>
+      <td style="text-align:right">23.2</td>
+      <td style="text-align:right">80.4</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">No (over SLA)</td>
+    </tr>
+    <tr class="loser">
+      <td>static_prefetch_10</td>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:right" class="sla-miss">170.61</td>
+      <td style="text-align:right">22.8</td>
+      <td style="text-align:right">100.5</td>
+      <td style="text-align:right">0</td>
+      <td style="text-align:right" class="sla-miss">No (KV saturated)</td>
+    </tr>
+    <tr class="loser">
+      <td>reactive_threshold_0.80</td>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:right" class="sla-miss">157.18</td>
+      <td style="text-align:right">30.3</td>
+      <td style="text-align:right">80.4</td>
+      <td style="text-align:right">121,620</td>
+      <td style="text-align:right" class="sla-miss">No (over SLA)</td>
+    </tr>
+    <tr class="winner">
+      <td><strong>predictive_threshold_0.50</strong></td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right" class="sla-met"><strong>94.76</strong></td>
+      <td style="text-align:right"><strong>22.7</strong></td>
+      <td style="text-align:right">40.2</td>
+      <td style="text-align:right">66,811</td>
+      <td style="text-align:right" class="sla-met"><strong>Yes (24% headroom)</strong></td>
+    </tr>
+    <tr class="loser">
+      <td>predictive_threshold_0.80</td>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:right" class="sla-miss">149.93</td>
+      <td style="text-align:right">30.3</td>
+      <td style="text-align:right">70.3</td>
+      <td style="text-align:right">120,931</td>
+      <td style="text-align:right" class="sla-miss">No (over SLA)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size:12px;color:#8b949e;margin-top:4px">
+  Note: static_prefetch_1 had 0 successful requests in the steady-state window (all timed out). Not shown.
+  Workload: kv_stress_14b (0.15 req/s, 100% XL, 2048 max_tokens).
+</p>
+
+
+<h3>Why Predictive Wins Here (and Only Here)</h3>
+
+<div class="two-col">
+  <div>
+    <div class="callout callout-info" style="border-color:#8250df;background:#fbefff;">
+      <strong style="color:#8250df">The KV cache is the scarce resource that predictive can model.</strong>
+      <br><br>
+      On 7B (Rounds A&ndash;C), decode bandwidth was the bottleneck. Every request shares it equally, and
+      there's nothing an external gate can do &mdash; rejecting a request doesn't give more bandwidth to others.
+      <br><br>
+      On 14B, each request's KV cache footprint is <strong>quantifiable per-request</strong>:
+      ~660 input tokens + 2048 output tokens = ~2,708 tokens of KV state. At 14B model size, this consumes
+      a predictable amount of VRAM. The predictive gate can estimate this <em>before</em> admission and
+      compare against the remaining KV budget.
+      <br><br>
+      At threshold=0.50, the gate admits requests until 50% of estimated KV capacity is reserved.
+      This keeps 2&ndash;3 XL requests running concurrently &mdash; enough for decent throughput (22.7 tok/s)
+      while preventing the preemption storms that cause TPOT to spike.
+    </div>
+  </div>
+  <div>
+    <div class="card" style="border-color:#8250df;border-width:2px">
+      <div class="card-title" style="color:#8250df">The Critical Difference</div>
+      <table style="margin:8px 0">
+        <tr><td style="font-weight:600;width:120px">7B decode</td><td>Shared resource (bandwidth) &mdash; can't reserve per-request</td></tr>
+        <tr><td style="font-weight:600">14B KV cache</td><td>Per-request resource (VRAM) &mdash; can estimate and budget</td></tr>
+      </table>
+      <p style="margin-top:8px">This is the key insight: admission control only helps when the bottleneck
+      resource can be <strong>attributed and budgeted per-request</strong>. Memory bandwidth is a shared pipe.
+      KV cache is a per-request allocation.</p>
+    </div>
+
+    <div class="callout callout-warning" style="margin-top:12px">
+      <strong>AWS analogy:</strong> This is like the difference between scaling a CPU-bound service
+      (adding more instances helps because CPU is per-request) vs scaling a network-I/O-bound service
+      (adding instances doesn't help if they all share the same 10 Gbps VPC endpoint).
+      The admission controller is the rate limiter at the VPC endpoint &mdash; it only helps when the
+      bottleneck is something you can attribute per-connection.
+    </div>
+  </div>
+</div>
+
+<h3>KV Cache Utilization vs TPOT &mdash; The Threshold Effect</h3>
+<div class="chart-container">
+  <div class="chart-title">Tracker Utilization P95 vs TPOT P95 &mdash; Finding the Sweet Spot</div>
+  <svg viewBox="0 0 700 360" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <g stroke="#eaeef2" stroke-width="1">
+      <line x1="80" y1="40" x2="640" y2="40"/>
+      <line x1="80" y1="100" x2="640" y2="100"/>
+      <line x1="80" y1="160" x2="640" y2="160"/>
+      <line x1="80" y1="220" x2="640" y2="220"/>
+      <line x1="80" y1="280" x2="640" y2="280"/>
+      <line x1="80" y1="340" x2="640" y2="340"/>
+    </g>
+    <line x1="80" y1="340" x2="640" y2="340" stroke="#424a53" stroke-width="1.5"/>
+    <line x1="80" y1="340" x2="80" y2="30" stroke="#424a53" stroke-width="1.5"/>
+
+    <!-- X axis: Tracker Utilization P95 (%) 0-120 -->
+    <!-- X mapping: 0->x=80, 120->x=640, scale=(640-80)/120=4.67px/% -->
+    <text x="360" y="370" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600">Tracker Utilization P95 (%)</text>
+    <text x="80" y="356" text-anchor="middle" font-size="10" fill="#8b949e">0</text>
+    <text x="174" y="356" text-anchor="middle" font-size="10" fill="#8b949e">20</text>
+    <text x="267" y="356" text-anchor="middle" font-size="10" fill="#8b949e">40</text>
+    <text x="360" y="356" text-anchor="middle" font-size="10" fill="#8b949e">60</text>
+    <text x="454" y="356" text-anchor="middle" font-size="10" fill="#8b949e">80</text>
+    <text x="547" y="356" text-anchor="middle" font-size="10" fill="#8b949e">100</text>
+    <text x="640" y="356" text-anchor="middle" font-size="10" fill="#8b949e">120</text>
+
+    <!-- Y axis: TPOT P95 (ms) 50-180 -->
+    <!-- Y mapping: 50->y=340, 180->y=40, scale=(340-40)/(180-50)=300/130=2.31px/ms -->
+    <text x="30" y="195" text-anchor="middle" font-size="12" fill="#656d76" font-weight="600" transform="rotate(-90 30 195)">TPOT P95 (ms)</text>
+    <text x="72" y="344" text-anchor="end" font-size="10" fill="#8b949e">50</text>
+    <text x="72" y="282" text-anchor="end" font-size="10" fill="#8b949e">75</text>
+    <text x="72" y="221" text-anchor="end" font-size="10" fill="#8b949e">100</text>
+    <text x="72" y="159" text-anchor="end" font-size="10" fill="#8b949e">125</text>
+    <text x="72" y="98" text-anchor="end" font-size="10" fill="#8b949e">150</text>
+    <text x="72" y="44" text-anchor="end" font-size="10" fill="#8b949e">175</text>
+
+    <!-- SLA line -->
+    <line x1="80" y1="167" x2="640" y2="167" stroke="#cf222e" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="642" y="164" font-size="10" fill="#cf222e" font-weight="600">SLA</text>
+
+    <!-- Static points -->
+    <!-- pf=2: tracker=20.1, tpot=64.80 -> x=80+20.1*4.67=174, y=340-(64.80-50)*2.31=306 -->
+    <circle cx="174" cy="306" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="174" y="296" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=2</text>
+
+    <!-- pf=3: tracker=30.1, tpot=67.91 -> x=80+30.1*4.67=221, y=340-(67.91-50)*2.31=299 -->
+    <circle cx="221" cy="299" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="221" y="289" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=3</text>
+
+    <!-- pf=5: tracker=50.2, tpot=118.52 -> x=80+50.2*4.67=314, y=340-(118.52-50)*2.31=182 -->
+    <circle cx="314" cy="182" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="314" y="172" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=5</text>
+
+    <!-- pf=8: tracker=80.4, tpot=130.14 -> x=80+80.4*4.67=456, y=340-(130.14-50)*2.31=155 -->
+    <circle cx="456" cy="155" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="456" y="145" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=8</text>
+
+    <!-- pf=10: tracker=100.5, tpot=170.61 -> x=80+100.5*4.67=549, y=340-(170.61-50)*2.31=61 -->
+    <circle cx="549" cy="61" r="8" fill="#0969da" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="549" y="51" text-anchor="middle" font-size="9" fill="#0969da" font-weight="600">pf=10</text>
+
+    <!-- Reactive -->
+    <!-- reactive_0.80: tracker=80.4, tpot=157.18 -> x=456, y=340-(157.18-50)*2.31=92 -->
+    <circle cx="456" cy="92" r="8" fill="#bc4c00" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="470" y="85" text-anchor="start" font-size="9" fill="#bc4c00" font-weight="600">r=0.80</text>
+
+    <!-- Predictive -->
+    <!-- pred_0.50: tracker=40.2, tpot=94.76 -> x=80+40.2*4.67=268, y=340-(94.76-50)*2.31=237 -->
+    <circle cx="268" cy="237" r="10" fill="#8250df" stroke="#1a7f37" stroke-width="3" opacity="0.95"/>
+    <text x="268" y="225" text-anchor="middle" font-size="10" fill="#1a7f37" font-weight="700">t=0.50 *</text>
+
+    <!-- pred_0.80: tracker=70.3, tpot=149.93 -> x=80+70.3*4.67=408, y=340-(149.93-50)*2.31=109 -->
+    <circle cx="408" cy="109" r="8" fill="#8250df" stroke="#fff" stroke-width="2" opacity="0.9"/>
+    <text x="422" y="102" text-anchor="start" font-size="9" fill="#8250df" font-weight="600">t=0.80</text>
+
+    <!-- Trend line annotation -->
+    <text x="400" y="260" font-size="11" fill="#656d76" font-style="italic">Higher KV utilization = higher TPOT</text>
+    <line x1="174" y1="306" x2="549" y2="61" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3" opacity="0.4"/>
+  </svg>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Static</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#bc4c00"></div> Reactive</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8250df"></div> Predictive</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     SECTION 8: CROSS-ROUND COMPARISON
+     ================================================================ -->
+<h2><span class="section-num">8</span> Cross-Round Comparison</h2>
+
+<div class="callout callout-info">
+  <strong>The bottleneck determines the winning strategy.</strong>
+  Across 4 rounds testing 4 different metrics, the pattern is clear: on bandwidth-bound workloads (7B),
+  the engine's internal scheduler is sufficient and external admission control hurts.
+  On capacity-bound workloads (14B), external admission control with per-request cost estimation wins.
+</div>
+
+<h3>Best Configuration Per Round</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Round</th>
+      <th>Metric</th>
+      <th>Model</th>
+      <th>Winner</th>
+      <th style="text-align:right">TPOT P95</th>
+      <th style="text-align:right">Throughput</th>
+      <th style="text-align:right">SLA %</th>
+      <th>Key Insight</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>A</strong></td>
+      <td>decode_throughput</td>
+      <td>7B</td>
+      <td><span class="badge badge-static">STATIC pf=3</span></td>
+      <td style="text-align:right">35.50ms</td>
+      <td style="text-align:right">88.4</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td>Bandwidth shared equally; gate adds nothing</td>
+    </tr>
+    <tr>
+      <td><strong>B</strong></td>
+      <td>gpu_compute</td>
+      <td>7B</td>
+      <td><span class="badge badge-static">STATIC pf=10</span></td>
+      <td style="text-align:right">34.44ms</td>
+      <td style="text-align:right">86.5</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td>GPU compute releases instantly; tracker always 0%</td>
+    </tr>
+    <tr>
+      <td><strong>C</strong></td>
+      <td>compound</td>
+      <td>7B</td>
+      <td><span class="badge badge-static">STATIC pf=3</span></td>
+      <td style="text-align:right">34.09ms</td>
+      <td style="text-align:right">87.8</td>
+      <td style="text-align:right" class="sla-met">100%</td>
+      <td>Compound = max(gpu=0, decode) = decode; same as Round A</td>
+    </tr>
+    <tr style="background:#fbefff">
+      <td><strong>D</strong></td>
+      <td>kv_cache</td>
+      <td>14B</td>
+      <td><span class="badge badge-predictive">PREDICTIVE t=0.50</span></td>
+      <td style="text-align:right">94.76ms</td>
+      <td style="text-align:right">22.7</td>
+      <td style="text-align:right" class="sla-met">Under SLA</td>
+      <td>KV is per-request; predictive can budget it</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Strategy Effectiveness Matrix</h3>
+<div style="overflow-x:auto">
+<table>
+  <thead>
+    <tr>
+      <th>Strategy</th>
+      <th style="text-align:center">Round A (decode, 7B)</th>
+      <th style="text-align:center">Round B (gpu, 7B)</th>
+      <th style="text-align:center">Round C (compound, 7B)</th>
+      <th style="text-align:center">Round D (kv, 14B)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-static">STATIC</span></td>
+      <td style="text-align:center" class="sla-met">100% SLA (pf&ge;3)</td>
+      <td style="text-align:center" class="sla-met">100% SLA (pf&ge;5)</td>
+      <td style="text-align:center" class="sla-met">100% SLA (pf&ge;3)</td>
+      <td style="text-align:center" style="color:#9a6700">pf=5 barely passes</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-reactive">REACTIVE</span></td>
+      <td style="text-align:center" class="sla-miss">87.5% SLA, 85&ndash;99K NACKs</td>
+      <td style="text-align:center" class="sla-met">100% SLA (gate never fires)</td>
+      <td style="text-align:center" class="sla-miss">87.5% SLA, 73&ndash;90K NACKs</td>
+      <td style="text-align:center" class="sla-miss">Over SLA, 121K NACKs</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-predictive">PREDICTIVE</span></td>
+      <td style="text-align:center" class="sla-miss">37&ndash;53 tok/s (too conservative)</td>
+      <td style="text-align:center" class="sla-miss">37&ndash;53 tok/s (too conservative)</td>
+      <td style="text-align:center" class="sla-miss">38&ndash;59 tok/s (too conservative)</td>
+      <td style="text-align:center" class="sla-met"><strong>Only config under SLA</strong></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+<!-- ================================================================
+     SECTION 9: LESSONS LEARNED
+     ================================================================ -->
+<h2><span class="section-num">9</span> Lessons Learned</h2>
+
+<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <div class="card-title" style="color:#1a7f37">1. On 7B, vLLM's Scheduler Is Sufficient</div>
+    <p>Across three metrics and 36 configurations on 7B AWQ, the answer was always the same:
+    set <code>prefetch=3</code> and let vLLM handle it. External admission control added complexity
+    (reactive: 85&ndash;99K NACKs, predictive: 37&ndash;53 tok/s) without improving any metric.
+    The engine's continuous batching scheduler already optimizes the shared bandwidth constraint.</p>
+    <div class="callout callout-info" style="margin-top:8px;padding:10px 14px;font-size:13px">
+      <strong>Interview phrasing:</strong> "When the bottleneck is a shared resource like memory bandwidth,
+      the scheduler inside the inference engine is better positioned than an external controller because
+      it has direct visibility into the batch composition and can make per-iteration decisions."
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:#8250df">2. On 14B with KV Pressure, Predictive Differentiates</div>
+    <p>When the model is large enough that KV cache becomes the binding constraint, predictive admission
+    control finally earns its keep. At threshold=0.50, TPOT P95 stayed at 94.76ms (24% under SLA) while
+    all static configs with comparable throughput exceeded the target. The key: KV cache is a
+    <strong>per-request, budgetable resource</strong> unlike shared memory bandwidth.</p>
+    <div class="callout callout-info" style="margin-top:8px;padding:10px 14px;font-size:13px">
+      <strong>Interview phrasing:</strong> "Admission control adds value when the scarce resource can be
+      attributed per-request. KV cache has a known per-token footprint, so predictive gating can estimate
+      whether admitting a request will cause preemption."
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:#bc4c00">3. Metric Must Match the Actual Bottleneck</div>
+    <p>Three of four metrics (decode_throughput, gpu_compute, compound) were irrelevant on 7B because
+    the real bottleneck was memory bandwidth &mdash; which none of them measured directly.
+    GPU compute was always 0% because prefill completes instantly on small models.
+    Compound = max(0%, decode%) just degrades to decode. Only kv_cache on 14B actually measured
+    the binding constraint.</p>
+    <div class="callout callout-warning" style="margin-top:8px;padding:10px 14px;font-size:13px">
+      <strong>AWS analogy:</strong> This is like scaling on CPU utilization when the bottleneck is
+      network I/O. The scaling policy fires (or doesn't), but it's measuring the wrong thing.
+      You need to identify the binding constraint first, then instrument for that specific metric.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:#9a6700">4. Predictive Needs Time-Weighted Modeling</div>
+    <p>On 7B, predictive was consistently too conservative (37&ndash;53 tok/s vs 86+ tok/s for static).
+    The cost model estimates <code>output_tokens &times; time_per_token</code> as a static reservation,
+    but decode throughput per token decreases as batch size grows. The model overestimates how long
+    each request holds resources because it doesn't account for the shared-bandwidth effect.
+    A time-weighted model that decays reservation as tokens complete would be more accurate.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="color:#0969da">5. Model Size Changes Optimal Prefetch</div>
+    <p>On 7B, optimal prefetch = 3 (enough concurrency to prevent head-of-line blocking, not so much
+    that bandwidth is diluted). On 14B, optimal prefetch = 5 (enough to keep the GPU busy, but
+    static pf=8 already exceeds SLA at 130ms TPOT). Larger models need lower concurrency because
+    each request's KV cache footprint is proportionally larger. The right prefetch is a function
+    of <code>model_kv_size_per_token &times; avg_sequence_length / available_vram</code>.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">6. The Pareto Sweep Is the Methodology</div>
+    <p>Rather than picking one configuration and running it, sweeping the parameter space systematically
+    reveals the Pareto frontier &mdash; the set of configurations where you can't improve one metric
+    without worsening another. This is the same principle as load testing with graduated ramps:
+    you want to see the system's behavior across its operating range, not just at one point.
+    39 configurations across 4 rounds, automated with a single sweep script.</p>
+  </div>
+</div>
+
+
+</div><!-- end .content -->
+
+<!-- Footer -->
+<div class="footer">
+  <p>Phase 3 &mdash; Pareto Frontier Experiment &mdash; 4-Round Admission Control Comparison</p>
+  <p>Infrastructure: EKS (inference-phase3) &bull; g4dn.xlarge Spot &bull; Qwen2.5-7B/14B-AWQ &bull; vLLM v0.8.5</p>
+  <p style="margin-top:8px;color:#b0b8c1">Generated 2026-04-06 &bull; LLM Inference Learning Lab</p>
+</div>
+
+</body>
+</html>

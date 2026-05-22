@@ -1,0 +1,106 @@
+# gpu-nodepool.yaml — Karpenter NodePool for Phase 4.1 baseline cold-start runs.
+#
+# DESIGN INTENT (DIFFERS FROM PHASE 4):
+#   - Default EKS GPU AMI (no pre-baking). The whole point of the baseline run
+#     is to measure the un-optimized cold start, including the full image pull.
+#   - g4dn.xlarge ONLY. Multi-instance pools would let Karpenter pick a different
+#     instance type between runs and break the hardware-stability gate.
+#   - Spot ONLY. Phase 4.1 measures Spot fulfillment latency — On-Demand fallback
+#     would silently swap mid-matrix and contaminate stage-2 timings.
+#   - AZ unconstrained at first; pick_az.py patches in the chosen AZ before run 1.
+#   - Aggressive consolidateAfter (60s). Each baseline run terminates the node and
+#     we want the next run to start clean — no need to keep idle nodes around.
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  amiFamily: AL2
+  # No amiSelectorTerms — falls back to the latest EKS-optimized AL2 GPU AMI.
+  # That's the canonical "before" image for the baseline waterfall.
+
+  role: "inference-phase4-1-karpenter-node"
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: inference-lab
+    Stage: phase4.1
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  template:
+    metadata:
+      labels:
+        node-role: gpu
+    spec:
+      nodeClassRef:
+        name: gpu-nodes
+
+      requirements:
+        # ONLY g4dn.xlarge — keeps hardware constant across the 3-run matrix.
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge
+
+        # Spot only. We're measuring Spot fulfillment as part of stage 2.
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        # AZ left open here; pick_az.py (V2) patches in the winning AZ.
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+            - us-east-1b
+            - us-east-1c
+            - us-east-1d
+
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+
+  limits:
+    cpu: "8"   # Just enough for one g4dn.xlarge at a time.
+    memory: 32Gi
+
+  disruption:
+    consolidationPolicy: WhenEmpty
+    # 60s was too aggressive — Karpenter terminated nodes during init-container
+    # phase. Bumped to 5m so a single pilot run completes (worst-case ~7min image
+    # pull + 1min model + 1min vLLM init) without disruption. The pod also has
+    # karpenter.sh/do-not-disrupt: "true" as an explicit guard.
+    consolidateAfter: 300s
+    expireAfter: 6h
+    budgets:
+      - nodes: "1"

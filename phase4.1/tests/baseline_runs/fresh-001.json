@@ -1,0 +1,98 @@
+{
+  "run_id": "fresh-001",
+  "arm": "fresh_node",
+  "started_at": "2026-05-01T05:33:12.324300+00:00",
+  "node": {
+    "name": "ip-10-5-15-70.ec2.internal",
+    "instance_id": "i-03bc241d238af2074",
+    "instance_type": "g4dn.xlarge",
+    "az": "us-east-1a",
+    "ami_id": "ami-01a75e3a2966134ee",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+    "kernel": "5.10.245-245.983.amzn2.x86_64",
+    "spot": true
+  },
+  "pod": {
+    "name": "baseline-fresh-001",
+    "uid": "af564761-8b76-4128-93bd-1b9b87542c43",
+    "image": "vllm/vllm-openai:v0.19.0"
+  },
+  "stages": {
+    "karpenter_scheduling": {
+      "start_ms": 1777612998000,
+      "end_ms": 1777612999000,
+      "duration_ms": 1000,
+      "source": "k8s_events"
+    },
+    "ec2_spot_fulfillment": {
+      "start_ms": 1777612999000,
+      "end_ms": 1777613001000,
+      "duration_ms": 2000,
+      "source": "cloudtrail+ec2"
+    },
+    "node_bootstrap": {
+      "start_ms": 1777613001000,
+      "end_ms": 1777613067000,
+      "duration_ms": 66000,
+      "source": "ec2+node_conditions"
+    },
+    "image_download": {
+      "start_ms": 1777613118584,
+      "end_ms": 1777613414917,
+      "duration_ms": 296333,
+      "source": "containerd_journal"
+    },
+    "image_unpack": {
+      "start_ms": 1777613414917,
+      "end_ms": 1777613414933,
+      "duration_ms": 16,
+      "source": "containerd_journal"
+    },
+    "model_download_s3": {
+      "start_ms": 1777613084000,
+      "end_ms": 1777613118000,
+      "duration_ms": 34000,
+      "source": "init_container_status"
+    },
+    "vllm_init_cuda_ctx": {
+      "start_ms": 1777613423199,
+      "end_ms": 1777613434393,
+      "duration_ms": 11194,
+      "source": "tracer_jsonl"
+    },
+    "weight_load_gpu_mem": {
+      "start_ms": 1777613467689,
+      "end_ms": 1777613507917,
+      "duration_ms": 40228,
+      "source": "tracer_jsonl"
+    },
+    "cuda_graph_warmup": {
+      "start_ms": 1777613560382,
+      "end_ms": 1777613569802,
+      "duration_ms": 9420,
+      "source": "tracer_jsonl"
+    },
+    "readiness_probe_pass": {
+      "start_ms": 1777613569802,
+      "end_ms": 1777613577000,
+      "duration_ms": 7198,
+      "source": "pod_conditions"
+    },
+    "first_token_served": {
+      "start_ms": 1777613577791,
+      "end_ms": 1777613580636,
+      "duration_ms": 2845,
+      "source": "external_smoke_client"
+    }
+  },
+  "totals": {
+    "scale_up_to_ready_ms": 579791,
+    "scale_up_to_first_token_ms": 582636
+  },
+  "validation": {
+    "all_stages_present": true,
+    "any_negative_durations": false,
+    "probe_spec_hash": "60fab599c6092a0e",
+    "notes": []
+  }
+}

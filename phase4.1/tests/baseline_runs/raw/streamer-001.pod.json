@@ -1,0 +1,298 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "karpenter.sh/do-not-disrupt": "true",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"karpenter.sh/do-not-disrupt\":\"true\"},\"labels\":{\"app\":\"baseline\",\"image-source\":\"prebaked-streamer\",\"run-id\":\"streamer-001\"},\"name\":\"baseline-streamer-001\",\"namespace\":\"baseline\"},\"spec\":{\"containers\":[{\"command\":[\"python3\",\"/tracer/cold_start_tracer.py\",\"--run-id=streamer-001\",\"--jsonl-dir=/var/log/cold_start\",\"--\",\"python3\",\"-m\",\"vllm.entrypoints.openai.api_server\",\"--model=s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/\",\"--load-format=runai_streamer\",\"--quantization=awq\",\"--dtype=half\",\"--gpu-memory-utilization=0.85\",\"--max-model-len=4096\",\"--host=0.0.0.0\",\"--port=8000\"],\"env\":[{\"name\":\"AWS_REGION\",\"value\":\"us-east-1\"},{\"name\":\"AWS_DEFAULT_REGION\",\"value\":\"us-east-1\"}],\"image\":\"019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0-streamer\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"vllm\",\"ports\":[{\"containerPort\":8000,\"name\":\"http\"}],\"readinessProbe\":{\"failureThreshold\":6,\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":120,\"periodSeconds\":10,\"timeoutSeconds\":5},\"resources\":{\"limits\":{\"cpu\":\"4\",\"memory\":\"14Gi\",\"nvidia.com/gpu\":1},\"requests\":{\"cpu\":\"2\",\"memory\":\"12Gi\",\"nvidia.com/gpu\":1}},\"volumeMounts\":[{\"mountPath\":\"/tracer\",\"name\":\"tracer-script\",\"readOnly\":true},{\"mountPath\":\"/var/log/cold_start\",\"name\":\"tracer-logs\"}]}],\"nodeSelector\":{\"image-source\":\"prebaked-streamer\",\"node-role\":\"gpu\"},\"restartPolicy\":\"Never\",\"serviceAccountName\":\"baseline-runner\",\"tolerations\":[{\"effect\":\"NoSchedule\",\"key\":\"nvidia.com/gpu\",\"operator\":\"Equal\",\"value\":\"true\"}],\"volumes\":[{\"configMap\":{\"defaultMode\":493,\"name\":\"cold-start-tracer\"},\"name\":\"tracer-script\"},{\"hostPath\":{\"path\":\"/var/log/cold_start\",\"type\":\"DirectoryOrCreate\"},\"name\":\"tracer-logs\"}]}}\n"
+        },
+        "creationTimestamp": "2026-05-01T22:19:14Z",
+        "labels": {
+            "app": "baseline",
+            "image-source": "prebaked-streamer",
+            "run-id": "streamer-001"
+        },
+        "name": "baseline-streamer-001",
+        "namespace": "baseline",
+        "resourceVersion": "466735",
+        "uid": "3b878d20-42c6-48ae-a234-0a7db3727554"
+    },
+    "spec": {
+        "containers": [
+            {
+                "command": [
+                    "python3",
+                    "/tracer/cold_start_tracer.py",
+                    "--run-id=streamer-001",
+                    "--jsonl-dir=/var/log/cold_start",
+                    "--",
+                    "python3",
+                    "-m",
+                    "vllm.entrypoints.openai.api_server",
+                    "--model=s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/",
+                    "--load-format=runai_streamer",
+                    "--quantization=awq",
+                    "--dtype=half",
+                    "--gpu-memory-utilization=0.85",
+                    "--max-model-len=4096",
+                    "--host=0.0.0.0",
+                    "--port=8000"
+                ],
+                "env": [
+                    {
+                        "name": "AWS_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_DEFAULT_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_STS_REGIONAL_ENDPOINTS",
+                        "value": "regional"
+                    },
+                    {
+                        "name": "AWS_ROLE_ARN",
+                        "value": "arn:aws:iam::019167255542:role/inference-phase4-1-vllm-worker"
+                    },
+                    {
+                        "name": "AWS_WEB_IDENTITY_TOKEN_FILE",
+                        "value": "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+                    }
+                ],
+                "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0-streamer",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "vllm",
+                "ports": [
+                    {
+                        "containerPort": 8000,
+                        "name": "http",
+                        "protocol": "TCP"
+                    }
+                ],
+                "readinessProbe": {
+                    "failureThreshold": 6,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": 8000,
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 120,
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                },
+                "resources": {
+                    "limits": {
+                        "cpu": "4",
+                        "memory": "14Gi",
+                        "nvidia.com/gpu": "1"
+                    },
+                    "requests": {
+                        "cpu": "2",
+                        "memory": "12Gi",
+                        "nvidia.com/gpu": "1"
+                    }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/tracer",
+                        "name": "tracer-script",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/log/cold_start",
+                        "name": "tracer-logs"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-b5rj6",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/eks.amazonaws.com/serviceaccount",
+                        "name": "aws-iam-token",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "ip-10-5-25-163.ec2.internal",
+        "nodeSelector": {
+            "image-source": "prebaked-streamer",
+            "node-role": "gpu"
+        },
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "baseline-runner",
+        "serviceAccountName": "baseline-runner",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+            {
+                "effect": "NoSchedule",
+                "key": "nvidia.com/gpu",
+                "operator": "Equal",
+                "value": "true"
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoSchedule",
+                "key": "nvidia.com/gpu",
+                "operator": "Exists"
+            }
+        ],
+        "volumes": [
+            {
+                "name": "aws-iam-token",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "audience": "sts.amazonaws.com",
+                                "expirationSeconds": 86400,
+                                "path": "token"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "configMap": {
+                    "defaultMode": 493,
+                    "name": "cold-start-tracer"
+                },
+                "name": "tracer-script"
+            },
+            {
+                "hostPath": {
+                    "path": "/var/log/cold_start",
+                    "type": "DirectoryOrCreate"
+                },
+                "name": "tracer-logs"
+            },
+            {
+                "name": "kube-api-access-b5rj6",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "expirationSeconds": 3607,
+                                "path": "token"
+                            }
+                        },
+                        {
+                            "configMap": {
+                                "items": [
+                                    {
+                                        "key": "ca.crt",
+                                        "path": "ca.crt"
+                                    }
+                                ],
+                                "name": "kube-root-ca.crt"
+                            }
+                        },
+                        {
+                            "downwardAPI": {
+                                "items": [
+                                    {
+                                        "fieldRef": {
+                                            "apiVersion": "v1",
+                                            "fieldPath": "metadata.namespace"
+                                        },
+                                        "path": "namespace"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "status": {
+        "conditions": [
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-01T22:20:20Z",
+                "status": "True",
+                "type": "PodReadyToStartContainers"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-01T22:20:15Z",
+                "status": "True",
+                "type": "Initialized"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-01T22:22:46Z",
+                "status": "True",
+                "type": "Ready"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-01T22:22:46Z",
+                "status": "True",
+                "type": "ContainersReady"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-01T22:20:15Z",
+                "status": "True",
+                "type": "PodScheduled"
+            }
+        ],
+        "containerStatuses": [
+            {
+                "containerID": "containerd://e69a849079a0cd69605202f78e113323898f0b5f6881098c55b5c60a13005d5f",
+                "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0-streamer",
+                "imageID": "sha256:186af5885a36f74dfb7bba3e21b83e13fb92f7c4e3f83c6d57ba182675c650cb",
+                "lastState": {},
+                "name": "vllm",
+                "ready": true,
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-05-01T22:20:20Z"
+                    }
+                }
+            }
+        ],
+        "hostIP": "10.5.25.163",
+        "hostIPs": [
+            {
+                "ip": "10.5.25.163"
+            }
+        ],
+        "phase": "Running",
+        "podIP": "10.5.30.152",
+        "podIPs": [
+            {
+                "ip": "10.5.30.152"
+            }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-05-01T22:20:15Z"
+    }
+}

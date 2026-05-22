@@ -1,0 +1,29 @@
+# pdb.yaml — PodDisruptionBudget for vLLM GPU workers.
+#
+# WHAT THIS DOES: Prevents Kubernetes from voluntarily evicting too many GPU
+# workers at once. "Voluntary" = node drain, Karpenter consolidation, cluster
+# upgrade, kubectl drain. Does NOT protect against Spot interruptions (involuntary).
+#
+# WHY minAvailable=1: Guarantees at least 1 GPU worker is always running during
+# voluntary disruptions. With 2 workers, allows 1 to be evicted. With 1 worker,
+# blocks ALL voluntary evictions — the single worker is untouchable.
+#
+# WHY NOT maxUnavailable=1: With only 1 worker, maxUnavailable=1 would allow
+# disrupting it (1 - 1 = 0 running). minAvailable=1 is an absolute floor.
+#
+# ANALOGY: This is like setting ASG MinSize=1 combined with instance protection.
+# The scheduler will never voluntarily reduce capacity below this threshold.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-worker-pdb
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-pdb
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-worker

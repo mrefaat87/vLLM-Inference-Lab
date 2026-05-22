@@ -1,0 +1,25 @@
+# rabbitmq-plugins-configmap.yaml — Enable Prometheus metrics plugin.
+#
+# WHY this ConfigMap: RabbitMQ 3.12-management ships with the rabbitmq_prometheus
+# plugin but it's disabled by default. Mounting this file at /etc/rabbitmq/enabled_plugins
+# tells RabbitMQ to activate it on startup, exposing Prometheus metrics on :15692.
+#
+# Without this, Prometheus has no way to scrape queue depth, message rates, or
+# connection counts — the metrics KEDA and Grafana need for autoscaling decisions.
+#
+# ANALOGY: This is like enabling "detailed monitoring" on an EC2 instance —
+# the capability exists, it just needs to be turned on.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-plugins
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: messaging
+data:
+  # WHY both plugins: rabbitmq_management gives us the web UI (:15672) and
+  # rabbitmq_prometheus gives us the Prometheus scrape endpoint (:15692).
+  # The format is an Erlang term — the trailing period is required.
+  enabled_plugins: "[rabbitmq_management,rabbitmq_prometheus]."

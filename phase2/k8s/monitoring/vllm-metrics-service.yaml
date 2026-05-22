@@ -1,0 +1,38 @@
+# vllm-metrics-service.yaml — Headless Service for Prometheus to discover vLLM pods.
+#
+# WHY THIS IS NEEDED: Phase 1 has no Service for the vLLM worker pod — the
+# queue-worker sidecar communicates with vLLM via localhost (sidecar pattern).
+# But Prometheus ServiceMonitor discovers scrape targets through Service endpoints.
+# Without this Service, Prometheus can't find the vLLM /metrics endpoint.
+#
+# WHY headless (clusterIP: None): we don't need load balancing or a stable IP.
+# Headless Services create DNS records that resolve directly to pod IPs.
+# Prometheus needs individual pod IPs for scraping, not a load-balanced VIP.
+#
+# ANALOGY: This is like creating a CloudMap service discovery entry in ECS —
+# it doesn't route traffic, it just tells the monitoring system where the
+# targets are.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-metrics
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: inference
+spec:
+  # WHY clusterIP: None — headless Service. Returns pod IPs directly in DNS.
+  clusterIP: None
+  selector:
+    # WHY match vllm-worker: selects the sidecar pod that contains both
+    # the vLLM server (port 8000) and the queue-worker. We scrape the
+    # vLLM container's /metrics endpoint.
+    app.kubernetes.io/name: vllm-worker
+  ports:
+    - name: vllm-metrics
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+      # WHY port 8000: vLLM's OpenAI-compatible server exposes Prometheus
+      # metrics at http://pod-ip:8000/metrics alongside the inference API.

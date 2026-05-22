@@ -1,0 +1,135 @@
+# configmap.yaml — Unified scaling policy for the inference platform.
+#
+# WHAT THIS IS: A single ConfigMap holding ALL tunable parameters for admission
+# control, KEDA autoscaling, and graceful shutdown. The worker pod reads these
+# via envFrom, so changing a value + restarting the pod applies the new policy.
+#
+# WHY A SINGLE CONFIGMAP: All scaling parameters are coupled. Changing the
+# admission threshold (when to reject requests) affects when KEDA should scale
+# (when to add workers). Keeping them in one place = one scaling policy document.
+# Analogous to a single ASG scaling policy that bundles target tracking thresholds,
+# cooldowns, and capacity limits together.
+#
+# HOW TO USE: Update values here, then either:
+#   1. kubectl rollout restart deployment/vllm-worker -n inference-system
+#   2. Or wait for next pod restart (e.g., during scale-up)
+#
+# NOTE: KEDA ScaledObject cannot read envFrom — its trigger values are static
+# YAML. The KEDA_* keys here are the source of truth; the ScaledObject files
+# must match. The test harness generates ScaledObjects from these values.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scaling-config
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: scaling-config
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: configuration
+data:
+  # ── Admission Control (read by queue-worker container) ─────────────────
+  # These control WHEN the worker accepts vs rejects incoming requests.
+  # Phase 3 backpressure experiment will determine the best strategy+thresholds.
+  # Until then, "threshold" is the safe default.
+
+  ADMISSION_STRATEGY: "threshold"
+  # WHY "threshold": balanced between static (no checks) and per_request
+  # (conservative cost estimation). Can be swapped to "static" or "per_request"
+  # without rebuilding the worker image — just restart the pod.
+  # Analogy: choosing between step scaling (threshold) and target tracking (per_request).
+
+  GPU_CACHE_THRESHOLD: "0.80"
+  # WHY 0.80: reject new requests when KV cache exceeds 80%, leaving 20% headroom
+  # to avoid vLLM's preemption (eviction) behavior which kills latency for ALL
+  # in-flight requests. Like setting a target group unhealthy threshold.
+
+  MAX_BATCH_SIZE: "8"
+  # WHY 8: T4 16GB can handle 8-10 concurrent requests for a 7B AWQ model.
+  # 8 leaves margin for variable request sizes. Like max concurrent connections
+  # per instance in an ALB target group.
+
+  PREFETCH_COUNT: "10"
+  # WHY 10 (up from 5 in Phase 2): Phase 3 raised this so admission control
+  # can reach the decision point for more requests. With prefetch=5 and max_batch=8,
+  # the worker never had enough messages to trigger rejection. 10 gives headroom
+  # for the admission gate to work. For "static" strategy, this IS the concurrency
+  # limit; for threshold/per_request, it's a soft upper bound.
+
+  # ── Per-Request Strategy Constants (Strategy 3 only) ───────────────────
+  KV_BYTES_PER_TOKEN: "401408"
+  # WHY 401408: Qwen2.5-7B-AWQ KV cache cost per token.
+  # 28 layers x 28 heads x 128 head_dim x 2 bytes (fp16) x 2 (key+value) = 401,408 bytes.
+
+  CHARS_PER_TOKEN: "4"
+  # WHY 4: conservative English tokenizer estimate (actual: 3.5-4.5 chars/token).
+  # Overestimating tokens = more cautious admission = fewer OOM events.
+
+  TOTAL_KV_CACHE_BYTES: "9600000000"
+  # WHY 9.6GB: T4 16GB x 0.85 utilization = 13.6GB - 4GB model weights = 9.6GB for KV.
+
+  # ── KEDA Scaling (reference values — must match ScaledObject YAML) ─────
+  # These keys are the source of truth. The policy-*.yaml ScaledObject files
+  # must be kept in sync. The test harness reads these when generating ScaledObjects.
+
+  KEDA_QUEUE_TRIGGER_VALUE: "5"
+  # WHY 5: scale formula = ceil(queue_depth / value). queue=6 -> 2 replicas.
+  # Matches the prefetch window — if queue exceeds what 1 worker can absorb, scale.
+
+  KEDA_ACTIVATION_VALUE: "3"
+  # WHY 3: minimum queue depth before KEDA starts scaling. Prevents scaling on
+  # tiny transient bursts (2 simultaneous requests that drain immediately).
+
+  KEDA_MAX_REPLICAS: "4"
+  # WHY 4: cost guardrail. 4 x g4dn.xlarge Spot = $0.64/hr. Karpenter NodePool
+  # limits updated to 32 CPU / 128Gi to support this. Like ASG MaxCapacity.
+
+  KEDA_COOLDOWN_PERIOD: "300"
+  # WHY 300s: cooldown must exceed scale-up latency. With cooldown=60s (Phase 2),
+  # KEDA scaled workers down before they finished loading the model — the queue
+  # drained in ~30s, and 60s later KEDA killed the still-booting worker. Rule:
+  # cooldown >= 2x scale-up latency (~165s with optimizations). 300s provides
+  # safety margin. Matches Karpenter's consolidateAfter so they act in concert.
+
+  KEDA_KV_CACHE_THRESHOLD: "0.75"
+  # WHY 0.75: composite trigger fires when avg KV cache > 75%. Set below the
+  # admission threshold (0.80) so KEDA starts provisioning BEFORE admission
+  # starts rejecting. The 5% buffer gives Karpenter ~5 min to bring up a node.
+
+  # ── Graceful Shutdown ──────────────────────────────────────────────────
+
+  DRAIN_TIMEOUT: "170"
+  # WHY 170: seconds to wait for in-flight requests to complete during shutdown.
+  # Must be < terminationGracePeriodSeconds (180) to leave a 10s buffer for
+  # connection cleanup before Kubernetes force-kills the pod.
+  # Analogy: ALB deregistration delay, but for the worker process itself.
+
+  # ── Model Warmup ──────────────────────────────────────────────────────
+
+  WARMUP_ENABLED: "true"
+  # WHY warmup: first inference request pays ~20-30s CUDA kernel compilation.
+  # The worker sends a synthetic 50-token request to vLLM BEFORE consuming from
+  # the queue, absorbing this penalty invisibly.
+  # Set to "false" to disable (e.g., for debugging cold start timing).
+  # Analogy: ALB slow start mode — warm up before receiving real traffic.
+
+  # ── vLLM Sleep Mode (Phase 4v3) ────────────────────────────────────────
+
+  SLEEP_ENABLED: "true"
+  # WHY enabled: after SLEEP_IDLE_TIMEOUT seconds of no traffic, vLLM offloads
+  # model weights from GPU VRAM to CPU RAM. Wake-up takes 0.3-0.9s (L1) vs ~295s
+  # cold start. On dedicated EC2 instances this is a latency optimization, not cost.
+  # Set to "false" to keep model always loaded in GPU VRAM.
+
+  SLEEP_IDLE_TIMEOUT: "300"
+  # WHY 300s: 5 minutes of idle before sleeping. Must exceed KEDA cooldown (also
+  # 300s) — if KEDA is about to scale down this pod, there's no point sleeping first.
+  # For bursty traffic patterns where bursts come every 2-3 minutes, increase this
+  # to avoid unnecessary sleep/wake cycles. Each cycle costs 0.3-0.9s of latency.
+  # Analogy: ASG instance scale-in protection timer.
+
+  SLEEP_LEVEL: "1"
+  # WHY L1: offloads weights to CPU RAM (fast wake: 0.3-0.9s). L2 discards weights
+  # entirely (wake: 0.9-2.6s, must reload from disk) but uses much less CPU RAM.
+  # L1 requires enough CPU RAM to hold model weights (~4GB for Qwen2.5-7B-AWQ).
+  # g4dn.xlarge has 16GB RAM — fits L1 comfortably.
+  # Analogy: L1 = EC2 hibernate (RAM preserved), L2 = EC2 stop (RAM lost).

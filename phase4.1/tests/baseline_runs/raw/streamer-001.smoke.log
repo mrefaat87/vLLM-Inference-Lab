@@ -1,0 +1,4 @@
+data: {"id":"cmpl-81416ddf5c2f5c53","object":"text_completion","created":1777674168,"model":"s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/","choices":[{"index":0,"text":".","logprobs":null,"finish_reason":"length","stop_reason":null,"prompt_token_ids":null,"token_ids":null}],"usage":null}
+
+data: [DONE]
+

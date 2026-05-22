@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why your LLM cold start is slower than you think — a 590s → 212s walkthrough</title>
+<style>
+  :root {
+    --ink: #e6edf3;
+    --ink-soft: #8b949e;
+    --rule: #30363d;
+    --bg: #0d1117;
+    --accent: #ff7b72;
+    --code-bg: #161b22;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-size: 18px;
+    line-height: 1.65;
+    color: var(--ink);
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+  }
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+  h1 {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 2.1rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 0 0 24px;
+    color: var(--ink);
+  }
+  h2 {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 1.5rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    margin: 56px 0 16px;
+    color: var(--ink);
+  }
+  h3 {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 1.15rem;
+    margin: 36px 0 12px;
+    color: var(--ink);
+  }
+  p { margin: 0 0 18px; }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin-bottom: 32px;
+  }
+  ul, ol { margin: 0 0 20px; padding-left: 26px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--ink); }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #c9d1d9;
+    border: 1px solid var(--rule);
+  }
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0 28px;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  th {
+    font-weight: 600;
+    background: #161b22;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr td strong { color: var(--accent); }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 24px 0;
+    padding: 4px 20px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+  a:hover { color: var(--ink); }
+  .hero {
+    margin: 32px -8px 48px;
+  }
+  .hero svg { width: 100%; height: auto; display: block; }
+  .hero-caption {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 12px;
+    padding: 0 16px;
+  }
+  .callout {
+    background: rgba(255,123,114,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 16px 20px;
+    margin: 24px 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--rule);
+    margin: 48px 0;
+  }
+  .meta {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin-bottom: 32px;
+  }
+</style>
+</head>
+<body>
+<article class="container">
+
+<h1>Why your LLM cold start is slower than you think — a 590s → 212s walkthrough</h1>
+
+<div class="meta">Phase 4.1 · LLM Inference Learning Lab · 2026-05-02</div>
+
+<p class="lede">I spent a week pulling LLM inference cold-start latency from <strong>590 seconds to 212 seconds</strong> on a single g4dn.xlarge GPU node — a 64% reduction across six experimental variants. Along the way, three of my prior intuitions broke: mirroring images to ECR didn't help, pre-baking the image into the AMI made cold start <em>worse</em> before it made it better, and a purpose-built streaming model loader lost to a warm gp3 disk read.</p>
+
+<p>The keeper insight isn't any single number — it's that cold-start optimizations don't compose cleanly by stage. They leak across stages, and which one wins depends entirely on your image size, your model, and your GPU. This post walks through what worked, what didn't, and the mental models I'd reach for first next time.</p>
+
+<div class="hero">
+<svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cold-start time comparison across seven variants">
+  <style>
+    .lbl { font: 600 13px ui-sans-serif, system-ui, sans-serif; fill: #e6edf3; }
+    .sub { font: 11px ui-sans-serif, system-ui, sans-serif; fill: #8b949e; }
+    .total { font: 600 13px ui-sans-serif, system-ui, sans-serif; fill: #e6edf3; }
+    .axis { font: 10px ui-sans-serif, system-ui, sans-serif; fill: #6e7681; }
+    .title { font: 700 14px ui-sans-serif, system-ui, sans-serif; fill: #e6edf3; }
+    .legend { font: 11px ui-sans-serif, system-ui, sans-serif; fill: #c9d1d9; }
+  </style>
+
+  <text class="title" x="20" y="24">Cold start by stage, seven variants — Qwen2.5-7B-AWQ on g4dn.xlarge</text>
+
+  <!-- axis: scale 720s = 720px starting at x=160 -->
+  <!-- gridlines at 0, 200, 400, 600 -->
+  <line x1="160" y1="50" x2="160" y2="430" stroke="#484f58" stroke-width="1"/>
+  <line x1="360" y1="50" x2="360" y2="430" stroke="#30363d" stroke-width="1" stroke-dasharray="2,3"/>
+  <line x1="560" y1="50" x2="560" y2="430" stroke="#30363d" stroke-width="1" stroke-dasharray="2,3"/>
+  <line x1="760" y1="50" x2="760" y2="430" stroke="#30363d" stroke-width="1" stroke-dasharray="2,3"/>
+  <text class="axis" x="160" y="445" text-anchor="middle">0s</text>
+  <text class="axis" x="360" y="445" text-anchor="middle">200s</text>
+  <text class="axis" x="560" y="445" text-anchor="middle">400s</text>
+  <text class="axis" x="760" y="445" text-anchor="middle">600s</text>
+
+  <!-- bar y positions: 60, 110, 160, 210, 260, 310, height 32 -->
+  <!-- scale 1s = 1px -->
+
+  <!-- A: Hub — 64, 290, 35, 12, 40, 9.6, 8.3, 3 → 461.9 stacked, total 590 (gap is karpenter+ec2 etc) -->
+  <text class="lbl" x="20" y="78">A · Hub</text>
+  <text class="sub" x="20" y="92">baseline</text>
+  <rect x="160" y="60" width="64" height="32" fill="#8b949e"/>
+  <rect x="224" y="60" width="290" height="32" fill="#ff7b72"/>
+  <rect x="514" y="60" width="35" height="32" fill="#ed8936"/>
+  <rect x="549" y="60" width="12" height="32" fill="#d69e2e"/>
+  <rect x="561" y="60" width="40" height="32" fill="#38a169"/>
+  <rect x="601" y="60" width="9.6" height="32" fill="#3182ce"/>
+  <rect x="610.6" y="60" width="8.3" height="32" fill="#805ad5"/>
+  <rect x="618.9" y="60" width="3" height="32" fill="#d53f8c"/>
+  <text class="total" x="755" y="80">590s</text>
+
+  <!-- B: ECR — 65, 295, 34, 13, 42, 9.6, 7.7, 3 → 469.3, total 605 -->
+  <text class="lbl" x="20" y="128">B · ECR</text>
+  <text class="sub" x="20" y="142">same region</text>
+  <rect x="160" y="110" width="65" height="32" fill="#8b949e"/>
+  <rect x="225" y="110" width="295" height="32" fill="#ff7b72"/>
+  <rect x="520" y="110" width="34" height="32" fill="#ed8936"/>
+  <rect x="554" y="110" width="13" height="32" fill="#d69e2e"/>
+  <rect x="567" y="110" width="42" height="32" fill="#38a169"/>
+  <rect x="609" y="110" width="9.6" height="32" fill="#3182ce"/>
+  <rect x="618.6" y="110" width="7.7" height="32" fill="#805ad5"/>
+  <rect x="626.3" y="110" width="3" height="32" fill="#d53f8c"/>
+  <text class="total" x="755" y="130">605s</text>
+
+  <!-- C: Prebake no-FSR — 179, 2.6, 41, 135, 31, 9.5, 9.3, 8.8 → 416.2, total 716 -->
+  <text class="lbl" x="20" y="178">C · Prebake</text>
+  <text class="sub" x="20" y="192">no FSR</text>
+  <rect x="160" y="160" width="179" height="32" fill="#8b949e"/>
+  <rect x="339" y="160" width="2.6" height="32" fill="#ff7b72"/>
+  <rect x="341.6" y="160" width="41" height="32" fill="#ed8936"/>
+  <rect x="382.6" y="160" width="135" height="32" fill="#d69e2e"/>
+  <rect x="517.6" y="160" width="31" height="32" fill="#38a169"/>
+  <rect x="548.6" y="160" width="9.5" height="32" fill="#3182ce"/>
+  <rect x="558.1" y="160" width="9.3" height="32" fill="#805ad5"/>
+  <rect x="567.4" y="160" width="8.8" height="32" fill="#d53f8c"/>
+  <text class="total" x="755" y="180" fill="#ff7b72">716s ↑</text>
+
+  <!-- D: Prebake + FSR — 46, 1.2, 37, 23, 4.6, 9.9, 4.7, 3 → 129.4, total 242 -->
+  <text class="lbl" x="20" y="228">D · +FSR</text>
+  <text class="sub" x="20" y="242">pre-warm</text>
+  <rect x="160" y="210" width="46" height="32" fill="#8b949e"/>
+  <rect x="206" y="210" width="1.2" height="32" fill="#ff7b72"/>
+  <rect x="207.2" y="210" width="37" height="32" fill="#ed8936"/>
+  <rect x="244.2" y="210" width="23" height="32" fill="#d69e2e"/>
+  <rect x="267.2" y="210" width="4.6" height="32" fill="#38a169"/>
+  <rect x="271.8" y="210" width="9.9" height="32" fill="#3182ce"/>
+  <rect x="281.7" y="210" width="4.7" height="32" fill="#805ad5"/>
+  <rect x="286.4" y="210" width="3" height="32" fill="#d53f8c"/>
+  <text class="total" x="320" y="230">242s</text>
+
+  <!-- E: Streamer — 46, 0, 0, 20.3, 66.1, 9.6, 9.5, 3.4 → 154.9, total 212 -->
+  <text class="lbl" x="20" y="278">E · Streamer</text>
+  <text class="sub" x="20" y="292">+ FSR</text>
+  <rect x="160" y="260" width="46" height="32" fill="#8b949e"/>
+  <rect x="206" y="260" width="20.3" height="32" fill="#d69e2e"/>
+  <rect x="226.3" y="260" width="66.1" height="32" fill="#38a169"/>
+  <rect x="292.4" y="260" width="9.6" height="32" fill="#3182ce"/>
+  <rect x="302" y="260" width="9.5" height="32" fill="#805ad5"/>
+  <rect x="311.5" y="260" width="3.4" height="32" fill="#d53f8c"/>
+  <text class="total" x="320" y="280" fill="#38a169">212s ★</text>
+
+  <!-- F: +JIT cache — 45, 1.2, 33, 23.8, 4.6, 9.4, 20.8, 3 → 140.8, total 221 -->
+  <text class="lbl" x="20" y="328">F · +JIT cache</text>
+  <text class="sub" x="20" y="342">low variance</text>
+  <rect x="160" y="310" width="45" height="32" fill="#8b949e"/>
+  <rect x="205" y="310" width="1.2" height="32" fill="#ff7b72"/>
+  <rect x="206.2" y="310" width="33" height="32" fill="#ed8936"/>
+  <rect x="239.2" y="310" width="23.8" height="32" fill="#d69e2e"/>
+  <rect x="263" y="310" width="4.6" height="32" fill="#38a169"/>
+  <rect x="267.6" y="310" width="9.4" height="32" fill="#3182ce"/>
+  <rect x="277" y="310" width="20.8" height="32" fill="#805ad5"/>
+  <rect x="297.8" y="310" width="3" height="32" fill="#d53f8c"/>
+  <text class="total" x="320" y="330">221s</text>
+
+  <!-- H: FSx Lustre — 48, 0, 0, 20.5, 12.6, 9.6, 5.3, 3.2 → 99.2 stacked, total 214.5 -->
+  <text class="lbl" x="20" y="378">H · FSx Lustre</text>
+  <text class="sub" x="20" y="392">multi-model</text>
+  <rect x="160" y="360" width="48" height="32" fill="#8b949e"/>
+  <rect x="208" y="360" width="20.5" height="32" fill="#d69e2e"/>
+  <rect x="228.5" y="360" width="12.6" height="32" fill="#38a169"/>
+  <rect x="241.1" y="360" width="9.6" height="32" fill="#3182ce"/>
+  <rect x="250.7" y="360" width="5.3" height="32" fill="#805ad5"/>
+  <rect x="256" y="360" width="3.2" height="32" fill="#d53f8c"/>
+  <text class="total" x="320" y="380" fill="#7ee787">214s ★</text>
+
+  <!-- legend -->
+  <g transform="translate(20, 470)">
+    <rect x="0" y="0" width="12" height="12" fill="#8b949e"/>
+    <text class="legend" x="18" y="10">node bootstrap</text>
+    <rect x="125" y="0" width="12" height="12" fill="#ff7b72"/>
+    <text class="legend" x="143" y="10">image download</text>
+    <rect x="255" y="0" width="12" height="12" fill="#ed8936"/>
+    <text class="legend" x="273" y="10">model download</text>
+    <rect x="385" y="0" width="12" height="12" fill="#d69e2e"/>
+    <text class="legend" x="403" y="10">vllm init</text>
+    <rect x="475" y="0" width="12" height="12" fill="#38a169"/>
+    <text class="legend" x="493" y="10">weight load</text>
+    <rect x="570" y="0" width="12" height="12" fill="#3182ce"/>
+    <text class="legend" x="588" y="10">graph warmup</text>
+    <rect x="675" y="0" width="12" height="12" fill="#805ad5"/>
+    <text class="legend" x="693" y="10">readiness</text>
+    <rect x="760" y="0" width="12" height="12" fill="#d53f8c"/>
+    <text class="legend" x="778" y="10">first token</text>
+  </g>
+
+  <!-- annotations -->
+  <line x1="514" y1="55" x2="514" y2="50" stroke="#ff7b72" stroke-width="1"/>
+  <text class="sub" x="370" y="46" fill="#ff7b72">image_download dominates baseline →</text>
+
+  <line x1="339" y1="195" x2="339" y2="200" stroke="#ff7b72" stroke-width="1"/>
+  <text class="sub" x="345" y="207" fill="#ff7b72">↑ image_download collapses, but vllm_init &amp; bootstrap balloon (lazy-load tax leaks)</text>
+</svg>
+<div class="hero-caption">Each row is the median of 3 fresh-node runs. Total includes Karpenter scheduling and EC2 fulfillment (small, not stacked). Variant C — pre-bake without FSR — is slower than the baseline despite the image_download collapse. Variant H · FSx Lustre lands at 214s (stddev 9.4s) — the lowest median across all variants — by mounting weights from a shared Lustre filesystem instead of baking them into the AMI; it's the multi-model production pattern. (Variant G — image+model both baked into the AMI, 241s median, stddev 6.3s — is omitted from the chart but discussed in the section "Baking the model into the AMI too.")</div>
+</div>
+
+<h2>The setup matters — read this before the results</h2>
+
+<p>Cold-start results don't generalize across environments. None of the rankings below would survive unchanged on, say, an H100 running a 70B model with FlashInfer. So before any numbers, here's exactly what I measured on:</p>
+
+<table>
+  <tr><th>Component</th><th>Choice</th></tr>
+  <tr><td>Cluster</td><td>EKS 1.30, Karpenter v0.37, scale from zero</td></tr>
+  <tr><td>Instance</td><td>g4dn.xlarge Spot, us-east-1a, NVIDIA T4 (sm_75)</td></tr>
+  <tr><td>Model</td><td>Qwen2.5-7B-Instruct-AWQ — 4.5 GB, small number of safetensors shards</td></tr>
+  <tr><td>Engine</td><td>vLLM 0.19.0</td></tr>
+  <tr><td>Image</td><td>9.5 GB (vLLM + CUDA runtime + torch + flash-attn deps)</td></tr>
+  <tr><td>Storage</td><td>gp3 root volumes (125 MB/s default), EBS-backed AMIs</td></tr>
+  <tr><td>Measurement</td><td>wall clock from Karpenter scheduling decision to first token served, broken into ~10 stages by a tracer that parses kubelet/containerd/vLLM logs</td></tr>
+</table>
+
+<p>Two facts from this list end up doing a lot of work later. First, <strong>T4 is sm_75</strong>, which is below FlashAttention 2's 8.0 cutoff — vLLM falls back to xformers, and FlashInfer never JITs anything. Second, the <strong>AWQ weights are sharded into a small number of files</strong>, which limits how much parallelism a streaming loader can extract.</p>
+
+<p>If your stack is different — H100s, larger model, newer vLLM — expect the rankings to shuffle. The method (measure stages, attack the dominant one, re-measure) is what transfers; the answers are environment-specific.</p>
+
+<h2>The cold-start stage map</h2>
+
+<p>Cold start in LLM inference isn't one number. It's a budget spread across roughly ten stages, each with a different owner and a different speed limit:</p>
+
+<ol>
+  <li><strong>karpenter_scheduling</strong> — Karpenter sees an unschedulable pod and decides what node to launch (~1s)</li>
+  <li><strong>ec2_spot_fulfillment</strong> — AWS allocates the Spot instance (~2-3s)</li>
+  <li><strong>node_bootstrap</strong> — instance boots, kubelet + containerd start, node joins the cluster</li>
+  <li><strong>image_download</strong> — containerd pulls the container image</li>
+  <li><strong>image_unpack</strong> — layers unpack to <code>/var/lib/containerd/</code></li>
+  <li><strong>model_download_s3</strong> — init container <code>aws s3 cp</code> of model weights to a gp3 emptyDir</li>
+  <li><strong>vllm_init_cuda_ctx</strong> — vLLM Python imports, CUDA context init, engine setup</li>
+  <li><strong>weight_load_gpu_mem</strong> — weights move from disk to GPU memory</li>
+  <li><strong>cuda_graph_warmup</strong> — vLLM captures CUDA graphs for the steady-state path</li>
+  <li><strong>readiness_probe_pass</strong> — kubelet's first successful HTTP probe</li>
+  <li><strong>first_token_served</strong> — actual end-to-end inference completes</li>
+</ol>
+
+<div class="callout">
+<p>Plant this warning early: <strong>stages leak.</strong> An optimization labeled "image delivery" can show up as latency in <code>vllm_init</code>. The clean partitioning above is how you <em>report</em> time, not how optimizations <em>behave</em>. The most painful lesson in this whole experiment came from missing that.</p>
+</div>
+
+<h2>Optimizing image delivery</h2>
+
+<p>Most engineers' first instinct on "make cold start faster" is to attack image delivery. It's the biggest single chunk of the baseline (290s of a 590s total) and the most tactile — registries, networks, AMIs are all things you can swap out and remeasure. Two of my three broken intuitions live here.</p>
+
+<h3>Network locality is a red herring</h3>
+
+<p>Variants A and B were the network-locality test: pull from Docker Hub vs pull from ECR same-region. I expected ECR to be 2-3× faster — same VPC, no NAT, no Hub rate limits.</p>
+
+<table>
+  <tr><th>Variant</th><th class="num">image_download</th><th class="num">TOTAL</th></tr>
+  <tr><td>A: Docker Hub</td><td class="num">289.6s</td><td class="num">590s</td></tr>
+  <tr><td>B: ECR same-region</td><td class="num">295.3s</td><td class="num">605s</td></tr>
+</table>
+
+<p>Within noise. The bottleneck for a 9.5 GB image isn't network throughput; it's <strong>gp3 unpack rate</strong>. 125 MB/s × 9.5 GB compressed ≈ 76s of decompression alone, plus containerd's per-layer serialization, gets you to ~280s before the network even matters. Network locality buys ~5s.</p>
+
+<p>This doesn't mean don't mirror to ECR — it means mirror to ECR for the <em>operational</em> reasons (no Hub rate limits, no Hub outages, faster authentication, in-VPC IAM auth) and don't expect cold-start latency to improve. If a vendor benchmark shows a big speedup from registry locality, ask what their image size and disk type are — for small images on faster disks, network can be the bottleneck. For large GPU container images on gp3, it isn't.</p>
+
+<h3>Pre-baking the image into the AMI loses, by a lot</h3>
+
+<p>Variant C was the obvious next move: bake the container image into a custom AMI so it's already unpacked in <code>/var/lib/containerd/</code> when the instance boots. <code>image_download</code> should drop to nearly zero. Done.</p>
+
+<p>It dropped to 2.6s. And the total cold start got <strong>128 seconds slower</strong> than just pulling from Docker Hub.</p>
+
+<table>
+  <tr><th>Variant</th><th class="num">image_download</th><th class="num">node_bootstrap</th><th class="num">vllm_init</th><th class="num">TOTAL</th></tr>
+  <tr><td>A: Hub</td><td class="num">290s</td><td class="num">64s</td><td class="num">12s</td><td class="num">590s</td></tr>
+  <tr><td>C: Prebaked AMI (no FSR)</td><td class="num"><strong>2.6s</strong></td><td class="num"><strong>179s</strong></td><td class="num"><strong>135s</strong></td><td class="num"><strong>716s</strong></td></tr>
+</table>
+
+<p>The 287s I "saved" on <code>image_download</code> reappeared as 115s on <code>node_bootstrap</code> and 123s on <code>vllm_init</code>. Where did it go?</p>
+
+<div class="callout">
+<p><strong>Mental model: an AMI is a lazy S3 snapshot.</strong> When you launch from an AMI, EC2 attaches a metadata-only volume — instantly available, but no blocks have been copied yet. The first read of any unwarmed block triggers an on-demand fetch from the snapshot's S3 backing store. Each first-touch costs ~10-50 ms; once paid, that block is normal-speed EBS forever.</p>
+</div>
+
+<p>For a stock EKS GPU AMI booting kubelet, the working set is small and the lazy-load tax is single-digit seconds. For a 9.5 GB pre-baked AMI where containerd, the kernel, and vLLM's import path <em>all</em> read from blocks that live inside the snapshot, the working set explodes. vLLM imports torch + CUDA runtime + flash-attn + a long dependency tree — probably 2-3 GB of first-touch reads. Aggregate across blocks, and you get ~238s of lazy-load tax spread across <code>node_bootstrap</code> and <code>vllm_init</code>.</p>
+
+<p>The optimization didn't fail. The bytes still got delivered — just on the read path instead of the pull path. And the read path is slower per-byte, because each block round-trips to S3 individually instead of streaming from a registry.</p>
+
+<p>The generalizable lesson: <strong>when you change where bytes live, re-measure every stage, not just the one you targeted.</strong> I would have caught this immediately if I'd watched the full pipeline; I missed it because I was anchored on <code>image_download</code>.</p>
+
+<h3>FSR is the warm-pool analog for EBS</h3>
+
+<p>EBS Fast Snapshot Restore (FSR) is the AWS feature that pre-warms a snapshot's blocks per-AZ ahead of time. Volumes restored from an FSR-enabled snapshot in that AZ skip the lazy-load tax entirely — first reads hit at normal EBS speed.</p>
+
+<p>The cost is <strong>$0.75/hr/AZ flat</strong>, independent of snapshot size. The auto-scaling analogy is exact: FSR is to EBS what warm pools are to ASGs. Both pre-pay idle capacity cost to skip first-launch latency. Both face linear multi-AZ economics — fast cold scale-out across 3 AZs costs 3× the FSR bill.</p>
+
+<p>Variant D enabled FSR on the prebaked snapshot in us-east-1a:</p>
+
+<table>
+  <tr><th>Stage</th><th class="num">A: Hub</th><th class="num">C: Prebake no-FSR</th><th class="num">D: Prebake + FSR</th></tr>
+  <tr><td>node_bootstrap</td><td class="num">64s</td><td class="num">179s</td><td class="num"><strong>46s</strong></td></tr>
+  <tr><td>image_download</td><td class="num">290s</td><td class="num">2.6s</td><td class="num">1.2s</td></tr>
+  <tr><td>vllm_init_cuda_ctx</td><td class="num">12s</td><td class="num">135s</td><td class="num"><strong>23s</strong></td></tr>
+  <tr><td>weight_load_gpu_mem</td><td class="num">40s</td><td class="num">31s</td><td class="num"><strong>4.6s</strong></td></tr>
+  <tr><td><strong>TOTAL</strong></td><td class="num"><strong>588s</strong></td><td class="num"><strong>716s</strong></td><td class="num"><strong>242s</strong></td></tr>
+</table>
+
+<p>I expected ~480s — the lazy-load tax clawed back, leaving the prebake roughly the same as Hub plus its raw image-pull savings. I got 242s. <strong>FSR pre-warmed more than I modeled.</strong> The whole gp3 root volume — including the slack space where the model-download init container writes weights — was pre-warmed. <code>weight_load_gpu_mem</code> collapsed from 40s to 4.6s, a stage I hadn't even considered FSR-relevant.</p>
+
+<p>Break-even math: a saved cold-start second is worth roughly $0.16/3600 ≈ $0.0000444 in raw Spot g4dn cost. FSR's $0.75/hr/AZ pays back at about 47 cold starts per hour per AZ on infra cost alone. For Tier-0 user-facing inference where P99 latency cost dominates, the math is much more permissive. For development clusters that scale once a day, FSR is pure waste.</p>
+
+<h2>Optimizing model weight loading</h2>
+
+<p>After image delivery, the next big chunk is moving 4.5 GB of weights from S3 onto the GPU. Variant D handles this in two steps: an init container does <code>aws s3 cp</code> to a gp3 emptyDir (~37s), then vLLM reads from disk and copies to GPU (~4.6s with FSR-warmed disk). Total: ~42s.</p>
+
+<p>The instinct: skip the disk hop. Stream from S3 directly to GPU memory.</p>
+
+<h3>The RunAI Streamer didn't beat warm disk</h3>
+
+<p>Variant E used the RunAI Model Streamer — <code>pip install runai-model-streamer runai-model-streamer-s3</code>, set <code>--load-format=runai_streamer --model=s3://...</code> on vLLM, and the streamer fetches safetensors from S3 to a CPU pinned buffer and onward to GPU without touching disk.</p>
+
+<p>Expected: ~12s on the fused fetch+load step. Actual: 66s.</p>
+
+<table>
+  <tr><th>Stage</th><th class="num">D: Prebake + FSR</th><th class="num">E: Streamer + FSR</th></tr>
+  <tr><td>model_download_s3</td><td class="num">37s</td><td class="num">0s (no init container)</td></tr>
+  <tr><td>weight_load_gpu_mem</td><td class="num">4.6s</td><td class="num"><strong>66.1s</strong></td></tr>
+  <tr><td><strong>fetch + load total</strong></td><td class="num"><strong>41.6s</strong></td><td class="num"><strong>66.1s</strong></td></tr>
+  <tr><td><strong>GRAND TOTAL</strong></td><td class="num"><strong>242s</strong></td><td class="num"><strong>212s</strong></td></tr>
+</table>
+
+<p>The streamer was <strong>24s slower</strong> on the dimension I was trying to optimize. RunAI's published "3-5× speedup" is over a <em>naive</em> disk-stage-then-load pipeline. Variant D wasn't naive — FSR pre-warmed the gp3 volume to memory-bandwidth speeds (~1 GB/s for sequential reads), so the disk hop was nearly free. The streamer's ceiling is <strong>single-instance S3 read throughput</strong>, which I observed at ~70 MB/s sustained. That's an order of magnitude below FSR-warmed gp3.</p>
+
+<p>Two reasons the streamer's parallelism didn't show up: AWQ weights are sharded into a small number of files (the streamer can't parallelize what isn't sharded), and I didn't tune <code>RUNAI_STREAMER_*</code> env vars (defaults may be conservative).</p>
+
+<p>But variant E still beat variant D on total cold start by 30s. The win didn't come from raw fetch speed — it came from <strong>dropping the init container entirely</strong>. Kubernetes' init→main container handoff has its own overhead (image starts, lifecycle hooks, scheduler accounting) that the streamer architecturally sidesteps. The architectural change mattered more than the throughput change.</p>
+
+<p>When is a streaming loader the right call? When you can't pay for FSR, when you're scaling horizontally enough that aggregate S3 bandwidth from many workers exceeds what FSR delivers per node, or when you're rotating models too often to bake each one into an AMI. There's also an operability footnote: 1 of 3 streamer runs hit 545s — bootstrap and <code>vllm_init</code> both 3× normal — apparently a partial-FSR-pre-warm spike. Variant D's three runs were tightly clustered. <strong>Streamer + FSR is non-deterministic in a way Variant D wasn't.</strong></p>
+
+<h2>Optimizing engine initialization</h2>
+
+<p>The last chunk to attack is <code>vllm_init_cuda_ctx</code> — 23s on variant D. This stage covers Python imports, CUDA context creation, engine setup, KV cache sizing, and JIT compilation of CUDA kernels (Triton, torch.compile, FlashInfer). Recent industry research (Doubleword on SGLang cold start, Q1-2026) cited torch.compile + Triton + FlashInfer JIT as the dominant cost on H100-class hardware, with 10-20s recoverable by snapshotting compile caches into the AMI and mounting them at runtime.</p>
+
+<p>Variant F implemented exactly that: pin all five compile-cache directories via env vars, run vLLM once during AMI build to populate them, and bind-mount the cache directory at the same absolute paths at runtime.</p>
+
+<pre><code>/opt/vllm-cache/torchinductor   TORCHINDUCTOR_CACHE_DIR
+/opt/vllm-cache/triton          TRITON_CACHE_DIR
+/opt/vllm-cache/flashinfer      FLASHINFER_JIT_DIR
+/opt/vllm-cache/vllm_compile    VLLM_CACHE_ROOT
+/opt/vllm-cache/hf              HF_HOME</code></pre>
+
+<p>The cache populated correctly (228 files, 31 MB), no compile artifacts leaked outside the pinned dirs, and the AMI built clean.</p>
+
+<p><code>vllm_init_cuda_ctx</code> did not move. F's median: 23.8s. D's: 23.2s. Within noise, in the wrong direction.</p>
+
+<p>Three reasons the prediction missed:</p>
+
+<ol>
+  <li><strong>vLLM 0.19's torch.compile path is mostly downstream of <code>vllm_init_cuda_ctx</code> as the harness draws the boundary.</strong> The torch_aot_compile work fires between <code>weight_load_done</code> and <code>graph_capture_start</code>, not inside the init stage. Cache hits there don't surface in the metric I was measuring.</li>
+  <li><strong>The addressable JIT surface on T4 + AWQ is small.</strong> FlashInfer doesn't fire (sm_75 &lt; 8.0), TVM-FFI doesn't fire (no MoE), so only torch.inductor + Triton are caching anything. The 31 MB total is way below Doubleword's H100 + MoE setup, which had hundreds of MB of compile artifacts to skip.</li>
+  <li><strong>vLLM 0.19 is the wrong vLLM.</strong> Q1-2026 vLLM (≥0.7) ships first-class cache persistence APIs that exposed more of the JIT surface to caching. Re-running this on newer vLLM is the obvious next step.</li>
+</ol>
+
+<p>But variant F still earned its keep — just not where I expected. Look at variance across the 3 runs:</p>
+
+<table>
+  <tr><th>Variant</th><th class="num">Median</th><th class="num">Stddev</th><th class="num">Range</th></tr>
+  <tr><td>D: Prebake + FSR</td><td class="num">241.6s</td><td class="num"><strong>119.6s</strong></td><td class="num">215-545s</td></tr>
+  <tr><td>F: + JIT cache</td><td class="num">221.2s</td><td class="num"><strong>5.0s</strong></td><td class="num">221-230s</td></tr>
+</table>
+
+<p><strong>24× reduction in run-to-run variability.</strong> Variant D had one run that spiked to 545s (the partial-FSR-pre-warm hypothesis again). Variant F's three runs landed within 9 seconds of each other. For a production cold-start SLO that cares about p99 — which Tier-0 inference always does — a tightly-clustered 220s beats a flickering 215s±120s every time.</p>
+
+<p>This reframes the value of the optimization. JIT cache pre-warm wasn't a peak-perf win; it was an <strong>operability win</strong>. That's a different argument with a different audience (SREs, not perf engineers), but it's no less valuable.</p>
+
+<p>For the next material reduction in <code>vllm_init</code>: upgrade to vLLM ≥0.7 and re-run F, attack Python import time directly (~26s of the stage is just imports — lazy import patterns or vLLM monkey-patches), or wait for CUDA snapshot/restore (blocked on EKS GPU AMI shipping driver 580+).</p>
+
+<h2>Baking the model into the AMI too</h2>
+
+<p>Variant E saved time by removing the init container entirely; Variant D pays for it. The obvious next move: keep Variant D's FSR-warmed disk path, but bake the 4.5 GB of weights into the AMI alongside the prebaked image, and have the runtime pod hostPath-mount <code>/opt/models</code> read-only. No init container, no S3 fetch at runtime — same fast disk read as Variant D, with E's architectural simplification.</p>
+
+<p>Variant G did exactly that. New Packer template (D + one <code>aws s3 cp</code> step), new pod manifest (no init container, hostPath mount), new NodePool, FSR enabled on the new ~20 GB snapshot. Predicted ~205-210s — tied with E on speed, tight like F.</p>
+
+<p>I got 241s. The same number as Variant D, to within a second.</p>
+
+<table>
+  <tr><th>Stage</th><th class="num">D: Prebake + FSR</th><th class="num">G: + Model in AMI</th></tr>
+  <tr><td>model_download_s3</td><td class="num">37s (init container)</td><td class="num">0s (no init container)</td></tr>
+  <tr><td>weight_load_gpu_mem</td><td class="num"><strong>4.6s</strong></td><td class="num"><strong>44.4s</strong></td></tr>
+  <tr><td><strong>fetch + load total</strong></td><td class="num"><strong>41.6s</strong></td><td class="num"><strong>44.4s</strong></td></tr>
+  <tr><td><strong>GRAND TOTAL</strong></td><td class="num"><strong>241.6s</strong></td><td class="num"><strong>241.1s</strong></td></tr>
+</table>
+
+<p>The 37s "saving" from removing the init container reappeared as 40s of weight-load time. Same total time, just relocated to a different stage in the harness.</p>
+
+<p>The explanation is the OS page cache. Variant D's init container does <code>aws s3 cp</code> to emptyDir <em>before</em> vLLM starts. Reading 4.5 GB through the kernel populates the page cache; by the time vLLM opens those files, the bytes are already in DRAM. The 4.6s I measured for D's <code>weight_load_gpu_mem</code> is a CPU-to-GPU memcpy from RAM, not a disk read. Variant G has no init container, so vLLM is the first reader. Even with FSR pre-warming the EBS blocks, the bytes still have to traverse: warm-EBS → DRAM → GPU. That's gp3-bound — about 1 GB/s sequential — which is the 44s I measured.</p>
+
+<p>For a fair cold-start comparison across architectures, sum <code>(model_download_s3 + weight_load_gpu_mem)</code>: D is 41.6s, G is 44.4s. The "savings" never existed. <strong>Variant D is faster only because its init container amortizes the disk read into a stage the harness counts as a fetch step.</strong> Remove the init container and you discover the true cost.</p>
+
+<p>But variant G earned its keep elsewhere. The 3 runs clustered at 240.9s, 252.0s, 241.1s — a stddev of 6.3s, vs Variant D's 119.6s.</p>
+
+<table>
+  <tr><th>Variant</th><th class="num">Median</th><th class="num">Stddev</th><th class="num">Range</th></tr>
+  <tr><td>D: Prebake + FSR</td><td class="num">241.6s</td><td class="num">119.6s</td><td class="num">215-545s</td></tr>
+  <tr><td>F: + JIT cache</td><td class="num">221.2s</td><td class="num"><strong>5.0s</strong></td><td class="num">221-230s</td></tr>
+  <tr><td>G: + Model in AMI</td><td class="num">241.1s</td><td class="num"><strong>6.3s</strong></td><td class="num">241-252s</td></tr>
+</table>
+
+<p><strong>19× tighter than D, comparable to F.</strong> Variant G's variance win comes from a different mechanism than F's: with both image and weights in the AMI, the cold-start critical path no longer touches a network — it's pure disk-bound work on an FSR-warmed snapshot. That removes the random-network-hiccup tail that hits D's init container and E's streamer.</p>
+
+<p>So is G the new production answer? No. F achieves a better median (221s vs 241s) AND comparable variance (5.0s vs 6.3s) AND simpler ops (model lifecycle decoupled from AMI lifecycle — change the model without rebuilding the AMI and re-warming FSR). G's value is mostly as a measurement teaching moment, but the operational case for G beats D in any environment where p99 matters: same median, dramatically tighter tail.</p>
+
+<h2>The decision tree</h2>
+
+<p>Distilled from the experiments above, with the caveat that the rankings assume something close to my environment (single-node, big image, T4-class GPU, vLLM 0.19, AWQ weights):</p>
+
+<ol>
+  <li><strong>Don't mirror to ECR for cold-start latency.</strong> Mirror for operational reasons. For big images on gp3, expect ~5s saved, not ~100s.</li>
+  <li><strong>Don't pre-bake without FSR.</strong> The lazy-load tax in adjacent stages will exceed the image-download savings. You'll be slower than just pulling from the network.</li>
+  <li><strong>Pre-bake + FSR is the production answer for big single-model workloads</strong> if you scale out frequently. ~350s savings on a 9.5 GB image, predictable cost ($0.75/hr/AZ).</li>
+  <li><strong>Streaming model loaders are not a free win once FSR is paid.</strong> Per-instance S3 throughput is below FSR-warmed gp3. Use streamers when you can't afford FSR, when you're S3-bandwidth-bound across many workers, or when you're rotating models too often to bake them.</li>
+  <li><strong>JIT cache pre-warm is a p99 optimization, not a p50 optimization.</strong> On vLLM 0.19, expect tight variance reduction, not a faster median. Revisit on vLLM ≥0.7.</li>
+  <li><strong>Baking the model into the AMI ties on median and tightens the tail (G).</strong> Same total time as D, ~19× tighter stddev. Pick G over D when p99 matters more than ops simplicity. Pick F over G when minimum median matters and the model lifecycle can be separated from the AMI lifecycle.</li>
+  <li><strong>Image slim-down and SOCI lazy-loading remain on the table</strong> for multi-image / dynamic workloads where pre-bake + FSR doesn't scale to N AMIs.</li>
+</ol>
+
+<h2>Three meta-lessons</h2>
+
+<p><strong>Stages leak.</strong> Optimization labels lie. "Image delivery" optimizations can surface as <code>vllm_init</code> time. "Init container removal" can resurface as <code>weight_load</code> time when you remove the side effect of the init container that was warming the page cache. Always measure the full pipeline before and after, never just the stage you targeted. The pre-bake-without-FSR result was a 128-second regression masquerading as a 287-second win; Variant G's apparent loss of D's "fast 4.6s weight load" was a measurement artifact disappearing, not a regression.</p>
+
+<p><strong>Median hides operability.</strong> Variance reduction is a feature, not a consolation prize. A 24× tighter distribution at the same median is what makes a cold-start budget plannable. P99-driven SLOs reward optimizations that the perf-bench community would call "no-ops."</p>
+
+<p><strong>Cited speedups assume a baseline you may not have.</strong> RunAI's 3-5× streamer claim is true — over a naive disk-stage-then-load. Doubleword's 10-20s JIT-cache savings is true — on H100 + MoE on newer vLLM. Neither survived contact with my specific stack unmodified. Always re-derive against your own environment before committing to an optimization, especially one that costs a recurring infrastructure bill.</p>
+
+<h2>What's next</h2>
+
+<p><strong>Variant H landed: FSx for Lustre is the multi-model production answer.</strong> 1.2 TiB SCRATCH_2 SSD filesystem mounted into every inference pod via PVC, weights pre-staged once, swap models by changing the mount path. Median 214.5s, stddev 9.4s — faster than every prior variant on this hardware. Lustre's per-client read throughput came in at ~360 MB/s effective on a single g4dn.xlarge, which made <code>weight_load_gpu_mem</code> drop from G's 44.4s on FSR-warmed gp3 down to 12.6s. Cost shape flips at multi-model scale: at N=4 models × M=2 AZs, H is $0.48/hr vs the FSR-per-snapshot pattern's $6.00/hr. Phase 6 will default to this storage layer.</p>
+
+<p>Two operational lessons from H that future variants on this cluster will inherit. First: <strong>wait at least 5–10 minutes after FSR <code>EnabledTime</code> before the first measurement</strong> — AWS's "best effort" pre-warm doesn't credit the first few volume creations after the state transition, and the partial-warm volume looks indistinguishable from a stock AMI launch (we caught a 413s outlier before re-running the same configuration to 228.6s). Second: <strong>kubelet doesn't emit a <code>SuccessfulMount</code> event for the FSx CSI driver in this version</strong>, so the optional <code>fsx_csi_mount_s</code> stage I added stayed null on all 3 H runs; the mount time is captured implicitly in the gap between <code>Scheduled</code> and the first <code>Pulled</code> event. Worth a future tracer patch.</p>
+
+<p>The next phases move past single-node single-model cold start. CUDA checkpoint/restore — once EKS GPU AMIs ship driver 580+ — promises to skip <code>vllm_init</code> entirely by snapshotting a warm process. Multi-model bin-packing on top of H's shared filesystem is its own measurement pass. Both will need their own data, and I expect at least one of my current intuitions to break again.</p>
+
+<p>If you're running a different stack — bigger model, H100s, vLLM 0.7+, FlashInfer-eligible GPU — the rankings here will shuffle. The harness, Packer templates, and decision tree are all on GitHub. Try the method, not the answers.</p>
+
+<hr>
+<p class="meta">Phase 4.1 of an ongoing inference learning lab. Mohamed — Senior EM, AWS Auto Scaling.</p>
+
+</article>
+</body>
+</html>

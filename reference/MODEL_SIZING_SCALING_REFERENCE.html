@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Sizing &amp; Scaling — Reference</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg-card: #161b22;
+  --bg-elev: #1c2128;
+  --text: #e6edf3;
+  --text-body: #c9d1d9;
+  --text-mute: #8b949e;
+  --accent: #58a6ff;
+  --accent-bright: #79c0ff;
+  --em: #d2a8ff;
+  --warn: #d29922;
+  --warn-bg: rgba(210,153,34,0.08);
+  --ok: #3fb950;
+  --rose: #f85149;
+  --border: #30363d;
+  --code-bg: #161b22;
+  --code-text: #e6edf3;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 20px; background: var(--bg); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', "Segoe UI", Inter, system-ui, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text-body);
+  background: var(--bg);
+  margin: 0;
+}
+
+.layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1320px; margin: 0 auto; }
+
+.toc {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px 16px 24px 24px;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13px;
+}
+.toc h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+  margin: 0 0 12px 0;
+  border: none;
+  padding: 0;
+}
+.toc ul { list-style: none; padding: 0; margin: 0; }
+.toc li { margin: 2px 0; }
+.toc a {
+  display: block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: var(--text-body);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+}
+.toc a:hover { background: var(--bg-card); color: var(--text); }
+.toc a.active { background: var(--bg-card); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.toc-l3 a { padding-left: 26px; font-size: 12px; color: var(--text-mute); }
+
+.content {
+  padding: 40px 56px 80px 56px;
+  max-width: 940px;
+}
+
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px 0; letter-spacing: -0.01em; color: var(--text); font-weight: 700; }
+h2 {
+  font-size: 22px;
+  margin: 56px 0 16px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.01em;
+  color: var(--text);
+  font-weight: 700;
+}
+h3 { font-size: 17px; margin: 32px 0 12px 0; color: var(--accent); font-weight: 600; }
+h4 { font-size: 13px; margin: 20px 0 8px 0; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-mute); font-weight: 600; }
+
+p { margin: 12px 0; color: var(--text-body); }
+strong { color: var(--text); font-weight: 600; }
+em { color: var(--em); font-style: normal; }
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+a:hover { border-bottom-color: var(--accent); }
+
+ul, ol { padding-left: 22px; color: var(--text-body); }
+li { margin: 6px 0; }
+
+blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  color: var(--text-body);
+}
+blockquote p { margin: 0; color: var(--text-body); }
+blockquote strong { color: var(--warn); }
+
+code {
+  font-family: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  background: var(--code-bg);
+  color: var(--accent-bright);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  color: var(--text-body);
+}
+pre code { background: transparent; padding: 0; font-size: 12px; color: var(--text-body); }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  font-size: 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+th, td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text-body);
+}
+th {
+  background: var(--bg-elev);
+  font-weight: 600;
+  color: var(--text-mute);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border);
+}
+tr:hover td { background: var(--bg-card); }
+tr:last-child td { border-bottom: none; }
+
+hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+.chart-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin: 24px 0;
+  box-shadow: var(--shadow);
+}
+.chart-block canvas { max-width: 100%; }
+.chart-block svg { width: 100%; height: auto; display: block; }
+.chart-caption {
+  font-size: 12px;
+  color: var(--text-mute);
+  margin: 12px 0 0 0;
+  font-style: italic;
+}
+
+.mermaid {
+  text-align: center;
+  margin: 24px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.header-bar {
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #1c2128 100%);
+  color: var(--text);
+  padding: 36px 56px;
+  margin: -40px -56px 28px -56px;
+  border-bottom: 1px solid var(--border);
+}
+.header-bar h1 { color: var(--text); margin: 0 0 6px 0; }
+.header-bar p { margin: 0; color: var(--text-mute); font-size: 14px; }
+.header-bar .meta { margin-top: 14px; font-size: 12px; color: var(--text-mute); opacity: 0.85; }
+
+.reading-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 12px 0 36px 0;
+}
+.reading-guide .card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  transition: border-color 0.15s;
+}
+.reading-guide .card:hover { border-color: var(--accent); }
+.reading-guide .card strong { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 4px; }
+.reading-guide .card a { color: var(--text-body); border: none; }
+.reading-guide .card a:hover { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 16px; }
+  .content { padding: 24px 16px; }
+  .header-bar { margin: -24px -16px 24px -16px; padding: 24px 16px; }
+}
+
+@media print {
+  body { background: white; color: black; }
+  .toc { display: none; }
+  .layout { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><ul>
+<li class="toc-l2"><a href="#how-to-read-this-doc">How to read this doc</a></li>
+<li class="toc-l2"><a href="#glossary">Glossary</a></li>
+<li class="toc-l2"><a href="#0-the-objective-workflow-start-here">0. The Objective &amp; Workflow (start here)</a></li>
+<li class="toc-l3"><a href="#01-what-youre-actually-optimizing">0.1 What you&#x27;re actually optimizing</a></li>
+<li class="toc-l3"><a href="#02-mental-model-capacity-planning-at-token-granularity">0.2 Mental model — capacity planning at token granularity</a></li>
+<li class="toc-l3"><a href="#03-inference-is-two-workloads-not-one">0.3 Inference is two workloads, not one</a></li>
+<li class="toc-l3"><a href="#04-engine-parameter-taxonomy">0.4 Engine parameter taxonomy</a></li>
+<li class="toc-l3"><a href="#05-method-analytical-bounds-empirical-refinement-goodput">0.5 Method — analytical bounds, empirical refinement, goodput</a></li>
+<li class="toc-l3"><a href="#06-9-step-workflow">0.6 9-step workflow</a></li>
+<li class="toc-l3"><a href="#07-the-three-questions-to-ask-before-any-change">0.7 The three questions to ask before any change</a></li>
+<li class="toc-l2"><a href="#1-the-roofline-mental-model-scaling-book-part-7">1. The Roofline Mental Model (Scaling Book, Part 7)</a></li>
+<li class="toc-l2"><a href="#2-prefill-vs-decode-deep-dive">2. Prefill vs Decode (Deep Dive)</a></li>
+<li class="toc-l2"><a href="#3-kv-cache-the-other-bottleneck">3. KV Cache: The Other Bottleneck</a></li>
+<li class="toc-l2"><a href="#4-latencythroughput-curve-closed-form">4. Latency–Throughput Curve (Closed Form)</a></li>
+<li class="toc-l2"><a href="#5-critical-batch-llama-70b-worked-example">5. Critical Batch &amp; Llama-70B — Worked Example</a></li>
+<li class="toc-l2"><a href="#6-parallelism-decision-tree">6. Parallelism Decision Tree</a></li>
+<li class="toc-l2"><a href="#7-production-scale-data-point-deepseek-v3">7. Production-Scale Data Point: DeepSeek-V3</a></li>
+<li class="toc-l2"><a href="#8-kv-reduction-at-production-scale-characterai">8. KV Reduction at Production Scale: Character.AI</a></li>
+<li class="toc-l2"><a href="#9-engine-implementation-vllm-v1">9. Engine Implementation: vLLM (V1)</a></li>
+<li class="toc-l2"><a href="#10-tensorrt-llm-tuning-methodology">10. TensorRT-LLM Tuning Methodology</a></li>
+<li class="toc-l2"><a href="#11-decision-flowchart">11. Decision Flowchart</a></li>
+<li class="toc-l2"><a href="#12-the-cheat-sheet">12. The Cheat Sheet</a></li>
+<li class="toc-l2"><a href="#sources">Sources</a></li>
+</ul></nav>
+<main class="content">
+<div class="header-bar">
+<h1>Model Sizing &amp; Scaling</h1>
+<p>A consolidated reference for sizing and scaling decisions in LLM inference</p>
+<div class="meta">Distilled from primary sources · last updated May 2026</div>
+</div>
+
+<div class="reading-guide">
+  <div class="card"><strong>First time</strong><a href="#0-the-objective-workflow-start-here">§0 → §1–4 → §12</a></div>
+  <div class="card"><strong>Sizing new deploy</strong><a href="#06-9-step-workflow">§0.6 workflow</a></div>
+  <div class="card"><strong>Tuning existing</strong><a href="#9-engine-implementation-vllm-v1">§9 vLLM / §10 TRT-LLM</a></div>
+  <div class="card"><strong>Sanity check</strong><a href="#11-decision-flowchart">§11 flowchart</a></div>
+</div>
+
+<h1 id="model-sizing-scaling-reference">Model Sizing &amp; Scaling — Reference</h1>
+<p>A consolidated reference for sizing and scaling decisions in LLM inference, distilled from seven primary sources (listed at the end). Organized so you can reach for a section when sizing a new deployment.</p>
+<p>For each topic: <strong>the framework</strong>, <strong>the math</strong>, <strong>the rules of thumb</strong>, <strong>the production data point</strong>.</p>
+<hr />
+<h2 id="how-to-read-this-doc">How to read this doc</h2>
+<ul>
+<li><strong>First time through:</strong> §0 (mental model) → §1–§4 (theory) → §12 (cheat sheet).</li>
+<li><strong>Sizing a new deployment:</strong> §0.6 (workflow) — pull math from §1 (roofline), §3 (KV), §4 (curve) as you compute.</li>
+<li><strong>Tuning an existing one:</strong> §9 (vLLM internals) or §10 (TRT-LLM methodology) → §12 (cheat sheet).</li>
+<li><strong>Sanity-check at the end:</strong> §11 (flowchart).</li>
+<li><strong>Production case studies:</strong> §5 (Llama-70B worked), §7 (DeepSeek-V3), §8 (Character.AI).</li>
+</ul>
+<h2 id="glossary">Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TTFT</strong></td>
+<td>Time To First Token — prefill latency (queue wait + first forward pass)</td>
+</tr>
+<tr>
+<td><strong>TBT / TPOT / ITL</strong></td>
+<td>Time Between Tokens — per-decode-step latency (inter-token latency)</td>
+</tr>
+<tr>
+<td><strong>AI</strong></td>
+<td>Arithmetic Intensity — FLOPs per byte moved from HBM</td>
+</tr>
+<tr>
+<td><strong>MFU</strong></td>
+<td>Model FLOPs Utilization — achieved FLOPs / peak FLOPs</td>
+</tr>
+<tr>
+<td><strong>HBM</strong></td>
+<td>High-Bandwidth Memory — the on-chip GPU memory</td>
+</tr>
+<tr>
+<td><strong>ICI</strong></td>
+<td>Inter-Chip Interconnect — NVLink on Nvidia, ICI on TPU</td>
+</tr>
+<tr>
+<td><strong>ISL / OSL</strong></td>
+<td>Input / Output Sequence Length</td>
+</tr>
+<tr>
+<td><strong>B_crit</strong></td>
+<td>Critical batch — the knee where dense matmul flips memory-bound → compute-bound</td>
+</tr>
+<tr>
+<td><strong>KV</strong></td>
+<td>Key-Value cache — attention's per-token state; streamed every decode step</td>
+</tr>
+<tr>
+<td><strong>TP</strong></td>
+<td>Tensor Parallelism — shard the hidden dim of each matmul across GPUs</td>
+</tr>
+<tr>
+<td><strong>PP</strong></td>
+<td>Pipeline Parallelism — shard layer groups across GPUs (introduces bubbles)</td>
+</tr>
+<tr>
+<td><strong>EP</strong></td>
+<td>Expert Parallelism — for MoE; shard experts across GPUs</td>
+</tr>
+<tr>
+<td><strong>SP</strong></td>
+<td>Sequence Parallelism — shard the sequence dim (helps long-context prefill)</td>
+</tr>
+<tr>
+<td><strong>DP</strong></td>
+<td>Data Parallelism — replicate full model across GPUs</td>
+</tr>
+<tr>
+<td><strong>FSDP</strong></td>
+<td>Fully Sharded Data Parallelism — gather weights per layer; viable in training, unviable for decode</td>
+</tr>
+<tr>
+<td><strong>DP-attn</strong></td>
+<td>Data-parallel attention — each replica handles a subset of sequences through attention</td>
+</tr>
+<tr>
+<td><strong>MHA / GQA / MQA / MLA</strong></td>
+<td>Attention variants: Multi-Head / Grouped-Query / Multi-Query / Multi-head Latent</td>
+</tr>
+<tr>
+<td><strong>MTP</strong></td>
+<td>Multi-Token Prediction — training-time multi-head used at inference as free spec decode</td>
+</tr>
+<tr>
+<td><strong>QPS</strong></td>
+<td>Queries (requests) per second</td>
+</tr>
+<tr>
+<td><strong>P:D ratio</strong></td>
+<td>Prefill load : Decode load — drives the disaggregation decision</td>
+</tr>
+<tr>
+<td><strong>Goodput</strong></td>
+<td>req/s <strong>subject to</strong> TTFT_p99 AND TBT_p99 SLOs (not raw throughput)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="0-the-objective-workflow-start-here">0. The Objective &amp; Workflow (start here)</h2>
+<blockquote>
+<p><strong>Read §0.1–§0.4 in order before §0.5 (the workflow).</strong> The mental model is what makes the steps make sense; without it, the workflow is a checklist that will mislead.</p>
+</blockquote>
+<h3 id="01-what-youre-actually-optimizing">0.1 What you're actually optimizing</h3>
+<p>Inference is a three-axis Pareto problem. You can push on any two; the third pushes back.</p>
+<pre><code>              Quality (eval accuracy)
+                       ▲
+                       │
+                       │
+                       │
+     Latency ──────────┼────────── Throughput
+   (TTFT, TBT)         │           ($ / Mtok)
+                       │
+</code></pre>
+<ul>
+<li><strong>Latency</strong> (TTFT, TBT, P99) — what a single user experiences.</li>
+<li><strong>Throughput</strong> (tokens/sec/GPU, $/Mtok) — what your cost sheet sees.</li>
+<li><strong>Quality</strong> (your eval suite) — what makes the product viable.</li>
+</ul>
+<p>Almost every "tuning" decision moves you along a Pareto frontier set by <strong>(hardware, model architecture, workload mix)</strong>. You don't <em>create</em> throughput; you redistribute it from one axis to another. Recognizing this kills 80% of bad arguments before they start: "raise the batch" trades latency for throughput, "switch to MLA" trades implementation cost for cache headroom, "disaggregate" trades infra complexity for ability to optimize each phase independently.</p>
+<p><strong>Corollary: more constraints = better performance.</strong> A general-purpose deployment is a Pareto-dominated deployment. Every constraint you can commit to — bounded context, single workload class, known traffic shape, fixed precision — lets you specialize and push <em>further</em> on the remaining axes. Quantized beats FP16 on cost; disagg beats mixed on TTFT; prefix-cached beats stateless on warm traffic. The workflow in §0.6 walks knob-by-knob precisely so each added constraint moves you to a tighter frontier rather than sideways on a loose one.</p>
+<h3 id="02-mental-model-capacity-planning-at-token-granularity">0.2 Mental model — capacity planning at token granularity</h3>
+<p>Inference is <strong>capacity planning where the unit of work is a token, not a request.</strong> Each token costs you HBM bandwidth (to stream weights and KV through the GPU) and FLOPs (to multiply them). Different request shapes consume different ratios of these two resources.</p>
+<table>
+<thead>
+<tr>
+<th>Auto Scaling concept</th>
+<th>Inference equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Warm instance pool (fixed cost)</td>
+<td>Model weights in HBM</td>
+</tr>
+<tr>
+<td>Per-instance memory (variable cost)</td>
+<td>KV cache per active session</td>
+</tr>
+<tr>
+<td>ASG min/max</td>
+<td><code>max_num_seqs</code>, KV pool size</td>
+</tr>
+<tr>
+<td>Target-tracking on CPU</td>
+<td>Memory-bound regime (BW utilization)</td>
+</tr>
+<tr>
+<td>Headroom for burst</td>
+<td><code>gpu_memory_utilization</code> &lt; 1.0</td>
+</tr>
+<tr>
+<td>Spot vs On-Demand</td>
+<td>Quantization (cheaper, slightly riskier)</td>
+</tr>
+<tr>
+<td>Multi-AZ sharding</td>
+<td>Tensor Parallelism across NVLink</td>
+</tr>
+<tr>
+<td>Cross-region replication</td>
+<td>Pipeline Parallelism across nodes</td>
+</tr>
+<tr>
+<td>ALB sticky sessions</td>
+<td>Prefix caching / cache-aware routing</td>
+</tr>
+<tr>
+<td>Two ASGs (web vs worker)</td>
+<td>Disaggregated prefill / decode pools</td>
+</tr>
+<tr>
+<td>Queue depth → scaling trigger</td>
+<td>KV pool utilization → admission throttling</td>
+</tr>
+<tr>
+<td>Target tracking @ 70% util</td>
+<td>Stay below ~65% GPU util for tail-stable serving</td>
+</tr>
+</tbody>
+</table>
+<p>Weights are the <strong>fixed amortized cost</strong> — paid every decode step regardless of batch. KV is the <strong>variable cost</strong> — grows linearly with concurrent sessions × context length. Your job is to size the fleet (GPUs, topology) and per-instance behavior (batch, KV policy) to meet SLO at the lowest $/Mtok.</p>
+<h3 id="03-inference-is-two-workloads-not-one">0.3 Inference is two workloads, not one</h3>
+<p>A single request stitches together <strong>two completely different physics regimes</strong>:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Prefill</th>
+<th>Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it does</td>
+<td>Process whole prompt in parallel</td>
+<td>Generate 1 token per step per seq</td>
+</tr>
+<tr>
+<td>Tokens / step</td>
+<td>hundreds–thousands (chunk size)</td>
+<td>1 × num_running_seqs</td>
+</tr>
+<tr>
+<td>Arithmetic intensity</td>
+<td>high (T/2 for attention)</td>
+<td>~1 (one new token streams full KV)</td>
+</tr>
+<tr>
+<td>Bottleneck</td>
+<td>FLOPs</td>
+<td>HBM bandwidth</td>
+</tr>
+<tr>
+<td>MFU (typical)</td>
+<td><strong>40–60%</strong></td>
+<td><strong>5–15%</strong></td>
+</tr>
+<tr>
+<td>Latency metric</td>
+<td>TTFT</td>
+<td>TBT / ITL</td>
+</tr>
+<tr>
+<td>Saturated at</td>
+<td>batch = 1 with long prompt</td>
+<td>needs many concurrent seqs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Implication for sizing:</strong> every decision must ask "which phase?" first. The same GPU can be compute-bound for prefill and memory-bound for decode <em>in the same second</em>. Mixing them on one server means prefill bursts crater decode TBT — which is why disaggregation (Splitwise / DistServe / Mooncake) became table stakes for TTFT-sensitive products. (See §2 for the deeper comparison.)</p>
+<h3 id="04-engine-parameter-taxonomy">0.4 Engine parameter taxonomy</h3>
+<p>Engine knobs split cleanly by what they physically bound. Naming this prevents the common mistake of tuning a "throughput" knob to fix a "latency" symptom.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter (vLLM / TRT-LLM)</th>
+<th>Axis</th>
+<th>Physically bounds</th>
+<th>When exceeded</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_model_len</code> (vLLM) / <code>max_input_len</code> + <code>max_output_len</code> (TRT-LLM build flags)</td>
+<td>per-request, admission</td>
+<td>KV slots reserved per sequence; combined context budget</td>
+<td><strong>Reject</strong> at admission</td>
+</tr>
+<tr>
+<td><code>SamplingParams.max_tokens</code> (vLLM) / <code>max_output_len</code> (TRT-LLM)</td>
+<td>per-request, runtime</td>
+<td>Output tokens per request</td>
+<td><strong>Forced EOS</strong> at limit</td>
+</tr>
+<tr>
+<td><code>max_num_seqs</code> / <code>max_batch_size</code></td>
+<td>concurrency</td>
+<td>Number of sequences scheduler holds in flight</td>
+<td><strong>Queue</strong> (request waits)</td>
+</tr>
+<tr>
+<td><code>max_num_batched_tokens</code> / <code>max_num_tokens</code></td>
+<td>per-step work</td>
+<td>Total tokens (prefill + decode) in one forward pass</td>
+<td>Long chunks <strong>split</strong> (chunked prefill) or sequences <strong>deferred</strong></td>
+</tr>
+<tr>
+<td><code>gpu_memory_utilization</code> (vLLM) / <code>kv_cache_free_gpu_mem_fraction</code> (TRT-LLM)</td>
+<td>memory</td>
+<td>HBM fraction for weights + KV pool + activations</td>
+<td>OOM at startup if too high</td>
+</tr>
+<tr>
+<td><code>block_size</code> (vLLM PagedAttention)</td>
+<td>KV granularity</td>
+<td>Tokens per KV block (alloc unit)</td>
+<td>Fragmentation if large; mgmt overhead if small</td>
+</tr>
+<tr>
+<td><code>enable_chunked_prefill</code> (both)</td>
+<td>scheduling</td>
+<td>Whether prefill can be split across steps to protect TBT</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>enable_prefix_caching</code> (vLLM)</td>
+<td>scheduling</td>
+<td>Reuse KV for shared prompt prefixes</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Two soft scheduling knobs</strong> — <code>max_num_seqs</code> and <code>max_num_batched_tokens</code> — are <em>not</em> memory caps. They're concurrency / work-per-step caps. Actual memory admission is decided per-step by the engine against the KV pool. The right framing: set them high enough that they're not the binding constraint, then let per-step admission throttle to reality.</p>
+<p><strong>Two hard rejection caps</strong> — <code>max_model_len</code> and (for TRT-LLM build) <code>max_input_len</code> — are admission gates. Set them at the context budget you're <em>willing to serve</em> (governed by HBM-fit at target batch), not at workload percentiles. Slicing them by p99-of-traffic turns measurement noise into 503s.</p>
+<p><strong>One forced-stop cap</strong> — <code>max_output_len</code> / <code>SamplingParams.max_tokens</code> — is a generation length cap. Set from product UX (longest <em>useful</em> response), not from output distribution; truncation is acceptable, rejection at admission is not.</p>
+<h3 id="05-method-analytical-bounds-empirical-refinement-goodput">0.5 Method — analytical bounds, empirical refinement, goodput</h3>
+<p>Pure analytical sizing produces wrong numbers (engine overhead, scheduling artifacts, paged-KV fragmentation aren't in the equations). Pure empirical sweep wastes hardware time scanning configs the math already ruled out. The right method is a <strong>two-stage pipeline</strong>:</p>
+<ol>
+<li><strong>Analytical</strong> (paper, no GPU): use roofline + KV + SLO math (§1, §3, §4) to bound each variable's plausible range. This rules out 80%+ of the search space.</li>
+<li><strong>Empirical</strong> (load generator, real GPU): sweep within those bounds using a production-shaped load. Tools: <code>genai-perf</code> (NVIDIA) or <code>vllm benchmark_serving.py</code>. Use the ISL/OSL distribution from workload characterization — <strong>not</strong> synthetic 128/128.</li>
+<li><strong>Optimize on goodput, not throughput</strong>: <strong>goodput = req/s subject to TTFT_p99 and TBT_p99 SLOs</strong>. Raw tokens/sec is a vanity metric — it can climb while SLO satisfaction collapses. (DistServe popularized this distinction; now mainstream.)</li>
+<li><strong>Stay below ~65% steady-state utilization</strong>. M/M/1 queueing math: tail latencies blow up above ~70%. This is your replica-sizing headroom factor (≈1.5×).</li>
+</ol>
+<h3 id="06-9-step-workflow">0.6 9-step workflow</h3>
+<p>Sequential by default. Bracketed steps marked <code>[co-decided]</code> are jointly constrained and may require revisiting.</p>
+<p><strong>1. Write down the SLO contract.</strong>
+- TTFT_p50 / p99
+- TBT_p50 / p99 (or e2e for non-streaming)
+- Target throughput at peak (req/s)
+- Cost ceiling ($/Mtok or $/req)
+- Quality bar (specific eval, specific threshold)</p>
+<blockquote>
+<p>No numbers → no decisions.</p>
+</blockquote>
+<p><strong>2. Characterize the workload.</strong>
+- Input length distribution (median + p95 + p99) — drives prefill cost.
+- Output length distribution — drives decode cost and P:D load ratio.
+- Concurrency profile (steady / diurnal / bursty) — drives autoscaling.
+- Multi-turn vs single-shot — decides if prefix caching pays.
+- Shared system prompt? — decides whether to lock prefix in KV.
+- Prefix-shareability (% of prompts sharing prefix) — can swing per-replica throughput 2–5×.</p>
+<p><strong>3. Pick model and attention variant.</strong>
+- Smallest model clearing the quality bar on <strong>your</strong> eval (not benchmarks).
+- Record attention variant (MHA / GQA / MQA / MLA) — drives KV math in §3.
+- Note FP8/INT4-friendliness (varies by model family).</p>
+<p><strong>4. Roofline math on paper (before topology).</strong>
+- <code>KV_per_token = 2 × bytes × n_kv_heads × head_dim × n_layers</code> (GQA-aware; §3)
+- <code>B_crit = (peak_FLOPs / peak_HBM_BW) × (bits_w / bits_act)</code> (§1)
+- Param footprint at chosen quant.
+- P:D load ratio from ISL/OSL (<code>avg_input_len / avg_output_len</code>, scaled by prefill MFU advantage).
+- <strong>Flag disaggregation early</strong>: if P:D mismatched (&gt;2:1) or TTFT-tight, plan separate prefill/decode pools (§7 has the worked DeepSeek-V3 example).</p>
+<blockquote>
+<p>If the math says it can't work, no amount of tuning will save you. Pick a smaller model, bigger box, better attention variant, or disagg.</p>
+</blockquote>
+<p><strong>5. Pick topology and batch ceilings <code>[co-decided]</code>.</strong>
+- Smallest TP where <code>weights + KV_at_target_B + activations + 10% overhead</code> fits per replica.
+- TP within an NVLink island only (≤8 H100/H200 per node); PP only when forced; EP for MoE (each expert ≥ <code>B_crit / k</code> tokens).
+- <code>max_num_seqs</code> upper bound = <code>(HBM − weights − activations − overhead) / KV_per_slot</code>.
+- <code>max_model_len</code> = <code>min(trained_context, HBM-fit at target B)</code>. <strong>Not</strong> p99 of inputs.
+- <code>max_num_batched_tokens</code> starting point: powers of 2 ≥ 1024 (TRT-LLM guidance); or DJL's anchor <code>α × max_batch × max_input</code> with α ∈ [0.1, 0.2] as a <em>hint</em>, not a rule. Should be a multiple of the kernel tile size (Sarathi-Serve constraint).
+- TP and batch are co-decided: raising B raises KV pressure, possibly requiring wider TP. Iterate until weights + KV at target B fits with 10% headroom.</p>
+<p><strong>6. Engine baseline.</strong>
+- vLLM V1 (chunked prefill default-on) for fast iteration; TensorRT-LLM when squeezing the last %.
+- <code>gpu_memory_utilization = 0.90</code>; <code>enable_prefix_caching = on</code> if shared prefixes; defaults elsewhere.
+- <strong>Do not tune yet.</strong> Get a working baseline measurement first.</p>
+<p><strong>7. Measure goodput with production-shaped load.</strong>
+- <code>genai-perf</code> or <code>vllm benchmark_serving.py</code>.
+- Use the ISL/OSL distribution from step 2 — <strong>not</strong> synthetic 128/128.
+- Sweep <strong>concurrency</strong> first (one axis); plot <strong>goodput</strong> (req/s under SLO).
+- Then sweep <code>max_num_seqs</code> and <code>max_num_batched_tokens</code> together in a small grid (~3×3) around the goodput knee. Pick Pareto.</p>
+<p><strong>8. Apply one knob at a time, in this priority order.</strong>
+| Symptom | First knob to try |
+|---|---|
+| TBT crushed when prompts arrive | Enable chunked prefill, lower <code>long_prefill_token_threshold</code> |
+| Repeated prompt prefix in workload | Enable prefix caching |
+| TTFT spiky under load | Disaggregate prefill from decode |
+| Throughput plateau below <code>B_crit</code> | Raise <code>max_num_seqs</code> and <code>max_num_batched_tokens</code> together |
+| Quality OK but cost too high | Quantize weights (FP8/INT8), then KV (INT8) |
+| ITL still tight after dense tuning | Speculative decoding / MTP |
+| Long context dominates KV | Local/sliding-window attention or cross-layer KV sharing |
+| MoE expert under-utilized | Raise effective batch via EP / DP-attn |</p>
+<p><strong>9. Replica count, then re-measure end-to-end.</strong></p>
+<pre><code>required_decode_tps  = QPS × avg_output_len
+required_prefill_tps = QPS × avg_input_len
+N = ceil( max(required_decode_tps  / per_replica_decode_tps,
+              required_prefill_tps / per_replica_prefill_tps)
+          / target_utilization )       # target_util ≈ 0.65 → ~1.5× headroom
+</code></pre>
+<p>If disaggregated: size prefill pool and decode pool independently with the same formula, using each phase's own per-replica throughput.</p>
+<p>Re-measure end-to-end at N replicas under target QPS. Stop when SLO is met or marginal gain ≤ complexity cost. Each subsequent knob shifts you on the Pareto frontier; it doesn't expand it. Frontier expansion requires model, hardware, or topology change → restart at step 3.</p>
+<p><strong>Corollary: more traffic = more optimizations earn back their complexity.</strong> A 2% goodput win pays for nothing at 10 req/s but matters at 10k req/s. Before adopting a knob, set a traffic threshold below which you don't bother — e.g., "skip prefix caching until shared-prompt traffic exceeds 30%," "skip disaggregation below 100 req/s/region," "skip spec decoding below B = B_crit/2 (verification has no spare cycles at high batch anyway)." This guardrail is the operational form of the §0.1 specialization argument.</p>
+<h3 id="07-the-three-questions-to-ask-before-any-change">0.7 The three questions to ask before any change</h3>
+<ol>
+<li><strong>Which axis am I moving on?</strong> (latency ↔ throughput ↔ quality)</li>
+<li><strong>Which axis is paying?</strong> (something has to)</li>
+<li><strong>Which phase am I optimizing?</strong> (prefill or decode — different physics)</li>
+</ol>
+<p>If you can't answer all three in one sentence, you're not ready to make the change.</p>
+<hr />
+<h2 id="1-the-roofline-mental-model-scaling-book-part-7">1. The Roofline Mental Model (Scaling Book, Part 7)</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> Every step on a GPU is either <em>waiting for bytes</em> or <em>waiting for FLOPs</em>. The roofline tells you which, and at what batch size the regime flips.</p>
+</blockquote>
+<p>Every inference workload sits in one of two regimes, separated by <strong>arithmetic intensity</strong> (FLOPs per byte moved from HBM):</p>
+<pre><code>AI = FLOPs / Bytes_moved
+</code></pre>
+<ul>
+<li><strong>Compute-bound</strong> when <code>AI &gt; peak_FLOPs / peak_HBM_BW</code>. Time is set by FLOPs.</li>
+<li><strong>Memory-bound</strong> when <code>AI &lt; peak_FLOPs / peak_HBM_BW</code>. Time is set by bandwidth (weight loading).</li>
+</ul>
+<div class="chart-block" data-chart="roofline"></div>
+
+<p><strong>Hardware roofline ratios</strong> (FLOPs per byte, bf16):
+| Chip | Peak FLOPs | HBM BW | Roofline (FLOPs/B) |
+|------|------------|--------|--------------------|
+| TPU v5e | 1.97e14 | 8.2e11 | <strong>~240</strong> |
+| H100 SXM | 9.9e14 | 3.35e12 | <strong>~295</strong> (bf16) / ~590 (fp8) |
+| H200 | 9.9e14 | 4.8e12 | ~205 (bf16) |</p>
+<p><strong>Critical batch size</strong> — the batch at which a dense matmul transitions from memory- to compute-bound:</p>
+<pre><code>B_crit ≈ (peak_FLOPs / peak_HBM_BW) × (bits_per_param / bits_per_activation)
+</code></pre>
+<ul>
+<li>bf16 weights + bf16 activations on H100 → <code>B_crit ≈ 280</code> tokens</li>
+<li><strong>int8 weights + bf16 activations → <code>B_crit</code> drops 2×</strong> (≈140) — you reach saturation sooner.</li>
+<li><strong>int8 weights + int8 activations → <code>B_crit</code> unchanged</strong> (more FLOPs available).</li>
+</ul>
+<blockquote>
+<p>Below <code>B_crit</code>, latency stays flat as you add requests (you're paying for weight loads either way). Above <code>B_crit</code>, latency grows linearly with batch. This is the single most important inference fact.</p>
+</blockquote>
+<hr />
+<h2 id="2-prefill-vs-decode-deep-dive">2. Prefill vs Decode (Deep Dive)</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> §0.3 was the headline; this is the canonical reference. Same model, two physics regimes. Treating them as one is the root of most inference inefficiency.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Prefill</th>
+<th>Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What it does</td>
+<td>Process the entire prompt in parallel</td>
+<td>Generate 1 token per step</td>
+</tr>
+<tr>
+<td>Tokens per step</td>
+<td>hundreds-thousands</td>
+<td>1 per request</td>
+</tr>
+<tr>
+<td>Attention AI</td>
+<td><code>T/2</code> (≥480 → compute-bound)</td>
+<td><code>≈1</code> (always memory-bound)</td>
+</tr>
+<tr>
+<td>Bottleneck</td>
+<td>FLOPs</td>
+<td>HBM bandwidth (loading weights + KV)</td>
+</tr>
+<tr>
+<td>MFU (typical)</td>
+<td><strong>40–60%</strong></td>
+<td><strong>5–15%</strong></td>
+</tr>
+<tr>
+<td>Latency metric</td>
+<td>TTFT</td>
+<td>TBT / ITL</td>
+</tr>
+<tr>
+<td>Batching</td>
+<td>Natural (tokens within one prompt)</td>
+<td>Requires multiple requests</td>
+</tr>
+<tr>
+<td>Sharding that helps</td>
+<td>TP, SP, FSDP</td>
+<td>TP only (FSDP/DP useless)</td>
+</tr>
+</tbody>
+</table>
+<div class="chart-block" data-chart="mfu-comparison"></div>
+
+<p><strong>The interleaving problem</strong> — why mixed serving hurts TBT, and what the two fixes look like:</p>
+<pre><code>Mixed P+D, no chunked prefill (long prefill blocks decode):
+
+GPU ▕████████████▏d▕d▕████████████▏d▕d▕d▕████████████▏
+     ←─prefill─→               ←─prefill─→     ←─prefill─→
+                  ↑ TBT spike    ↑ TBT spike   ↑ TBT spike
+
+With chunked prefill (prefill sliced into small chunks per step):
+
+GPU ▕p+d▕p+d▕p+d▕ d ▕p+d▕p+d▕ d ▕ d ▕p+d▕p+d▕ d ▕p+d▕
+     small prefill chunks share each step with decode → TBT smoothed
+
+With disaggregation (separate hardware pools, KV transferred between):
+
+P-pool ▕████████████▏    ▕████████████▏    ▕████████████▏
+D-pool ▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕d▕
+       continuous decode stream, no prefill interruptions
+</code></pre>
+<p><strong>Implication:</strong> Prefill saturates a GPU with batch=1. Decode needs dozens of concurrent requests to saturate. Mixing them means prefill bursts crater decode TBT — the load shape is fundamentally different, and a single MFU figure averaged across the two will mislead any capacity plan. Disaggregation exists precisely to let each phase run at its own optimal MFU and batch on hardware sized for its bottleneck.</p>
+<p><strong>Two practitioner framings for disagg:</strong></p>
+<ul>
+<li><strong><code>xPyD</code> notation</strong> — write the topology as <code>xPyD</code>, e.g., <code>2P1D</code> = 2 prefill replicas per decode replica. Turns the static "3× prefill servers per decode" rule of thumb (§5.2) into a routine sizing variable you can iterate on, separate from the topology of either pool.</li>
+<li><strong>Conditional disaggregation</strong> — not a binary choice. The decode pool can serve <em>short</em> or <em>prefix-cached</em> prefills locally (cheap, no KV transfer) and only <strong>escalate long uncached prefills to the prefill pool</strong>. Catches the long-tail without paying KV-transfer cost on every request, and degrades gracefully if the P pool is unavailable.</li>
+</ul>
+<hr />
+<h2 id="3-kv-cache-the-other-bottleneck">3. KV Cache: The Other Bottleneck</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> Once weights fit, your throughput ceiling is set by KV — both how much fits in HBM (concurrency cap) and how fast it streams (decode-step latency). Attention variant choice (MHA → GQA → MQA → MLA) is a hundred-fold lever on this.</p>
+</blockquote>
+<p>The KV cache is <em>the</em> throughput limiter once weights fit. It scales linearly in batch × sequence length, and on decode steps it gets streamed through HBM every token.</p>
+<p><strong>Generic formula (bytes per token, all layers):</strong></p>
+<pre><code>KV_per_token = 2 (K+V) × bytes_per_elem × n_kv_heads × head_dim × n_layers
+</code></pre>
+<p><strong>Attention variant comparison</strong> — KV per token, DeepSeek-V3-shaped model (61 layers, 128 heads, head_dim=128), 32K context:</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Formula (per token, per layer)</th>
+<th>DSv3 @ 32K</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MHA</strong></td>
+<td><code>2 × n_heads × d_head</code></td>
+<td><strong>256 GB</strong> / seq</td>
+</tr>
+<tr>
+<td><strong>GQA</strong> (8 groups, e.g., Llama-3)</td>
+<td><code>2 × n_groups × d_head</code></td>
+<td>16 GB</td>
+</tr>
+<tr>
+<td><strong>MQA</strong></td>
+<td><code>2 × d_head</code></td>
+<td>2.00 GB</td>
+</tr>
+<tr>
+<td><strong>MLA</strong> (DeepSeek)</td>
+<td><code>d_c + d_rope</code> (one latent + one rope key)</td>
+<td><strong>2.18 GB</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Visualizing the magnitude gap</strong> (DSv3 shape, 32K context, log axis):</p>
+<div class="chart-block" data-chart="kv-variants"></div>
+<p><strong>MHA → MLA is a ~120× cache reduction at constant quality</strong> — which is why attention-variant choice is the single highest-leverage decision in the doc.</p>
+<p><strong>MLA insight:</strong> matches MQA on cache size while preserving multi-head expressivity at inference (decompressed back to full heads via low-rank projection). The DeepSeek-V2 paper shows MLA beats GQA on quality at the same cache budget.</p>
+<p><strong>Llama-3-70B worked numbers (Scaling Book Part 8):</strong>
+- d_model=8192, n_layers=80, n_heads=64, <strong>n_kv_heads=8</strong> (GQA), head_dim=128
+- Per-token KV (int8): <code>2 × 8 × 128 × 80 = 160 kB</code>
+- Sequence @ 8k: <code>160 kB × 8192 = 1.3 GB</code>
+- Batch 32 @ 8k: <strong>~42 GB just for KV</strong>, on top of 70 GB int8 weights → 112 GB total → minimum 4×2 TPU v5e (8 chips).</p>
+<hr />
+<h2 id="4-latencythroughput-curve-closed-form">4. Latency–Throughput Curve (Closed Form)</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> Per-step latency stays flat as you add concurrency — <em>until you hit B_crit</em>. Past it, throughput plateaus and TBT grows linearly. This is the curve that justifies "serve at B_crit, not above" for latency-bound workloads, and "serve at B_crit, not below" for throughput-bound ones.</p>
+</blockquote>
+<div class="chart-block" data-chart="latency-throughput"></div>
+
+<p><strong>Memory-bound regime</strong> (most decode setups):</p>
+<pre><code>Step_time = (B × KV_per_seq + W_params) / Total_HBM_BW
+Tokens/s  = B × Total_HBM_BW / (B × KV_per_seq + W_params)
+</code></pre>
+<p><strong>General form</strong> (includes compute term):</p>
+<pre><code>Step_time = (B × KV) / BW
+          + max( 2 × B × Params / FLOPs ,  Params / BW )
+</code></pre>
+<p>The first term is KV bytes streamed per step. The <code>max</code> picks between <em>compute time</em> (left) and <em>weight-load time</em> (right) — whichever bottlenecks at the current batch.</p>
+<p><strong>Diminishing returns</strong> kick in when KV memory ≈ param memory in the streamed bytes per step. Past that point, doubling batch buys <code>&lt;2×</code> throughput, and TBT starts climbing.</p>
+<hr />
+<h2 id="5-critical-batch-llama-70b-worked-example">5. Critical Batch &amp; Llama-70B — Worked Example</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> Two lenses on the same model. §5.1 derives the knee; §5.2 sizes the full topology around it. Same numbers, different reading.</p>
+</blockquote>
+<h3 id="51-b_crit-derivation-the-knee">5.1 B_crit derivation (the knee)</h3>
+<p>Llama-3-70B, int8 weights, bf16 activations, on TPU v5e:</p>
+<pre><code>B_crit_compute = (peak_FLOPs / peak_HBM_BW) × (bits_w / bits_act)
+              = 240 × (8 / 16)
+              = 120 tokens / step
+</code></pre>
+<p>So at batch ≥ 120 decode tokens in flight, matmuls become compute-bound. The Scaling Book recommends serving at <strong>batch 32</strong> (BS=32 × 1 decode token = 32 tokens/step) → still memory-bound → adding more requests <em>increases throughput at the same per-step latency.</em></p>
+<p><strong>Achieved (4×2 TPU v5e, BS=32, int8):</strong>
+- 17 ms per decode step
+- 1882 tok/s aggregate → <strong>235 tok/s/chip</strong></p>
+<h3 id="52-full-topology-recap">5.2 Full topology recap</h3>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Params</td>
+<td>70 B (int8 → 70 GB)</td>
+</tr>
+<tr>
+<td>KV per token</td>
+<td>160 kB (int8, GQA-8)</td>
+</tr>
+<tr>
+<td>Critical batch</td>
+<td>B &gt; 120 for compute saturation</td>
+</tr>
+<tr>
+<td>Recommended topology</td>
+<td>4×2 to 4×4 TPU v5e (8–16 chips)</td>
+</tr>
+<tr>
+<td>Per-step decode latency</td>
+<td>17 ms @ BS=32 on 4×2</td>
+</tr>
+<tr>
+<td>Throughput</td>
+<td>235 tok/s/chip</td>
+</tr>
+<tr>
+<td>Prefill cost</td>
+<td>0.91 s for 8k @ 40% FLOPs util on 16 chips</td>
+</tr>
+<tr>
+<td>Disagg ratio</td>
+<td><strong>~3× prefill servers per decode server</strong> (8k prompt / 512 output)</td>
+</tr>
+</tbody>
+</table>
+<div class="chart-block" data-chart="hbm-budget"></div>
+
+<p>The <strong>disagg ratio</strong> drops out of the P:D load math: at 8k input / 512 output, prefill compute per request is ~16× decode compute per request, but decode runs 512 steps per request, so steady-state P:D ratio = (16/512) × (QPS_p / QPS_d) ≈ 3:1.</p>
+<hr />
+<h2 id="6-parallelism-decision-tree">6. Parallelism Decision Tree</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> Each shard strategy fixes a different bottleneck — TP cuts step time, PP raises throughput at latency cost, EP makes MoE viable, FSDP is training-only. Pick by what's binding.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Shards</th>
+<th>Helps prefill?</th>
+<th>Helps decode?</th>
+<th>Limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TP</strong> (Megatron)</td>
+<td>Hidden dim of each matmul</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>ICI bandwidth — practical limit ~8 way within node, falls off across nodes</td>
+</tr>
+<tr>
+<td><strong>PP</strong></td>
+<td>Layer groups</td>
+<td>Yes (throughput)</td>
+<td>Marginal (pipeline bubbles hurt latency)</td>
+<td>Bubble overhead; needs many micro-batches</td>
+</tr>
+<tr>
+<td><strong>EP</strong></td>
+<td>Experts (MoE only)</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>All-to-all bandwidth; raises B_crit by <code>E/k</code></td>
+</tr>
+<tr>
+<td><strong>SP</strong></td>
+<td>Sequence dim</td>
+<td>Yes (long context)</td>
+<td>No</td>
+<td>Ring-attention comm</td>
+</tr>
+<tr>
+<td><strong>DP</strong></td>
+<td>Whole replicas</td>
+<td>Yes</td>
+<td>No (replicates weights, doesn't help BW)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>FSDP</strong></td>
+<td>Weights gathered per layer</td>
+<td>Marginal</td>
+<td><strong>Unviable</strong> for decode (param loading dominates)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<div class="chart-block">
+<svg viewBox="0 0 820 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tensor parallelism and pipeline parallelism cartoons">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+
+  <!-- ===== LEFT PANEL: TP ===== -->
+  <text x="200" y="28" text-anchor="middle" font-size="14" font-weight="700" fill="#e6edf3">Tensor Parallelism (TP)</text>
+  <text x="200" y="46" text-anchor="middle" font-size="11" fill="#8b949e">slice each matmul along the hidden dim</text>
+
+  <!-- X (input) -->
+  <rect x="30" y="120" width="40" height="80" fill="#1f6feb" rx="3"/>
+  <text x="50" y="165" text-anchor="middle" font-size="13" fill="white" font-weight="600">X</text>
+
+  <!-- × -->
+  <text x="85" y="167" font-size="20" fill="#8b949e">×</text>
+
+  <!-- W (sliced across 4 GPUs) -->
+  <rect x="105" y="100" width="22" height="120" fill="#1f6feb" stroke="#0d1117"/>
+  <rect x="127" y="100" width="22" height="120" fill="#388bfd" stroke="#0d1117"/>
+  <rect x="149" y="100" width="22" height="120" fill="#58a6ff" stroke="#0d1117"/>
+  <rect x="171" y="100" width="22" height="120" fill="#79c0ff" stroke="#0d1117"/>
+  <text x="149" y="167" text-anchor="middle" font-size="13" fill="white" font-weight="600">W</text>
+  <text x="116" y="240" text-anchor="middle" font-size="10" fill="#8b949e">GPU0</text>
+  <text x="138" y="240" text-anchor="middle" font-size="10" fill="#8b949e">GPU1</text>
+  <text x="160" y="240" text-anchor="middle" font-size="10" fill="#8b949e">GPU2</text>
+  <text x="182" y="240" text-anchor="middle" font-size="10" fill="#8b949e">GPU3</text>
+
+  <!-- = -->
+  <text x="210" y="167" font-size="20" fill="#8b949e">=</text>
+
+  <!-- Y (output, gathered) -->
+  <rect x="232" y="120" width="80" height="80" fill="#3fb950" rx="3"/>
+  <text x="272" y="165" text-anchor="middle" font-size="13" fill="white" font-weight="600">Y</text>
+  <text x="272" y="240" text-anchor="middle" font-size="10" fill="#8b949e">all-reduce</text>
+
+  <text x="200" y="290" text-anchor="middle" font-size="11" fill="#c9d1d9">Each GPU holds a slice of W and computes a partial Y.</text>
+  <text x="200" y="307" text-anchor="middle" font-size="11" fill="#c9d1d9">All-reduce gathers the full output every layer.</text>
+  <text x="200" y="328" text-anchor="middle" font-size="10.5" fill="#8b949e" font-style="italic">Cuts step time; cost is ICI bandwidth.</text>
+
+  <!-- divider -->
+  <line x1="410" y1="50" x2="410" y2="335" stroke="#30363d" stroke-dasharray="3,3"/>
+
+  <!-- ===== RIGHT PANEL: PP ===== -->
+  <text x="615" y="28" text-anchor="middle" font-size="14" font-weight="700" fill="#e6edf3">Pipeline Parallelism (PP)</text>
+  <text x="615" y="46" text-anchor="middle" font-size="11" fill="#8b949e">slice the model by layer groups</text>
+
+  <!-- 3 stages -->
+  <rect x="450" y="80" width="100" height="42" fill="#1f6feb" rx="5"/>
+  <text x="500" y="100" text-anchor="middle" font-size="11" fill="white" font-weight="600">Layers 1-20</text>
+  <text x="500" y="116" text-anchor="middle" font-size="10" fill="#a5d2ff">GPU0</text>
+
+  <rect x="565" y="80" width="100" height="42" fill="#388bfd" rx="5"/>
+  <text x="615" y="100" text-anchor="middle" font-size="11" fill="white" font-weight="600">Layers 21-40</text>
+  <text x="615" y="116" text-anchor="middle" font-size="10" fill="#a5d2ff">GPU1</text>
+
+  <rect x="680" y="80" width="100" height="42" fill="#58a6ff" rx="5"/>
+  <text x="730" y="100" text-anchor="middle" font-size="11" fill="white" font-weight="600">Layers 41-60</text>
+  <text x="730" y="116" text-anchor="middle" font-size="10" fill="white">GPU2</text>
+
+  <!-- arrows between stages -->
+  <path d="M 552 101 L 562 101" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+  <path d="M 667 101 L 677 101" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arr)" fill="none"/>
+
+  <!-- Pipeline schedule -->
+  <text x="615" y="160" text-anchor="middle" font-size="11" fill="#8b949e" font-weight="600">Pipeline schedule (time →)</text>
+
+  <!-- GPU0 row -->
+  <text x="440" y="187" text-anchor="end" font-size="10" fill="#8b949e">GPU0</text>
+  <rect x="448" y="177" width="30" height="14" fill="#1f6feb"/>
+  <rect x="478" y="177" width="30" height="14" fill="#1f6feb"/>
+  <rect x="508" y="177" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="538" y="177" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="568" y="177" width="30" height="14" fill="#1f6feb"/>
+  <rect x="598" y="177" width="30" height="14" fill="#1f6feb"/>
+
+  <!-- GPU1 row -->
+  <text x="440" y="207" text-anchor="end" font-size="10" fill="#8b949e">GPU1</text>
+  <rect x="448" y="197" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="478" y="197" width="30" height="14" fill="#388bfd"/>
+  <rect x="508" y="197" width="30" height="14" fill="#388bfd"/>
+  <rect x="538" y="197" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="568" y="197" width="30" height="14" fill="#388bfd"/>
+  <rect x="598" y="197" width="30" height="14" fill="#388bfd"/>
+
+  <!-- GPU2 row -->
+  <text x="440" y="227" text-anchor="end" font-size="10" fill="#8b949e">GPU2</text>
+  <rect x="448" y="217" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="478" y="217" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="508" y="217" width="30" height="14" fill="#58a6ff"/>
+  <rect x="538" y="217" width="30" height="14" fill="#58a6ff"/>
+  <rect x="568" y="217" width="30" height="14" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <rect x="598" y="217" width="30" height="14" fill="#58a6ff"/>
+
+  <!-- legend -->
+  <rect x="645" y="180" width="12" height="12" fill="#1f6feb"/>
+  <text x="662" y="190" font-size="10" fill="#c9d1d9">computing</text>
+  <rect x="645" y="200" width="12" height="12" fill="#21262d" stroke="#30363d" stroke-dasharray="2,2"/>
+  <text x="662" y="210" font-size="10" fill="#c9d1d9">bubble (idle)</text>
+
+  <text x="615" y="290" text-anchor="middle" font-size="11" fill="#c9d1d9">Each request crosses all stages in sequence.</text>
+  <text x="615" y="307" text-anchor="middle" font-size="11" fill="#c9d1d9">Throughput scales; latency suffers from the bubbles.</text>
+  <text x="615" y="328" text-anchor="middle" font-size="10.5" fill="#8b949e" font-style="italic">Only used when one node can't hold the model.</text>
+</svg>
+<p class="chart-caption">TP slices the matmul (cuts per-step latency, costs all-reduce bandwidth). PP slices the model (raises throughput, costs pipeline bubbles). These are the two operations that justify almost every multi-GPU inference topology.</p>
+</div>
+
+<p><strong>TP sweet spot for decode:</strong> push TP <em>beyond</em> the FLOP-utilization optimum to reduce per-step latency. The Scaling Book formalizes this as:</p>
+<pre><code>Y_max = F / (B_crit × β)
+</code></pre>
+<ul>
+<li><code>Y_max</code> = <strong>maximum useful TP degree per replica</strong> for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time.</li>
+<li><code>F</code> = total FLOPs available across the chips in the replica.</li>
+<li><code>β = W_hbm / W_ici</code> ≈ <strong>8</strong> for typical NVLink / TPU ICI setups — the ratio of HBM bandwidth to inter-chip bandwidth. (HBM is ~8× faster than ICI; below <code>Y_max</code> chips you're bottlenecked on HBM, above it on ICI.)</li>
+</ul>
+<p>Plain-English read: you trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). <strong>Decode wants TP wide; throughput-only prefill wants TP narrow.</strong></p>
+<p><strong>Sub-GPU partitioning (MIG)</strong> — the dual to TP. When the model is small enough that a whole GPU is wasted (e.g., &lt;3B params on H100), <strong>Multi-Instance GPU</strong> <em>splits</em> a single GPU into up to 7 isolated slices, each with its own SM and memory partition. Lets you serve several small replicas on one card with hard performance isolation. Pairs with horizontal autoscaling; irrelevant for large models that already use ≥1 GPU.</p>
+<p><strong>MoE detail (DeepSeek-V3 in SGLang prod):</strong>
+- Prefill: TP16 + EP32 over 4×H100 nodes
+- Decode: EP72 over 9×H100 nodes
+- All-to-all (DeepEP): <strong>~0.17 ms/layer</strong>, optimizable to 0.06 ms</p>
+<hr />
+<h2 id="7-production-scale-data-point-deepseek-v3">7. Production-Scale Data Point: DeepSeek-V3</h2>
+<p>671B total / 37B activated MoE, 256 experts (+32 redundant), MLA, FP8 mixed-precision.</p>
+<p><strong>Architecture lessons:</strong>
+- <strong>MLA</strong> chosen over GQA: matches MQA cache size, beats GQA quality.
+- <strong>FP8</strong> used end-to-end for both training and inference forward — enables 2× the FLOP roofline on H100 (590 vs 295 FLOPs/B).
+- <strong>MTP (Multi-Token Prediction)</strong> at training time provides "free" speculative decoding heads at inference.
+- <strong>Multi-Plane Network Topology</strong> isolates collective-comm traffic from request traffic.</p>
+<p><strong>Deployment topology:</strong></p>
+<div class="mermaid">flowchart LR
+    LB[Load balancer<br/>+ admission control]
+    LB --> P1[Prefill replica<br/>TP16 + EP32<br/>4×H100]
+    LB --> P2[Prefill replica<br/>TP16 + EP32<br/>4×H100]
+    LB -.short or<br/>prefix-cached.-> D1
+    P1 -.KV via RDMA.-> D1[Decode replica<br/>EP72<br/>9×H100]
+    P2 -.KV via RDMA.-> D2[Decode replica<br/>EP72<br/>9×H100]
+    D1 --> Client[Token stream]
+    D2 --> Client
+
+    classDef prefill fill:#dbeafe,stroke:#2563eb,color:#000
+    classDef decode fill:#dcfce7,stroke:#16a34a,color:#000
+    classDef infra fill:#fef3c7,stroke:#d97706,color:#000
+    class P1,P2 prefill
+    class D1,D2 decode
+    class LB,Client infra
+</div>
+<p>The dashed arrow from LB to D1 is <strong>conditional disaggregation</strong> (§2) — short or cached prefills bypass the P pool.</p>
+<p><strong>LMSYS open-source replication (SGLang, 12×H100 nodes, May 2025):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Nodes</th>
+<th>Parallelism</th>
+<th>Batch</th>
+<th>Tok/s/node</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Prefill</td>
+<td>4</td>
+<td>TP16 + EP32, DP-attn</td>
+<td>16,384 tok/dev</td>
+<td>50,302 (4k input)</td>
+</tr>
+<tr>
+<td>Decode</td>
+<td>9</td>
+<td>EP72</td>
+<td>256 seqs × 2k KV</td>
+<td>22,282 (2k input)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>TTFT: 2–5 s (DeepSeek's own profile is faster, but at much larger scale)</li>
+<li>ITL: ~100 ms</li>
+<li><strong>Cost: $0.20 / 1M output tokens</strong> (~⅕ of DeepSeek's API price)</li>
+</ul>
+<p><strong>KV transfer between prefill ↔ decode:</strong> RDMA + scatter-gather, background thread, decode pre-allocates → prefill writes → decode reads on first step.</p>
+<hr />
+<h2 id="8-kv-reduction-at-production-scale-characterai">8. KV Reduction at Production Scale: Character.AI</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> A stack of five small wins ≈ one 20× win on KV. Order matters — attention variant first (8×), then KV reuse (2–3×), then sliding-window, then int8 end-to-end, then inter-turn caching.</p>
+</blockquote>
+<p>Stacked techniques cumulatively reduce KV cache <strong>20×+</strong> with no measurable quality regression:</p>
+<ol>
+<li><strong>MQA everywhere</strong> (vs GQA in most OSS models): <strong>8× reduction</strong>.</li>
+<li><strong>Cross-layer KV sharing</strong>: tie KV cache across neighboring attention layers. <strong>Additional 2–3× reduction</strong>.</li>
+<li><strong>Hybrid attention horizons</strong>: interleave <strong>local (sliding-window) attention</strong> with sparse global layers. Drops sequence cost from O(L²) to O(L) on local layers. Only global layers contribute to KV across full context.</li>
+<li><strong>Native int8 training</strong>: weights, activations, and KV cache all int8, with custom int8 matmul/attention kernels. <strong>Eliminates train/serve dtype mismatch.</strong> ~2× memory + faster matmul.</li>
+<li><strong>Inter-turn caching</strong>: KV for every prefilled prefix and generated message held in <strong>host DRAM</strong>, fetched into HBM on follow-up turns. Removes prefill cost from multi-turn chat in the common case.</li>
+</ol>
+<p>Together: ~20× KV reduction → batch sizes and throughput per GPU scale roughly proportionally.</p>
+<hr />
+<h2 id="9-engine-implementation-vllm-v1">9. Engine Implementation: vLLM (V1)</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> A scheduler, a paged KV allocator, and a continuous-batching forward pass. Knowing the scheduler's rules — decode-first, recompute-preemption, token-budget per step — is what makes the tuning knobs make sense instead of being magic.</p>
+</blockquote>
+<p><strong>Scheduler model:</strong>
+- Two queues (<code>waiting</code>, <code>running</code>); FCFS or priority.
+- <strong>Decode prioritized over prefill</strong> every step — decodes drain the running set first, then prefill backfills the token budget.
+- Each step has a <code>max_num_batched_tokens</code> budget consumed proportionally.
+- If KV blocks exhausted: <strong>recompute preemption</strong> evicts low-priority running requests.</p>
+<p><strong>Scheduler flow per step:</strong></p>
+<div class="mermaid">flowchart TD
+    Start([New step]) --> RunDec{Any running<br/>decodes?}
+    RunDec -->|Yes| Decode[Schedule all decodes<br/>1 token each]
+    RunDec -->|No| Backfill
+    Decode --> Budget{Token budget<br/>left in step?}
+    Budget -->|Yes| Backfill[Backfill pending prefills<br/>chunked if too long]
+    Budget -->|No| Forward
+    Backfill --> Forward[Forward pass]
+    Forward --> KVCheck{KV blocks<br/>available next step?}
+    KVCheck -->|No| Preempt[Recompute-preempt<br/>lowest-priority running]
+    KVCheck -->|Yes| Next([Emit tokens<br/>→ next step])
+    Preempt --> Next
+
+    classDef decision fill:#fef3c7,stroke:#d97706,color:#000
+    classDef action fill:#dbeafe,stroke:#2563eb,color:#000
+    classDef terminal fill:#dcfce7,stroke:#16a34a,color:#000
+    class RunDec,Budget,KVCheck decision
+    class Decode,Backfill,Forward,Preempt action
+    class Start,Next terminal
+</div>
+<p>This is why <code>max_num_batched_tokens</code> is "decode-protective" — decodes go first, then prefills fight for whatever's left. Lowering it makes prefills wait longer (TTFT up) but ensures decodes never starve (TBT down).</p>
+<p><strong>PagedAttention:</strong>
+- Block = <code>2 × block_size × n_kv_heads × head_size × dtype_bytes</code> (default <code>block_size=16</code>).
+- Allocator: free list of typically hundreds of thousands of blocks; <code>req_id → block list</code> map.
+- Fragmentation: tokens not filling a full 16-token block can't be cached → recomputed on next prefix hit if alignment breaks.</p>
+<p><strong>Continuous batching:</strong> All in-flight sequences flattened into one "super sequence"; per-sequence isolation via position indices + masks. No right-padding.</p>
+<p><strong>Speculative decoding:</strong> Draft model proposes k tokens → main model verifies in one forward over context+drafts → accept/reject left-to-right preserves the main model's distribution. If all k accept, sample <code>k+1</code> "for free."</p>
+<p><strong>Prefix caching:</strong> Hash 16-token prompt chunks (rolling hash including previous block hash), key into <code>cached_block_hash → block</code>. Cache hits skip prefill compute.</p>
+<p><strong>Tuning knobs (V1 defaults):</strong>
+| Knob | Default | Effect |
+|---|---|---|
+| <code>gpu_memory_utilization</code> | 0.80 | Fraction of GPU mem for weights+KV pool; bump to 0.90–0.95 if no OOM headroom needed. |
+| <code>block_size</code> | 16 | Smaller → more fragmentation; larger → more wasted tail-of-sequence. |
+| <code>max_num_seqs</code> | — | Hard cap on concurrent requests; throughput ceiling. |
+| <code>max_num_batched_tokens</code> | — | Token budget per step; raise to fit more prefill, lower to protect decode ITL. |
+| <code>long_prefill_token_threshold</code> | — | Chunked-prefill split point; lower → prefill bursts get sliced across steps so decode keeps running. |
+| <code>enable_prefix_caching</code> | off | Big win for multi-turn / shared system prompts. |</p>
+<p><strong>Disaggregation:</strong> First-class via KV connectors (e.g., <code>SharedStorageConnector</code>). Prefill instance computes KV → uploads on context-manager exit; decode instance fetches on first step (<code>start_load_kv</code> enter, <code>wait_for_save</code> exit). Independent auto-scaling of P and D pools.</p>
+<hr />
+<h2 id="10-tensorrt-llm-tuning-methodology">10. TensorRT-LLM Tuning Methodology</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> NVIDIA's official process is a sequential grid search, defaults-first. The Sarathi-Serve numbers below give a starting point that beats blind sweeping. Always optimize on goodput, never on raw throughput.</p>
+</blockquote>
+<p>NVIDIA's recommended sequential grid search (one variable at a time):</p>
+<ol>
+<li><strong>Baseline</strong> with all defaults. Capture TTFT, TBT, throughput at the target ISL/OSL.</li>
+<li><strong>Build flags</strong> — quantization (FP8 / INT4), kernel fusion choices.</li>
+<li><strong><code>max_batch_size</code> and <code>max_num_tokens</code></strong> — set memory ceilings; sweep until KV pool fills.</li>
+<li><strong>Sharding (TP vs PP)</strong> — TP first within an NVLink island (≤8 H100 in one node); PP only when the model+KV don't fit.</li>
+<li><strong>Runtime</strong> — <code>kv_cache_free_gpu_mem_fraction</code> (≈0.9), <code>scheduler_policy</code> (in-flight batching), <code>enable_chunked_context</code> (almost always on for long prompts).</li>
+<li><strong>Speculative decoding</strong> (last) — only after the dense path is tuned.</li>
+</ol>
+<p><strong>Reference target in NVIDIA's guide:</strong> Llama-3.3-70B, 4×H100 NVLink, ISL/OSL 2048/2048.</p>
+<p><strong>Compute- vs memory-bound diagnosis (rule of thumb from the framework, not the guide):</strong>
+- <code>nvidia-smi dmon</code>: high SM util (&gt;80%) at moderate mem-util → compute-bound → push quant / FP8.
+- Low SM util (~30–50%) with high HBM BW util → memory-bound → push batch / KV reduction.</p>
+<p><strong>Token budget calibration (Sarathi-Serve, OSDI '24):</strong> <code>max_num_tokens</code> is best calibrated by a <strong>one-time profiling sweep</strong> — find the largest token count per step that still hits TBT SLO. Reported numbers from the paper:
+- Strict TBT target: <strong>token budget ≈ 512</strong>.
+- Relaxed TBT target: <strong>token budget ≈ 2048</strong>.
+- Llama-70B with PP: ~<strong>1536</strong> (PP bubbles slightly raise the per-step budget).
+- The budget should be a <strong>multiple of the kernel tile size</strong> or you waste FLOPs on padded compute.</p>
+<h3 id="modern-benchmarking-tools-use-these-dont-hand-roll">Modern benchmarking tools (use these, don't hand-roll)</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>genai-perf</code> (NVIDIA)</td>
+<td>Load gen + percentile reporting (TTFT, ITL, e2e, throughput, <strong>goodput</strong>)</td>
+<td>First choice for any OpenAI-compatible endpoint</td>
+</tr>
+<tr>
+<td><code>vllm benchmark_serving.py</code></td>
+<td>Same shape, vLLM-native; supports random / dataset / sharegpt traces</td>
+<td>When iterating on vLLM specifically</td>
+</tr>
+<tr>
+<td><code>nvidia-smi dmon</code> + <code>dcgm</code></td>
+<td>Hardware-side: SM util, HBM BW util, power</td>
+<td>Diagnose compute- vs memory-bound at run time</td>
+</tr>
+<tr>
+<td>Engine built-in finders (TRT-LLM <code>max_token_finder</code>, vLLM <code>--max-model-len auto</code>)</td>
+<td>KV-fit binary search</td>
+<td>First-pass HBM-budget sanity</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Always report goodput, not raw throughput.</strong> Goodput = <code>req/s such that TTFT_p99 ≤ SLO_TTFT AND TBT_p99 ≤ SLO_TBT</code>. Raw tokens/sec can climb while SLO satisfaction collapses — DistServe's central observation, now mainstream. A 3×3 grid sweep optimized on raw throughput will reliably pick a config that violates the contract.</p>
+<hr />
+<h2 id="11-decision-flowchart">11. Decision Flowchart</h2>
+<blockquote>
+<p><strong>Takeaway:</strong> A 30-second sanity check at the end of any tuning session — does the recommended config still match the SLO regime you started with?</p>
+</blockquote>
+<div class="mermaid">flowchart TD
+    Start([SLO contract written?]) --> TTFT{TTFT-tight<br/>AND high QPS?}
+    TTFT -->|Yes| Disagg["**Disaggregate P/D**<br/>+ chunked prefill<br/>+ prefix caching"]
+    TTFT -->|No| TBT{Decode TBT-tight<br/>with bursty prefill?}
+    TBT -->|Yes| Chunk["Lower max_num_batched_tokens<br/>+ chunked prefill<br/>+ push TP<br/>(consider disagg)"]
+    TBT -->|No| Cost{Throughput-dominant<br/>cost concern?}
+    Cost -->|Yes| Sat["Push batch toward B_crit<br/>+ INT8 / FP8 weights<br/>+ MQA / GQA / MLA<br/>+ prefix cache shared system prompts"]
+    Cost -->|No| MoE{MoE model?}
+    MoE -->|Yes| EP["EP across nodes<br/>(each expert ≥ B_crit/k tokens)"]
+    MoE -->|No| Done([Measure goodput<br/>then iterate])
+    Disagg --> Done
+    Chunk --> Done
+    Sat --> Done
+    EP --> Done
+
+    classDef decision fill:#fef3c7,stroke:#d97706,color:#000
+    classDef action fill:#dbeafe,stroke:#2563eb,color:#000
+    classDef terminal fill:#dcfce7,stroke:#16a34a,color:#000
+    class TTFT,TBT,Cost,MoE decision
+    class Disagg,Chunk,Sat,EP action
+    class Start,Done terminal
+</div>
+<hr />
+<h2 id="12-the-cheat-sheet">12. The Cheat Sheet</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Default answer</th>
+<th>When to revisit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mixed P+D on one server?</td>
+<td><strong>No</strong> — disagg if you have any TTFT pressure</td>
+<td>Tiny scale, latency budget loose</td>
+</tr>
+<tr>
+<td>Batch size target</td>
+<td>Just above <code>B_crit</code> for throughput; well below for latency</td>
+<td>Read your SLO; pick the smaller</td>
+</tr>
+<tr>
+<td>Quantization</td>
+<td>int8 / FP8 weights as baseline</td>
+<td>Quality-critical eval suite drops</td>
+</tr>
+<tr>
+<td>KV dtype</td>
+<td>int8 KV</td>
+<td>Quality regression detected (Char.AI: none observed)</td>
+</tr>
+<tr>
+<td>Attention variant</td>
+<td>GQA-8 if training from scratch; <strong>MLA if cache is the bottleneck</strong></td>
+<td>MQA for extreme cache pressure</td>
+</tr>
+<tr>
+<td>TP degree</td>
+<td>Fill the NVLink island, no more</td>
+<td>Cross-node = ICI-bottlenecked</td>
+</tr>
+<tr>
+<td>PP</td>
+<td>Only when model doesn't fit</td>
+<td>Pipeline bubbles hurt latency</td>
+</tr>
+<tr>
+<td>Prefix caching</td>
+<td><strong>On</strong>, always</td>
+<td>Pure single-turn, unique-prompt traffic</td>
+</tr>
+<tr>
+<td>Speculative decoding</td>
+<td>Off until dense path tuned</td>
+<td>After tuning if ITL still tight</td>
+</tr>
+<tr>
+<td>Chunked prefill</td>
+<td>On for any prompt &gt; 1–2k</td>
+<td>Pure short-prompt workload</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="sources">Sources</h2>
+<ol>
+<li><strong>How to Scale Your Model — Parts 7 &amp; 8</strong> (Austin, Douglas, Frostig, Pope et al., Google DeepMind, 2025) — <a href="https://jax-ml.github.io/scaling-book/inference">jax-ml.github.io/scaling-book/inference</a> and <a href="https://jax-ml.github.io/scaling-book/applied-inference">/applied-inference</a>. Canonical roofline framework + Llama-70B worked example.</li>
+<li><strong>Inside vLLM: Anatomy of a High-Throughput LLM Inference System</strong> (vLLM team, Sept 2025) — <a href="https://blog.vllm.ai/2025/09/05/anatomy-of-vllm.html">blog.vllm.ai/2025/09/05/anatomy-of-vllm.html</a>. Engine implementation perspective.</li>
+<li><strong>Insights into DeepSeek-V3</strong> (DeepSeek-AI, May 2025) — <a href="https://arxiv.org/abs/2505.09343">arxiv.org/abs/2505.09343</a>. Production-scale architecture lessons (MLA, MoE, FP8, MTP).</li>
+<li><strong>Optimizing AI Inference at Character.AI</strong> (2024) — <a href="https://blog.character.ai/optimizing-ai-inference-at-character-ai-2/">blog.character.ai/optimizing-ai-inference-at-character-ai-2</a>. 20× KV reduction recipe.</li>
+<li><strong>Deploying DeepSeek with PD Disaggregation</strong> (LMSYS / SGLang, May 2025) — <a href="https://lmsys.org/blog/2025-05-05-large-scale-ep/">lmsys.org/blog/2025-05-05-large-scale-ep</a>. Open replication of DeepSeek prod deployment.</li>
+<li><strong>How batch size affects token cost and speed</strong> — Reiner Pope on Dwarkesh (2026). Accessible video walkthrough of the Scaling Book framework. Same author.</li>
+<li><strong>TensorRT-LLM Performance Tuning Guide</strong> — <a href="https://nvidia.github.io/TensorRT-LLM/performance/performance-tuning-guide">nvidia.github.io/TensorRT-LLM/performance/performance-tuning-guide</a>. NVIDIA grid-search methodology.</li>
+<li><strong>Sarathi-Serve: Efficient LLM Inference via Chunked Prefill</strong> (OSDI '24) — <a href="https://www.usenix.org/system/files/osdi24-agrawal.pdf">usenix.org/system/files/osdi24-agrawal.pdf</a>. Token-budget calibration and chunked-prefill design.</li>
+<li><strong>DistServe: Disaggregating Prefill and Decode</strong> (OSDI '24) — <a href="https://www.usenix.org/conference/osdi24/presentation/zhong-yinmin">usenix.org/conference/osdi24/presentation/zhong-yinmin</a>. Origin of <strong>goodput</strong> as the inference SLO metric.</li>
+<li><strong>Mooncake: A KVCache-centric Disaggregated Architecture</strong> (ACM ToS, 2026) — <a href="https://dl.acm.org/doi/10.1145/3773772">dl.acm.org/doi/10.1145/3773772</a>. Disagg with early SLO-feasibility rejection.</li>
+<li><strong>vLLM Optimization and Tuning (official docs)</strong> — <a href="https://docs.vllm.ai/en/stable/configuration/optimization/">docs.vllm.ai/en/stable/configuration/optimization</a>. Parameter semantics and tuning guidance.</li>
+<li><strong>NVIDIA genai-perf benchmarking guide</strong> — <a href="https://developer.nvidia.com/blog/llm-performance-benchmarking-measuring-nvidia-nim-performance-with-genai-perf/">developer.nvidia.com/blog/llm-performance-benchmarking-measuring-nvidia-nim-performance-with-genai-perf</a>. Modern load-gen + percentile reporting.</li>
+<li><strong>TRT-LLM <code>max_num_tokens</code> finder tutorial (DJL)</strong> — <a href="https://docs.djl.ai/master/docs/serving/serving/docs/lmi/tutorials/trtllm_finding_max_num_tokens_tutorial.html">docs.djl.ai/master/docs/serving/serving/docs/lmi/tutorials/trtllm_finding_max_num_tokens_tutorial.html</a>. Origin of the <code>α × max_batch × max_input</code> heuristic (α ∈ [0.1, 0.2]).</li>
+</ol>
+<p><strong>Supporting reads (for the DeepSeek KV table):</strong>
+- <a href="https://arxiv.org/pdf/2405.04434">DeepSeek-V2 paper</a> — original MLA derivation.
+- <a href="https://commons.wikimedia.org/wiki/File:DeepSeek_KV_cache_comparison_between_MHA,_GQA,_MQA,_MLA.svg">Wikimedia: DeepSeek KV cache comparison</a> — the table reproduced above.</p>
+</main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+const COLORS = {
+  bg: '#0d1117', card: '#161b22', text: '#e6edf3', body: '#c9d1d9', mute: '#8b949e',
+  accent: '#58a6ff', accentSoft: 'rgba(88,166,255,0.22)',
+  bright: '#79c0ff',
+  warn: '#d29922', warnSoft: 'rgba(210,153,34,0.22)',
+  ok: '#3fb950', okSoft: 'rgba(63,185,80,0.22)',
+  rose: '#f85149', roseSoft: 'rgba(248,81,73,0.22)',
+  purple: '#d2a8ff', purpleSoft: 'rgba(210,168,255,0.22)',
+  border: '#30363d', borderSoft: 'rgba(48,54,61,0.6)',
+};
+
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', Inter, system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = COLORS.body;
+Chart.defaults.borderColor = COLORS.border;
+
+function makeRoofline(canvas) {
+  // Hardware: assume peak = 200 (arbitrary unit), HBM_BW = 1; roofline knee at AI = 200.
+  // Curve: y = min(AI * BW, peak)
+  const labels = [], data = [];
+  for (let ai = 1; ai <= 2000; ai = Math.ceil(ai * 1.25)) {
+    labels.push(ai);
+    data.push(Math.min(ai, 200));
+  }
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Achieved FLOPs/s',
+        data,
+        borderColor: COLORS.accent,
+        backgroundColor: COLORS.accentSoft,
+        fill: true,
+        tension: 0,
+        pointRadius: 0,
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.4,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Hardware roofline — achieved FLOPs/s vs arithmetic intensity', font: { size: 13, weight: '600' } },
+        annotation: {},
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: { display: true, text: 'Arithmetic intensity (FLOPs / byte)', color: COLORS.mute },
+          grid: { color: COLORS.border },
+        },
+        y: {
+          title: { display: true, text: 'Achieved FLOPs/s (arb. units, peak = 200)', color: COLORS.mute },
+          grid: { color: COLORS.border },
+          max: 240,
+        },
+      },
+    },
+  });
+}
+
+function makeLatencyThroughput(canvas) {
+  // Memory-bound up to B_crit ≈ 200; flat past that (compute-bound; throughput per replica ceiling).
+  const labels = [], data = [];
+  for (let b = 1; b <= 1000; b = Math.ceil(b * 1.18)) {
+    labels.push(b);
+    data.push(Math.min(b * 5, 1000));
+  }
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Tokens/sec (per replica)',
+        data,
+        borderColor: COLORS.ok,
+        backgroundColor: COLORS.okSoft,
+        fill: true,
+        tension: 0,
+        pointRadius: 0,
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.4,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Throughput vs batch — the B_crit knee', font: { size: 13, weight: '600' } },
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: { display: true, text: 'Concurrent batch B (log)', color: COLORS.mute },
+          grid: { color: COLORS.border },
+        },
+        y: {
+          title: { display: true, text: 'Per-replica tokens/sec', color: COLORS.mute },
+          grid: { color: COLORS.border },
+        },
+      },
+    },
+  });
+}
+
+function makeKvVariants(canvas) {
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['MHA', 'GQA-8 (Llama-3)', 'MQA', 'MLA (DeepSeek)'],
+      datasets: [{
+        label: 'KV cache (GB/seq @ 32K)',
+        data: [256, 16, 2.0, 2.18],
+        backgroundColor: [COLORS.rose, COLORS.warn, COLORS.ok, COLORS.accent],
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      aspectRatio: 2.6,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'KV cache per sequence at 32K context, DeepSeek-V3 architecture (log scale)', font: { size: 13, weight: '600' } },
+        tooltip: { callbacks: { label: (c) => c.parsed.x + ' GB' } },
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: { display: true, text: 'GB per sequence (log)', color: COLORS.mute },
+          grid: { color: COLORS.border },
+        },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+function makeMfuComparison(canvas) {
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['Prefill', 'Decode'],
+      datasets: [
+        { label: 'Typical low', data: [40, 5], backgroundColor: COLORS.accentSoft, borderColor: COLORS.accent, borderWidth: 1 },
+        { label: 'Typical high', data: [20, 10], backgroundColor: COLORS.accent, borderWidth: 0 },
+      ],
+    },
+    options: {
+      responsive: true,
+      aspectRatio: 2.6,
+      plugins: {
+        title: { display: true, text: 'MFU range — same GPU, different workloads', font: { size: 13, weight: '600' } },
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(c) {
+          // Stacked bar shows low + range; display total for clarity.
+          const idx = c.dataIndex;
+          const lows = [40, 5], highs = [60, 15];
+          return [c.label + ' MFU range: ' + lows[idx] + '% – ' + highs[idx] + '%'];
+        }}},
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          max: 70,
+          title: { display: true, text: 'MFU (%)', color: COLORS.mute },
+          grid: { color: COLORS.border },
+        },
+      },
+    },
+  });
+}
+
+function makeHbmBudget(canvas) {
+  // Llama-70B int8 on 4×2 TPU v5e (~128 GB HBM total) at BS=32, 8k seq.
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['HBM budget (4×2 v5e, ~128 GB)'],
+      datasets: [
+        { label: 'Weights (int8)',  data: [70], backgroundColor: COLORS.accent },
+        { label: 'KV @ BS=32, 8k',  data: [42], backgroundColor: COLORS.warn },
+        { label: 'Activations',      data: [4],  backgroundColor: COLORS.ok },
+        { label: 'Headroom',         data: [12], backgroundColor: COLORS.mute },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      aspectRatio: 4,
+      plugins: {
+        title: { display: true, text: 'Llama-70B int8 on 4×2 TPU v5e — HBM budget at BS=32, 8k', font: { size: 13, weight: '600' } },
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.x + ' GB' } },
+      },
+      scales: {
+        x: { stacked: true, max: 128, title: { display: true, text: 'GB', color: COLORS.mute }, grid: { color: COLORS.border } },
+        y: { stacked: true, grid: { display: false } },
+      },
+    },
+  });
+}
+
+const CHART_BUILDERS = {
+  'roofline': makeRoofline,
+  'latency-throughput': makeLatencyThroughput,
+  'kv-variants': makeKvVariants,
+  'mfu-comparison': makeMfuComparison,
+  'hbm-budget': makeHbmBudget,
+};
+
+function initCharts() {
+  document.querySelectorAll('.chart-block[data-chart]').forEach(block => {
+    const key = block.dataset.chart;
+    const builder = CHART_BUILDERS[key];
+    if (!builder) return;
+    const canvas = document.createElement('canvas');
+    block.appendChild(canvas);
+    builder(canvas);
+  });
+}
+
+function initTocHighlight() {
+  // Active section in TOC follows scroll position via IntersectionObserver.
+  const sections = document.querySelectorAll('h2[id], h3[id]');
+  const tocLinks = new Map();
+  document.querySelectorAll('.toc a').forEach(a => {
+    const id = decodeURIComponent(a.getAttribute('href').slice(1));
+    tocLinks.set(id, a);
+  });
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      const link = tocLinks.get(entry.target.id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        document.querySelectorAll('.toc a.active').forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -75% 0px' });
+  sections.forEach(s => observer.observe(s));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      fontFamily: Chart.defaults.font.family,
+      background: COLORS.card,
+      primaryColor: '#1c2128',
+      primaryTextColor: COLORS.text,
+      primaryBorderColor: COLORS.border,
+      lineColor: COLORS.mute,
+      secondaryColor: '#1f6feb',
+      tertiaryColor: '#21262d',
+    },
+  });
+  initCharts();
+  initTocHighlight();
+});
+</script>
+</body>
+</html>

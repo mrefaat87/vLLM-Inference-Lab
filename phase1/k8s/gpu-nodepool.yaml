@@ -1,0 +1,137 @@
+# gpu-nodepool.yaml — Karpenter v0.33 (v1beta1 API) GPU node provisioning.
+#
+# ARCHITECTURE ANALOGY (AWS Auto Scaling → Karpenter):
+#   - NodePool ≈ Auto Scaling Group with launch template + scaling policy
+#   - EC2NodeClass ≈ Launch Template (AMI, subnet, SG, block devices)
+#   - Karpenter's scheduler ≈ Predictive scaling — it reads pending pod specs
+#     and provisions the *exact* instance type needed, no over-provisioning.
+#
+# WHY Karpenter over Cluster Autoscaler:
+#   1. Bin-packs pods to right-sized instances (CA only scales node groups)
+#   2. Spot interruption handling is built-in (CA needs external handlers)
+#   3. Sub-minute provisioning vs CA's 3-5 min loop
+#   4. GPU-aware scheduling out of the box
+---
+# EC2NodeClass defines the "launch template" — what the underlying EC2 looks like.
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes
+  labels:
+    app.kubernetes.io/name: gpu-nodes
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  # WHY AL2: Amazon Linux 2 has pre-baked NVIDIA drivers in EKS-optimized AMIs,
+  # so we skip the 5-10 min driver install that Ubuntu AMIs need on first boot.
+  amiFamily: AL2
+
+  # WHY Role (not instanceProfile): Karpenter v0.33+ manages the instance profile
+  # automatically from the role name. This role must have the Karpenter node policy
+  # attached (AmazonEKSWorkerNodePolicy, AmazonEKS_CNI_Policy, ECR read, S3 access).
+  role: "inference-lab-karpenter-node"
+
+  # Subnet and SG discovery via tags — same pattern as ALB Ingress Controller.
+  # The EKS terraform/eksctl setup must tag subnets and SGs with this key.
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-lab"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-lab"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        # WHY 100Gi: vLLM container image is ~8GB, model weights for 7B-AWQ are ~4GB,
+        # KV cache swap can spill to disk, and we need room for container runtime layers.
+        # gp3 baseline 3000 IOPS is sufficient; no need to pay for io2.
+        encrypted: true
+        # WHY encrypted: defense-in-depth for model weights at rest
+        deleteOnTermination: true
+        # WHY deleteOnTermination: Spot nodes are ephemeral — no orphaned EBS volumes
+
+  tags:
+    Project: inference-lab
+    # WHY tag: cost attribution in Cost Explorer, mandatory for FinOps reviews
+---
+# NodePool defines scheduling constraints — which instance types, zones, and
+# lifecycle policies Karpenter uses when provisioning nodes for pending GPU pods.
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool
+  labels:
+    app.kubernetes.io/name: gpu-pool
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  template:
+    metadata:
+      labels:
+        node-role: gpu
+        # node-role label lets us write simple affinity rules on workloads
+    spec:
+      nodeClassRef:
+        name: gpu-nodes
+        # Links to the EC2NodeClass above — "which launch template to use"
+
+      requirements:
+        # WHY these instance types: all have 1x NVIDIA T4 or L4 GPU with 16GB+ VRAM.
+        # g4dn = T4 (cheapest, $0.16/hr spot), g5 = A10G (faster, ~$0.30/hr spot).
+        # Listing multiple types maximizes Spot capacity pool — same principle as
+        # diversified ASG with multiple instance types to reduce interruption rate.
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge    # 1x T4, 4 vCPU, 16 GiB — cheapest GPU option
+            - g4dn.2xlarge   # 1x T4, 8 vCPU, 32 GiB — more CPU for preprocessing
+            - g5.xlarge      # 1x A10G, 4 vCPU, 16 GiB — 2x faster inference than T4
+
+        # WHY Spot only: Phase 1 is a learning lab, not production.
+        # Spot saves ~70% vs On-Demand. For production, we'd add on-demand as fallback.
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        # WHY multi-AZ: Spot capacity is per-AZ. Spreading across 2 AZs doubles
+        # the available capacity pools, reducing interruption probability.
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+            - us-east-1b
+
+        # WHY amd64: GPU instances are x86 only (no Graviton GPU instances exist yet)
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      # WHY taint: prevents non-GPU workloads (RabbitMQ, Redis, API gateway) from
+      # landing on expensive GPU nodes. Only pods with a matching toleration get scheduled.
+      # Same concept as dedicated hosts in ASG — reserve capacity for the right workload.
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+
+  # WHY limits: cost guardrail — caps total GPU fleet at ~2 large nodes.
+  # Without limits, a burst of pending pods could spin up unlimited Spot instances.
+  # Analogous to ASG MaxCapacity — never exceed this even if scaling policy says so.
+  limits:
+    cpu: "16"
+    memory: 64Gi
+
+  disruption:
+    # WHY WhenEmpty: only consolidate (terminate) a node when it has zero pods.
+    # WhenUnderutilized would be aggressive and could evict long-running inference pods.
+    consolidationPolicy: WhenEmpty
+    # WHY 60s: gives Karpenter a brief window to see if new work arrives before
+    # terminating an empty node. Avoids thrashing on bursty traffic patterns.
+    consolidateAfter: 60s
+    # WHY 4h expiry: forces node rotation for security patching and prevents
+    # accumulating stale Spot instances. 4h balances cost (no long-running Spot)
+    # with stability (don't kill nodes during active inference).
+    expireAfter: 4h

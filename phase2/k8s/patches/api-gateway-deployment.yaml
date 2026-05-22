@@ -1,0 +1,92 @@
+# api-gateway/deployment.yaml — Phase 2 patch: updated image with Prometheus metrics.
+#
+# WHAT CHANGED FROM PHASE 1:
+#   Image tag changed from :latest to :v2-metrics. The v2 image includes
+#   prometheus-client instrumentation on /generate, /stream, and a new
+#   GET /metrics endpoint for Prometheus scraping.
+#
+# The /metrics endpoint exposes:
+#   - gateway_requests_total (Counter): request count by method, endpoint, status
+#   - gateway_request_duration_seconds (Histogram): latency distribution
+#   - gateway_active_requests (Gauge): in-flight requests (detects SSE leaks)
+#   - gateway_jobs_enqueued_total (Counter): successful RabbitMQ enqueues
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: gateway
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - cpu
+
+      containers:
+        - name: api-gateway
+          image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/api-gateway:v2-metrics
+          # CHANGED: :latest → :v2-metrics
+          # PLACEHOLDER: replace 019167255542 with your AWS account ID.
+          # The v2-metrics image includes prometheus-client instrumentation.
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          env:
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "inference"
+            - name: RABBITMQ_PASS
+              value: "inference123"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3

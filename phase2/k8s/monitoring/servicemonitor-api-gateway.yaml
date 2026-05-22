@@ -1,0 +1,35 @@
+# servicemonitor-api-gateway.yaml — Tell Prometheus to scrape API gateway metrics.
+#
+# WHAT THIS SCRAPES: The Phase 2 API gateway's /metrics endpoint on port 8080:
+#   - gateway_requests_total           — request count by method/endpoint/status
+#   - gateway_request_duration_seconds — latency histogram
+#   - gateway_active_requests          — in-flight connections (SSE streams)
+#   - gateway_jobs_enqueued_total      — successful RabbitMQ enqueues
+#
+# WHY GATEWAY METRICS MATTER:
+#   - Request rate: "how many users are hitting the system right now?"
+#   - Error rate: "are we returning 5xx? Is RabbitMQ or Redis down?"
+#   - Active requests: "how many SSE streams are open?" (leak detection)
+#   - Duration: /generate should be <100ms (just an enqueue), /stream can be minutes
+#
+# ANALOGY: These are the same metrics an ALB exposes — RequestCount,
+# HTTPCode_Target_5XX, TargetResponseTime, ActiveConnectionCount.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api-gateway-metrics
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: inference-lab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  endpoints:
+    - port: http
+      # WHY port "http": the API gateway Service exposes port 8080 with name "http".
+      # The /metrics endpoint is served on the same port as the API — no separate
+      # metrics port needed since FastAPI handles both.
+      interval: 15s
+      path: /metrics

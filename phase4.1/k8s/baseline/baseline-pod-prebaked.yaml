@@ -1,0 +1,161 @@
+# baseline-pod-prebaked.yaml — Variant C of the 3-way pull comparison.
+#
+# DELTA FROM baseline-pod.yaml:
+#   - image: UNCHANGED (vllm/vllm-openai:v0.19.0). The reference is the same as
+#     variant A, but the node this pod lands on already has that image's bytes
+#     resolved in containerd's k8s.io namespace (baked into the AMI by
+#     gpu-node-stock.pkr.hcl). Containerd matches by image reference + digest;
+#     the digest match is guaranteed by gpu-node-stock.pkr.hcl pulling from ECR
+#     where push-stock-to-ecr.sh verified digest equality with Hub.
+#   - imagePullPolicy: IfNotPresent — CRITICAL. Always would force a re-pull
+#     and erase the entire effect we're measuring. run_pull_comparison.py
+#     asserts this field per variant before launching.
+#   - nodeSelector: image-source=prebaked-stock — pins the pod to a node from
+#     the prebaked NodePool. Without this, Karpenter could pick the default
+#     NodePool's stock-EKS-AMI nodes and re-pull from Hub anyway.
+#   - Everything else unchanged.
+#
+# WHY THIS DESIGN ISOLATES THE VARIABLE:
+#   Variants A and B differ only in registry (Hub vs ECR); same node AMI.
+#   Variant C differs from A only in node AMI (stock EKS vs prebaked); same
+#   image reference. The chain A→B→C cleanly attributes time savings to:
+#     A→B = network locality (Hub→ECR through VPC vs through NAT)
+#     B→C = pre-bake + S3-lazy-load tax on the EBS snapshot
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+    image-source: prebaked-ami
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never
+
+  # ─── THE NODE SELECTOR THAT ROUTES TO THE PREBAKED NODEPOOL ───────────────
+  # Both labels must match; the prebaked NodePool sets BOTH on its template.
+  # node-role=gpu remains a guard (so a non-GPU node accidentally labeled
+  # image-source=prebaked-stock can't host the pod).
+  nodeSelector:
+    node-role: gpu
+    image-source: prebaked-stock
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  initContainers:
+    - name: model-download
+      image: public.ecr.aws/aws-cli/aws-cli:2.17.18
+      command:
+        - sh
+        - -c
+        - |
+          set -euxo pipefail
+          mkdir -p /models/Qwen2.5-7B-Instruct-AWQ
+          aws s3 cp --recursive --no-progress \
+            s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \
+            /models/Qwen2.5-7B-Instruct-AWQ/
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+
+  containers:
+    - name: vllm
+      # Same image reference as variant A — but resolved locally from containerd
+      # cache thanks to the prebaked AMI on this node.
+      image: vllm/vllm-openai:v0.19.0
+      # ─── CRITICAL: must be IfNotPresent for the experiment to be valid ────
+      imagePullPolicy: IfNotPresent
+
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        - --model=/models/Qwen2.5-7B-Instruct-AWQ
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+          readOnly: true
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+
+  volumes:
+    - name: model-cache
+      emptyDir:
+        sizeLimit: 8Gi
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate

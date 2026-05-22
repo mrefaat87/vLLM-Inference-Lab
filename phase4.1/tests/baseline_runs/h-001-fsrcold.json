@@ -1,0 +1,108 @@
+{
+  "run_id": "h-001",
+  "arm": "fresh_node",
+  "started_at": "2026-05-03T19:22:57.781838+00:00",
+  "node": {
+    "name": "ip-10-5-17-253.ec2.internal",
+    "instance_id": "i-0d7932e0c755ba140",
+    "instance_type": "g4dn.xlarge",
+    "az": "us-east-1a",
+    "ami_id": "ami-0002c079b74300348",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+    "kernel": "5.10.245-245.983.amzn2.x86_64",
+    "spot": true
+  },
+  "pod": {
+    "name": "baseline-h-001",
+    "uid": "bac8b91f-3ba9-4402-85b1-6b1f292490c3",
+    "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0"
+  },
+  "stages": {
+    "karpenter_scheduling": {
+      "start_ms": 1777835740000,
+      "end_ms": 1777835741000,
+      "duration_ms": 1000,
+      "source": "k8s_events"
+    },
+    "ec2_spot_fulfillment": {
+      "start_ms": 1777835741000,
+      "end_ms": 1777835743000,
+      "duration_ms": 2000,
+      "source": "cloudtrail+ec2"
+    },
+    "node_bootstrap": {
+      "start_ms": 1777835743000,
+      "end_ms": 1777835832000,
+      "duration_ms": 89000,
+      "source": "ec2+node_conditions"
+    },
+    "image_download": {
+      "start_ms": null,
+      "end_ms": null,
+      "duration_ms": null,
+      "source": "containerd_journal"
+    },
+    "image_unpack": {
+      "start_ms": null,
+      "end_ms": null,
+      "duration_ms": null,
+      "source": "containerd_journal"
+    },
+    "model_download_s3": {
+      "start_ms": 1777835740000,
+      "end_ms": 1777835740000,
+      "duration_ms": 0,
+      "source": "absent_init_container"
+    },
+    "vllm_init_cuda_ctx": {
+      "start_ms": 1777835855805,
+      "end_ms": 1777835927399,
+      "duration_ms": 71594,
+      "source": "tracer_jsonl"
+    },
+    "weight_load_gpu_mem": {
+      "start_ms": 1777836009125,
+      "end_ms": 1777836037198,
+      "duration_ms": 28073,
+      "source": "tracer_jsonl"
+    },
+    "cuda_graph_warmup": {
+      "start_ms": 1777836133084,
+      "end_ms": 1777836142576,
+      "duration_ms": 9492,
+      "source": "tracer_jsonl"
+    },
+    "readiness_probe_pass": {
+      "start_ms": 1777836142576,
+      "end_ms": 1777836153000,
+      "duration_ms": 10424,
+      "source": "pod_conditions"
+    },
+    "first_token_served": {
+      "start_ms": 1777836153211,
+      "end_ms": 1777836160545,
+      "duration_ms": 7334,
+      "source": "external_smoke_client"
+    }
+  },
+  "optional_stages": {
+    "fsx_csi_mount_s": {
+      "start_ms": 1777835841864,
+      "end_ms": null,
+      "duration_ms": null,
+      "source": "kubelet_events"
+    }
+  },
+  "totals": {
+    "scale_up_to_ready_ms": 413211,
+    "scale_up_to_first_token_ms": 420545
+  },
+  "validation": {
+    "all_stages_present": false,
+    "any_negative_durations": false,
+    "probe_spec_hash": "60fab599c6092a0e",
+    "notes": [
+      "missing_stages: ['image_download', 'image_unpack']"
+    ]
+  }
+}

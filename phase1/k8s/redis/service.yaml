@@ -1,0 +1,23 @@
+# redis/service.yaml — Stable DNS endpoint for the Redis result bus.
+#
+# Workers and the API gateway connect via "redis" (within the namespace) or
+# "redis.inference-system.svc.cluster.local" (cross-namespace).
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: cache
+spec:
+  type: ClusterIP
+  # WHY ClusterIP: Redis is internal-only. No external access needed.
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP

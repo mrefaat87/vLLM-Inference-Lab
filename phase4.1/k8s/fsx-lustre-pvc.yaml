@@ -1,0 +1,34 @@
+# fsx-lustre-pvc.yaml — PersistentVolumeClaim binding to the static FSx PV.
+#
+# Two consumers will reference this PVC:
+#   1. fsx-populate-job.yaml (Stage 5) — RWX mount writes Qwen weights once.
+#   2. baseline-pod-fsx-weights.yaml (Stage 6) — RO mount, read by vLLM.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-weights-fsx
+  namespace: baseline
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+    variant: fsx-lustre
+spec:
+  accessModes:
+    - ReadWriteMany
+
+  # Empty storageClassName + explicit volumeName binds to the static PV by
+  # name. Without volumeName, the PVC would wait for a default StorageClass.
+  storageClassName: ""
+  volumeName: model-weights-fsx-pv
+
+  resources:
+    requests:
+      # Match the PV's advertised capacity. The PVC quota request doesn't gate
+      # actual Lustre usage (the FS is shared), but a request smaller than the
+      # PV would still bind — Kubernetes uses ≥-comparison.
+      storage: 1200Gi

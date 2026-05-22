@@ -1,0 +1,128 @@
+# gpu-nodepool-prebaked-model-baked.yaml — Karpenter NodePool for Variant G.
+#
+# DELTA FROM gpu-nodepool-prebaked.yaml (Variant D):
+#   - amiSelectorTerms.tags.Variant: prebaked-model-baked (was: prebaked-stock).
+#     Targets the AMI built by gpu-node-model-baked.pkr.hcl.
+#   - Node label image-source: prebaked-model-baked (was: prebaked-stock).
+#     baseline-pod-prebaked-model-baked.yaml's nodeSelector pins on this.
+#   - blockDeviceMappings volumeSize 100Gi → 120Gi to match the AMI's snapshot
+#     volume_size. Karpenter would otherwise resize down at launch, which would
+#     corrupt the snapshot.
+#   - Distinct EC2NodeClass + NodePool names (gpu-nodes-prebaked-model-baked,
+#     gpu-pool-prebaked-model-baked) so D, E, F, G NodePools coexist on the
+#     cluster without colliding.
+#
+# COEXISTENCE WITH OTHER VARIANTS' NODEPOOLS
+#   Variants D, E, F, G each have their own EC2NodeClass + NodePool. They differ
+#   on AMI tag and node label. Pods select via labels — there is no scheduling
+#   conflict. For Stage 5 of Variant G we apply ONLY this NodePool (no other
+#   GPU NodePools should be present), so Karpenter can't accidentally fall back
+#   to a stock-AMI node.
+#
+# AZ
+#   us-east-1a — same as the AMI build and all prior cold-start measurements.
+#   Required for FSR (per-AZ) and hardware fingerprint stability.
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes-prebaked-model-baked
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  amiFamily: AL2
+
+  # ─── Targets the Variant G AMI specifically ──────────────────────────────
+  # gpu-node-model-baked.pkr.hcl tags its AMI with Variant=prebaked-model-baked.
+  # If multiple AMIs match (re-builds), Karpenter picks the most recent.
+  amiSelectorTerms:
+    - tags:
+        Project: inference-lab
+        Stage: phase4.1
+        Variant: prebaked-model-baked
+
+  role: "inference-phase4-1-karpenter-node"
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        # Must match the AMI's launch_block_device_mappings.volume_size (120 in
+        # gpu-node-model-baked.pkr.hcl). A smaller value here would error at launch;
+        # a larger value would create unused slack.
+        volumeSize: 120Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: inference-lab
+    Stage: phase4.1
+    NodePool: prebaked-model-baked
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool-prebaked-model-baked
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  template:
+    metadata:
+      labels:
+        # Both labels required by baseline-pod-prebaked-model-baked.yaml's nodeSelector.
+        node-role: gpu
+        image-source: prebaked-model-baked
+    spec:
+      nodeClassRef:
+        name: gpu-nodes-prebaked-model-baked
+
+      requirements:
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        # AZ pinned to us-east-1a — must match AMI build AZ + FSR enablement AZ.
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+
+  limits:
+    # One g4dn.xlarge = 4 vCPU. Cap at 8 vCPU = 2 nodes max — defends against
+    # a runaway ReplicaSet accidentally provisioning unbounded GPUs (memory
+    # project_cluster_state.md flagged this exact failure mode).
+    cpu: "8"
+    memory: 32Gi
+
+  disruption:
+    # WhenEmpty + 300s consolidation: matches D/E/F's NodePools so cold-start
+    # measurements run on freshly-provisioned nodes (the runner deletes the
+    # pod between runs, then waits for the empty node to consolidate).
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 300s
+    expireAfter: 6h
+    budgets:
+      - nodes: "1"

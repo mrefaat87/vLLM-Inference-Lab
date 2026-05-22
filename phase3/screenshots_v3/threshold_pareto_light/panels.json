@@ -1,0 +1,28 @@
+{
+  "strategy": "threshold",
+  "workload": "pareto_light",
+  "time_range": {
+    "from_epoch_ms": 1775427918113,
+    "to_epoch_ms": 1775428012272,
+    "from_iso": "2026-04-05T22:25:18.113000+00:00",
+    "to_iso": "2026-04-05T22:26:52.272000+00:00"
+  },
+  "dashboard_url": "http://localhost:3000/d/inference-platform/inference-platform?from=1775427918113&to=1775428012272",
+  "panels": {
+    "gpu_compute_utilization": "phase3/screenshots_v3/threshold_pareto_light/gpu_compute_utilization.png",
+    "memory_bandwidth_utilization": "phase3/screenshots_v3/threshold_pareto_light/memory_bandwidth_utilization.png",
+    "vram_usage": "phase3/screenshots_v3/threshold_pareto_light/vram_usage.png",
+    "gpu_temperature": "phase3/screenshots_v3/threshold_pareto_light/gpu_temperature.png",
+    "kv_cache_usage": "phase3/screenshots_v3/threshold_pareto_light/kv_cache_usage.png",
+    "requests_running_waiting": "phase3/screenshots_v3/threshold_pareto_light/requests_running_waiting.png",
+    "throughput_tok_s": "phase3/screenshots_v3/threshold_pareto_light/throughput_tok_s.png",
+    "ttft": "phase3/screenshots_v3/threshold_pareto_light/ttft.png",
+    "tbt": "phase3/screenshots_v3/threshold_pareto_light/tbt.png",
+    "request_rate_errors": "phase3/screenshots_v3/threshold_pareto_light/request_rate_errors.png",
+    "queue_depth": "phase3/screenshots_v3/threshold_pareto_light/queue_depth.png",
+    "queue_ready_unacked": "phase3/screenshots_v3/threshold_pareto_light/queue_ready_unacked.png",
+    "worker_replicas": "phase3/screenshots_v3/threshold_pareto_light/worker_replicas.png",
+    "gpu_nodes": "phase3/screenshots_v3/threshold_pareto_light/gpu_nodes.png"
+  },
+  "render_available": true
+}

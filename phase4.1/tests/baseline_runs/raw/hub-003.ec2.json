@@ -1,0 +1,355 @@
+{
+    "Architecture": "x86_64",
+    "BlockDeviceMappings": [
+        {
+            "DeviceName": "/dev/xvda",
+            "Ebs": {
+                "AttachTime": "2026-05-01T11:12:54+00:00",
+                "DeleteOnTermination": true,
+                "Status": "attached",
+                "VolumeId": "vol-0b84c6a3b89669ef4",
+                "EbsCardIndex": 0
+            }
+        }
+    ],
+    "ClientToken": "fleet-7935bb0c-2986-4c9e-a6b2-07205d724f25-0",
+    "EbsOptimized": false,
+    "EnaSupport": true,
+    "Hypervisor": "xen",
+    "IamInstanceProfile": {
+        "Arn": "arn:aws:iam::019167255542:instance-profile/inference-phase4-1_11385587100232389023",
+        "Id": "AIPAQI5TVDP3CSZ5XE4V7"
+    },
+    "InstanceLifecycle": "spot",
+    "NetworkInterfaces": [
+        {
+            "Attachment": {
+                "AttachTime": "2026-05-01T11:12:53+00:00",
+                "AttachmentId": "eni-attach-04b9132d359b0d3ea",
+                "DeleteOnTermination": true,
+                "DeviceIndex": 0,
+                "Status": "attached",
+                "NetworkCardIndex": 0
+            },
+            "Description": "",
+            "Groups": [
+                {
+                    "GroupId": "sg-09fead621b005aa30",
+                    "GroupName": "eks-cluster-sg-inference-phase4-1-986983601"
+                },
+                {
+                    "GroupId": "sg-00edb860eabfcc0d3",
+                    "GroupName": "inference-phase4-1-cluster-2026043015071404680000000d"
+                },
+                {
+                    "GroupId": "sg-0523c9439a5e72848",
+                    "GroupName": "default"
+                },
+                {
+                    "GroupId": "sg-0563c32d33eca0854",
+                    "GroupName": "inference-phase4-1-node-2026043015071340120000000c"
+                }
+            ],
+            "Ipv6Addresses": [],
+            "MacAddress": "12:13:5b:04:4e:83",
+            "NetworkInterfaceId": "eni-0bd9fe9ec4ea4aee8",
+            "OwnerId": "019167255542",
+            "PrivateDnsName": "ip-10-5-28-81.ec2.internal",
+            "PrivateIpAddress": "10.5.28.81",
+            "PrivateIpAddresses": [
+                {
+                    "Primary": true,
+                    "PrivateDnsName": "ip-10-5-28-81.ec2.internal",
+                    "PrivateIpAddress": "10.5.28.81"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-27-215.ec2.internal",
+                    "PrivateIpAddress": "10.5.27.215"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-28-86.ec2.internal",
+                    "PrivateIpAddress": "10.5.28.86"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-31-118.ec2.internal",
+                    "PrivateIpAddress": "10.5.31.118"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-30-163.ec2.internal",
+                    "PrivateIpAddress": "10.5.30.163"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-9-157.ec2.internal",
+                    "PrivateIpAddress": "10.5.9.157"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-14-127.ec2.internal",
+                    "PrivateIpAddress": "10.5.14.127"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-18-223.ec2.internal",
+                    "PrivateIpAddress": "10.5.18.223"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-21-104.ec2.internal",
+                    "PrivateIpAddress": "10.5.21.104"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-30-42.ec2.internal",
+                    "PrivateIpAddress": "10.5.30.42"
+                }
+            ],
+            "SourceDestCheck": true,
+            "Status": "in-use",
+            "SubnetId": "subnet-01f5d767ae82f508b",
+            "VpcId": "vpc-057bdf5d61136b1ad",
+            "InterfaceType": "interface",
+            "Operator": {
+                "Managed": false
+            }
+        },
+        {
+            "Attachment": {
+                "AttachTime": "2026-05-01T11:14:02+00:00",
+                "AttachmentId": "eni-attach-04b9eba6fdd1dffe3",
+                "DeleteOnTermination": true,
+                "DeviceIndex": 1,
+                "Status": "attached",
+                "NetworkCardIndex": 0
+            },
+            "Description": "aws-K8S-i-03a5fd140ceb90cac",
+            "Groups": [
+                {
+                    "GroupId": "sg-09fead621b005aa30",
+                    "GroupName": "eks-cluster-sg-inference-phase4-1-986983601"
+                },
+                {
+                    "GroupId": "sg-00edb860eabfcc0d3",
+                    "GroupName": "inference-phase4-1-cluster-2026043015071404680000000d"
+                },
+                {
+                    "GroupId": "sg-0523c9439a5e72848",
+                    "GroupName": "default"
+                },
+                {
+                    "GroupId": "sg-0563c32d33eca0854",
+                    "GroupName": "inference-phase4-1-node-2026043015071340120000000c"
+                }
+            ],
+            "Ipv6Addresses": [],
+            "MacAddress": "12:93:44:f1:73:d1",
+            "NetworkInterfaceId": "eni-02c1ee06f39a554a0",
+            "OwnerId": "019167255542",
+            "PrivateDnsName": "ip-10-5-16-164.ec2.internal",
+            "PrivateIpAddress": "10.5.16.164",
+            "PrivateIpAddresses": [
+                {
+                    "Primary": true,
+                    "PrivateDnsName": "ip-10-5-16-164.ec2.internal",
+                    "PrivateIpAddress": "10.5.16.164"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-29-84.ec2.internal",
+                    "PrivateIpAddress": "10.5.29.84"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-6-84.ec2.internal",
+                    "PrivateIpAddress": "10.5.6.84"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-6-132.ec2.internal",
+                    "PrivateIpAddress": "10.5.6.132"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-0-178.ec2.internal",
+                    "PrivateIpAddress": "10.5.0.178"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-8-242.ec2.internal",
+                    "PrivateIpAddress": "10.5.8.242"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-13-109.ec2.internal",
+                    "PrivateIpAddress": "10.5.13.109"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-20-108.ec2.internal",
+                    "PrivateIpAddress": "10.5.20.108"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-7-24.ec2.internal",
+                    "PrivateIpAddress": "10.5.7.24"
+                },
+                {
+                    "Primary": false,
+                    "PrivateDnsName": "ip-10-5-13-120.ec2.internal",
+                    "PrivateIpAddress": "10.5.13.120"
+                }
+            ],
+            "SourceDestCheck": true,
+            "Status": "in-use",
+            "SubnetId": "subnet-01f5d767ae82f508b",
+            "VpcId": "vpc-057bdf5d61136b1ad",
+            "InterfaceType": "interface",
+            "Operator": {
+                "Managed": false
+            }
+        }
+    ],
+    "RootDeviceName": "/dev/xvda",
+    "RootDeviceType": "ebs",
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-09fead621b005aa30",
+            "GroupName": "eks-cluster-sg-inference-phase4-1-986983601"
+        },
+        {
+            "GroupId": "sg-00edb860eabfcc0d3",
+            "GroupName": "inference-phase4-1-cluster-2026043015071404680000000d"
+        },
+        {
+            "GroupId": "sg-0523c9439a5e72848",
+            "GroupName": "default"
+        },
+        {
+            "GroupId": "sg-0563c32d33eca0854",
+            "GroupName": "inference-phase4-1-node-2026043015071340120000000c"
+        }
+    ],
+    "SourceDestCheck": true,
+    "SpotInstanceRequestId": "sir-4vazdnmp",
+    "Tags": [
+        {
+            "Key": "karpenter.sh/nodeclaim",
+            "Value": "gpu-pool-lkgqb"
+        },
+        {
+            "Key": "aws:eks:cluster-name",
+            "Value": "inference-phase4-1"
+        },
+        {
+            "Key": "aws:ec2launchtemplate:version",
+            "Value": "1"
+        },
+        {
+            "Key": "karpenter.sh/managed-by",
+            "Value": "inference-phase4-1"
+        },
+        {
+            "Key": "Stage",
+            "Value": "phase4.1"
+        },
+        {
+            "Key": "karpenter.k8s.aws/ec2nodeclass",
+            "Value": "gpu-nodes"
+        },
+        {
+            "Key": "Project",
+            "Value": "inference-lab"
+        },
+        {
+            "Key": "aws:ec2launchtemplate:id",
+            "Value": "lt-0a38153d0ce8ae82b"
+        },
+        {
+            "Key": "Name",
+            "Value": "ip-10-5-28-81.ec2.internal"
+        },
+        {
+            "Key": "aws:ec2:fleet-id",
+            "Value": "fleet-7935bb0c-2986-4c9e-a6b2-07205d724f25"
+        },
+        {
+            "Key": "kubernetes.io/cluster/inference-phase4-1",
+            "Value": "owned"
+        },
+        {
+            "Key": "karpenter.sh/nodepool",
+            "Value": "gpu-pool"
+        }
+    ],
+    "VirtualizationType": "hvm",
+    "CpuOptions": {
+        "CoreCount": 2,
+        "ThreadsPerCore": 2
+    },
+    "CapacityReservationSpecification": {
+        "CapacityReservationPreference": "open"
+    },
+    "HibernationOptions": {
+        "Configured": false
+    },
+    "MetadataOptions": {
+        "State": "applied",
+        "HttpTokens": "required",
+        "HttpPutResponseHopLimit": 2,
+        "HttpEndpoint": "enabled",
+        "HttpProtocolIpv6": "disabled",
+        "InstanceMetadataTags": "disabled"
+    },
+    "EnclaveOptions": {
+        "Enabled": false
+    },
+    "PlatformDetails": "Linux/UNIX",
+    "UsageOperation": "RunInstances",
+    "UsageOperationUpdateTime": "2026-05-01T11:12:53+00:00",
+    "PrivateDnsNameOptions": {
+        "HostnameType": "ip-name",
+        "EnableResourceNameDnsARecord": false,
+        "EnableResourceNameDnsAAAARecord": false
+    },
+    "MaintenanceOptions": {
+        "AutoRecovery": "default",
+        "RebootMigration": "default"
+    },
+    "CurrentInstanceBootMode": "legacy-bios",
+    "NetworkPerformanceOptions": {
+        "BandwidthWeighting": "default"
+    },
+    "Operator": {
+        "Managed": false
+    },
+    "SecondaryInterfaces": [],
+    "InstanceId": "i-03a5fd140ceb90cac",
+    "ImageId": "ami-01a75e3a2966134ee",
+    "State": {
+        "Code": 16,
+        "Name": "running"
+    },
+    "PrivateDnsName": "ip-10-5-28-81.ec2.internal",
+    "PublicDnsName": "",
+    "StateTransitionReason": "",
+    "AmiLaunchIndex": 0,
+    "ProductCodes": [],
+    "InstanceType": "g4dn.xlarge",
+    "LaunchTime": "2026-05-01T11:12:53+00:00",
+    "Placement": {
+        "AvailabilityZoneId": "use1-az2",
+        "GroupName": "",
+        "Tenancy": "default",
+        "AvailabilityZone": "us-east-1a"
+    },
+    "Monitoring": {
+        "State": "disabled"
+    },
+    "SubnetId": "subnet-01f5d767ae82f508b",
+    "VpcId": "vpc-057bdf5d61136b1ad",
+    "PrivateIpAddress": "10.5.28.81"
+}

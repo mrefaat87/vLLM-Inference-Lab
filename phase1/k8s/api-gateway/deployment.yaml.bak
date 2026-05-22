@@ -1,0 +1,113 @@
+# api-gateway/deployment.yaml — HTTP frontend that accepts inference requests.
+#
+# ARCHITECTURE ROLE: The API gateway is the "load balancer" of the inference
+# pipeline. It receives HTTP requests, validates them, enqueues to RabbitMQ,
+# and streams results back from Redis. Think of it as an ALB + Lambda@Edge
+# combination — routing + lightweight request transformation.
+#
+# REQUEST FLOW:
+#   Client → API Gateway → RabbitMQ (enqueue) → vLLM Worker (dequeue + infer)
+#                ↑                                        ↓
+#                └──────── Redis (pub/sub stream) ←───────┘
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: 2
+  # WHY 2 replicas: basic availability — if one pod is restarting or on a
+  # preempted Spot node, the other serves traffic. Stateless design means
+  # any replica can handle any request. Same as min 2 AZs in an ASG.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-gateway
+        app.kubernetes.io/part-of: inference-lab
+        app.kubernetes.io/component: gateway
+    spec:
+      # WHY affinity for CPU nodes: the gateway is pure I/O (HTTP + AMQP + Redis).
+      # No GPU needed. Keeping it off GPU nodes saves expensive capacity.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - cpu
+
+      containers:
+        - name: api-gateway
+          image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/api-gateway:latest
+          # PLACEHOLDER: replace 019167255542 with your AWS account ID.
+          # WHY ECR: private registry co-located in us-east-1 for fast pulls.
+          # In production, pin to a SHA digest, not :latest.
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          env:
+            # WHY env vars (not ConfigMap): keeps the manifest self-contained for
+            # Phase 1. Production would use ConfigMaps for non-sensitive values
+            # and Secrets for credentials.
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+              # WHY "rabbitmq": K8s DNS resolves this to the RabbitMQ ClusterIP
+              # service within the same namespace. No hardcoded IPs.
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "inference"
+            - name: RABBITMQ_PASS
+              value: "inference123"
+              # TODO: move to Kubernetes Secret in Phase 2
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+              # WHY 250m/256Mi: the gateway is I/O-bound (async HTTP + message
+              # passing). These requests match typical FastAPI/Express workloads.
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              # WHY limits: prevents a single gateway pod from starving
+              # co-located pods during a request spike.
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            # WHY /health HTTP probe: verifies the application process is
+            # running and can handle HTTP. If it OOMs or deadlocks, kubelet
+            # restarts it automatically.
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+            # WHY readiness on /health: removes the pod from the Service
+            # endpoints if it can't serve traffic. Prevents routing requests
+            # to a pod that's still initializing or has lost its RabbitMQ
+            # connection. Same concept as ELB health checks.

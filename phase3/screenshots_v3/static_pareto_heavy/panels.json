@@ -1,0 +1,28 @@
+{
+  "strategy": "static",
+  "workload": "pareto_heavy",
+  "time_range": {
+    "from_epoch_ms": 1775426463419,
+    "to_epoch_ms": 1775426611547,
+    "from_iso": "2026-04-05T22:01:03.419000+00:00",
+    "to_iso": "2026-04-05T22:03:31.547000+00:00"
+  },
+  "dashboard_url": "http://localhost:3000/d/inference-platform/inference-platform?from=1775426463419&to=1775426611547",
+  "panels": {
+    "gpu_compute_utilization": "phase3/screenshots_v3/static_pareto_heavy/gpu_compute_utilization.png",
+    "memory_bandwidth_utilization": "phase3/screenshots_v3/static_pareto_heavy/memory_bandwidth_utilization.png",
+    "vram_usage": "phase3/screenshots_v3/static_pareto_heavy/vram_usage.png",
+    "gpu_temperature": "phase3/screenshots_v3/static_pareto_heavy/gpu_temperature.png",
+    "kv_cache_usage": "phase3/screenshots_v3/static_pareto_heavy/kv_cache_usage.png",
+    "requests_running_waiting": "phase3/screenshots_v3/static_pareto_heavy/requests_running_waiting.png",
+    "throughput_tok_s": "phase3/screenshots_v3/static_pareto_heavy/throughput_tok_s.png",
+    "ttft": "phase3/screenshots_v3/static_pareto_heavy/ttft.png",
+    "tbt": "phase3/screenshots_v3/static_pareto_heavy/tbt.png",
+    "request_rate_errors": "phase3/screenshots_v3/static_pareto_heavy/request_rate_errors.png",
+    "queue_depth": "phase3/screenshots_v3/static_pareto_heavy/queue_depth.png",
+    "queue_ready_unacked": "phase3/screenshots_v3/static_pareto_heavy/queue_ready_unacked.png",
+    "worker_replicas": "phase3/screenshots_v3/static_pareto_heavy/worker_replicas.png",
+    "gpu_nodes": "phase3/screenshots_v3/static_pareto_heavy/gpu_nodes.png"
+  },
+  "render_available": true
+}

@@ -1,0 +1,173 @@
+# baseline-pod-prebaked-model-baked.yaml — Variant G of the cold-start comparison.
+#
+# DELTA FROM baseline-pod-prebaked.yaml (Variant D):
+#   - REMOVED: model-download init container (the aws-s3-cp from S3 to emptyDir).
+#   - REMOVED: model-cache emptyDir volume.
+#   - ADDED:   prebaked-models hostPath volume → /opt/models on the node, mounted
+#              read-only at /models inside the vLLM container.
+#   - CHANGED: nodeSelector image-source value → prebaked-model-baked, so the
+#              pod lands on a Variant G node (AMI with weights baked in).
+#   - UNCHANGED: vLLM --model arg points at /models/Qwen2.5-7B-Instruct-AWQ — same
+#                in-container path as D. The mount source changes (hostPath vs
+#                emptyDir) but the mount destination is identical, so vLLM is
+#                indifferent to which variant it's running on.
+#
+# WHY THIS DESIGN ISOLATES THE VARIABLE
+#   D and G differ only in HOW the weights arrive at /models:
+#     D: empty volume → init container does S3 cp (37s) → main container reads
+#     G: hostPath mount of /opt/models (already populated by AMI bake)
+#   Everything downstream (vLLM startup, weight load, graph build, readiness)
+#   sees an identical filesystem state. The only thing that changes is what
+#   happens BEFORE the main container starts — namely, the init-container's
+#   S3 round-trip is replaced by a kernel mount.
+#
+# WHY READ-ONLY hostPath
+#   - vLLM only reads weights, never writes. Read-only mount is the minimum
+#     privilege.
+#   - Per memory feedback_load_testing.md / Variant F's torch.compile finding,
+#     read-only is fine for *weight* mounts but breaks JIT cache reuse — the
+#     model dir doesn't host JIT caches, so read-only is safe here. (Variant F's
+#     /opt/vllm-cache is a separate dir mounted RW.)
+#
+# RUNTIME EXPECTATION
+#   - Karpenter provisions a g4dn.xlarge from gpu-pool-prebaked-model-baked.
+#   - Node launches from the Variant G AMI; /opt/models/Qwen2.5-7B-Instruct-AWQ
+#     is already on disk (FSR-pre-warmed if Stage 3 enabled FSR on the snapshot).
+#   - Pod spec has zero initContainers → the K8s init→main handoff is gone.
+#   - vLLM reads weights from /models/... at FSR-warmed gp3 speed (~1 GB/s).
+#   - Tracer reports model_download_s3 = 0s, source=absent_init_container
+#     (same as Variant E), since the harness keys on init-container presence.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+    image-source: prebaked-model-baked
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never
+
+  # ─── ROUTES POD TO THE VARIANT G NODEPOOL ────────────────────────────────
+  # node-role: gpu  — guard against landing on a CPU node mislabeled with image-source
+  # image-source: prebaked-model-baked — selects the Variant G NodePool specifically.
+  nodeSelector:
+    node-role: gpu
+    image-source: prebaked-model-baked
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # ─── NO initContainers ───────────────────────────────────────────────────
+  # The whole point of Variant G: model is already on the node (in /opt/models,
+  # baked into the AMI). Skipping the init container is what eliminates both
+  # the 37s S3 round-trip AND the K8s init→main handoff.
+
+  containers:
+    - name: vllm
+      image: vllm/vllm-openai:v0.19.0
+      # CRITICAL: must be IfNotPresent — the AMI has this image cached, and
+      # forcing a re-pull would erase the entire experiment.
+      imagePullPolicy: IfNotPresent
+
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        - --model=/models/Qwen2.5-7B-Instruct-AWQ
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        # Same in-container path as Variant D so vLLM args don't change.
+        # Source differs: hostPath of the AMI-baked /opt/models, not emptyDir.
+        - name: prebaked-models
+          mountPath: /models
+          readOnly: true
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+
+  volumes:
+    # The hostPath that makes Variant G work. /opt/models was populated by
+    # gpu-node-model-baked.pkr.hcl during AMI build; the kubelet exposes it
+    # to the pod here.
+    - name: prebaked-models
+      hostPath:
+        path: /opt/models
+        # Directory (not DirectoryOrCreate): if the path is missing, the pod
+        # MUST fail to schedule rather than silently create an empty mount —
+        # an empty mount would mask a broken AMI as a vLLM error.
+        type: Directory
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate

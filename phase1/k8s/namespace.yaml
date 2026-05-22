@@ -1,0 +1,12 @@
+# namespace.yaml — Isolation boundary for the entire inference platform.
+# WHY a dedicated namespace: keeps inference workloads, RBAC, network policies,
+# and resource quotas separate from other cluster tenants. Same pattern as
+# separate VPCs per service tier in AWS — blast-radius containment.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-system
+  labels:
+    app.kubernetes.io/part-of: inference-lab
+    # Structured label lets us query all inference-lab resources cluster-wide
+    app.kubernetes.io/managed-by: kubectl

@@ -1,0 +1,33 @@
+{
+  "selected_at": "2026-04-30T15:23:23.465410+00:00",
+  "instance_type": "g4dn.xlarge",
+  "region": "us-east-1",
+  "target_capacity": 1,
+  "winner": {
+    "availability_zone": "us-east-1a",
+    "az_id": "use1-az2",
+    "score": 3
+  },
+  "ranking": [
+    {
+      "availability_zone": "us-east-1a",
+      "az_id": "use1-az2",
+      "score": 3
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "az_id": "use1-az4",
+      "score": 3
+    },
+    {
+      "availability_zone": "us-east-1c",
+      "az_id": "use1-az6",
+      "score": 3
+    },
+    {
+      "availability_zone": "us-east-1d",
+      "az_id": "use1-az1",
+      "score": 1
+    }
+  ]
+}

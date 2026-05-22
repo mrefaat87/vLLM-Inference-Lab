@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777640152829, "run_id": "prebaked-fsr-003"}
+{"event": "vllm_import_done", "epoch_ms": 1777640175427, "run_id": "prebaked-fsr-003"}
+{"event": "cuda_context_ready", "epoch_ms": 1777640175784, "run_id": "prebaked-fsr-003"}
+{"event": "weight_load_start", "epoch_ms": 1777640216200, "run_id": "prebaked-fsr-003"}
+{"event": "weight_load_done", "epoch_ms": 1777640220800, "run_id": "prebaked-fsr-003"}
+{"event": "graph_capture_start", "epoch_ms": 1777640277371, "run_id": "prebaked-fsr-003"}
+{"event": "warmup_done", "epoch_ms": 1777640287334, "run_id": "prebaked-fsr-003"}
+{"event": "server_ready", "epoch_ms": 1777640289894, "run_id": "prebaked-fsr-003"}

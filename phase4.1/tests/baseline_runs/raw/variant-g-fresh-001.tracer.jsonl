@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777792710298, "run_id": "variant-g-fresh-001"}
+{"event": "vllm_import_done", "epoch_ms": 1777792729825, "run_id": "variant-g-fresh-001"}
+{"event": "cuda_context_ready", "epoch_ms": 1777792730302, "run_id": "variant-g-fresh-001"}
+{"event": "weight_load_start", "epoch_ms": 1777792771913, "run_id": "variant-g-fresh-001"}
+{"event": "weight_load_done", "epoch_ms": 1777792816330, "run_id": "variant-g-fresh-001"}
+{"event": "graph_capture_start", "epoch_ms": 1777792871430, "run_id": "variant-g-fresh-001"}
+{"event": "warmup_done", "epoch_ms": 1777792880975, "run_id": "variant-g-fresh-001"}
+{"event": "server_ready", "epoch_ms": 1777792883445, "run_id": "variant-g-fresh-001"}

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 4 — Five Minutes to First Token</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+  background: #0d1117; color: #c9d1d9;
+  max-width: 820px; margin: 0 auto; padding: 32px 24px 80px;
+  line-height: 1.75; font-size: 15px;
+}
+
+/* --- Typography --- */
+h1 { font-size: 32px; font-weight: 700; color: #e6edf3; line-height: 1.25; margin-bottom: 8px; }
+h2 { font-size: 22px; font-weight: 600; color: #e6edf3; margin: 56px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+h3 { font-size: 17px; font-weight: 600; color: #e6edf3; margin: 32px 0 12px; }
+p { margin-bottom: 16px; }
+.subtitle { color: #8b949e; font-size: 13px; margin-bottom: 32px; }
+.lead { font-size: 17px; color: #e6edf3; line-height: 1.7; margin-bottom: 24px; }
+strong { color: #e6edf3; }
+
+/* --- Callouts --- */
+.callout { padding: 16px 20px; border-radius: 6px; margin: 20px 0; font-size: 14px; line-height: 1.7; }
+.callout-blue { background: #0d1117; border-left: 3px solid #58a6ff; }
+.callout-blue strong { color: #58a6ff; }
+.callout-green { background: #0d1117; border-left: 3px solid #7ee787; }
+.callout-green strong { color: #7ee787; }
+.callout-yellow { background: #0d1117; border-left: 3px solid #e3b341; }
+.callout-yellow strong { color: #e3b341; }
+.callout-red { background: #0d1117; border-left: 3px solid #f85149; }
+.callout-red strong { color: #f85149; }
+
+/* --- Tables --- */
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #30363d; color: #8b949e; font-weight: 600; }
+td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+tr:hover td { background: #161b22; }
+.mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+/* --- Big stat cards --- */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px 0; }
+.stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; text-align: center; }
+.stat-card .num { font-size: 36px; font-weight: 700; line-height: 1.2; font-family: 'SF Mono', 'Fira Code', monospace; }
+.stat-card .desc { font-size: 12px; color: #8b949e; margin-top: 4px; }
+.num.green { color: #7ee787; }
+.num.yellow { color: #e3b341; }
+.num.red { color: #f85149; }
+.num.blue { color: #58a6ff; }
+
+/* --- Bar chart --- */
+.bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+.bar-label { width: 160px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+.bar-track { flex: 1; height: 26px; background: #21262d; border-radius: 4px; position: relative; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+.bar-value { font-size: 12px; color: #8b949e; width: 60px; text-align: right; flex-shrink: 0; margin-left: 8px; }
+
+/* --- Optimization cards --- */
+.opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+@media (max-width: 700px) { .opt-grid { grid-template-columns: 1fr; } }
+.opt-card { background: #161b22; border-radius: 8px; padding: 20px; border: 1px solid #30363d; }
+.opt-card .title { font-weight: 600; font-size: 15px; color: #e6edf3; margin-bottom: 8px; }
+.opt-card .saved { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; margin-bottom: 8px; }
+.opt-card .body { font-size: 13px; color: #8b949e; line-height: 1.6; }
+
+/* --- Flow diagram --- */
+.flow { display: flex; align-items: center; gap: 8px; padding: 16px; background: #161b22; border-radius: 8px; border: 1px solid #30363d; overflow-x: auto; margin: 16px 0; font-size: 13px; }
+.flow-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; white-space: nowrap; text-align: center; }
+.flow-arrow { color: #484f58; font-size: 18px; flex-shrink: 0; }
+.flow-time { font-size: 11px; color: #7ee787; display: block; margin-top: 2px; }
+
+/* --- Nav link --- */
+.see-also { display: inline-block; margin-top: 8px; padding: 8px 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #58a6ff; font-size: 13px; text-decoration: none; }
+.see-also:hover { background: #1f2937; }
+
+/* --- Footer --- */
+.footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #21262d; text-align: center; font-size: 12px; color: #484f58; }
+.footer a { color: #58a6ff; text-decoration: none; }
+</style>
+</head>
+<body>
+
+
+<!-- ============================================================
+     TITLE + HOOK
+     ============================================================ -->
+<h1>Five Minutes to First Token</h1>
+<p class="subtitle">Phase 4 &mdash; Cold Start Optimization &bull; EKS + Karpenter + g4dn.xlarge Spot &bull; 2026-04-06</p>
+
+<p class="lead">
+  When a GPU autoscaler decides to add a worker, it takes roughly five minutes before that worker
+  serves its first request. This page documents what we optimized, what we couldn't, and where the
+  time actually goes.
+</p>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="num yellow">~300s</div>
+    <div class="desc">Baseline cold start<br>(Phase 2 measurement)</div>
+  </div>
+  <div class="stat-card">
+    <div class="num green">~250s</div>
+    <div class="desc">After optimization<br>(~50s saved)</div>
+  </div>
+  <div class="stat-card">
+    <div class="num red">~230s</div>
+    <div class="desc">Unsolved remainder<br>(image unpack + probe)</div>
+  </div>
+</div>
+
+<a class="see-also" href="phase4_results_dashboard.html">&larr; See also: Scaling Policy Comparison</a>
+
+
+<!-- ============================================================
+     THE BASELINE
+     ============================================================ -->
+<h2>Where the Time Goes</h2>
+
+<p>
+  Phase 2 measured the end-to-end cold start at roughly 300 seconds. Here's the breakdown
+  of what happens between "KEDA says scale up" and "worker serves its first real request":
+</p>
+
+<div style="margin: 20px 0;">
+  <div class="bar-row">
+    <span class="bar-label">Spot provisioning</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 30%; background: linear-gradient(90deg, #9e6a03, #e3b341);">~90s</div>
+    </div>
+    <span class="bar-value">~90s</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">Container image pull</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 36.7%; background: linear-gradient(90deg, #da3633, #f85149);">~110s</div>
+    </div>
+    <span class="bar-value">~110s</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">Model download</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 20%; background: linear-gradient(90deg, #1f6feb, #58a6ff);">~60s</div>
+    </div>
+    <span class="bar-value">~60s</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">CUDA compilation</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 10%; background: linear-gradient(90deg, #8957e5, #bc8cff);">~30s</div>
+    </div>
+    <span class="bar-value">~30s</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">Readiness probe delay</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 40%; background: linear-gradient(90deg, #da3633, #f85149);">~120s</div>
+    </div>
+    <span class="bar-value">~120s</span>
+  </div>
+</div>
+
+<div class="callout callout-blue">
+  <strong>GPU cold start is fundamentally different from CPU cold start.</strong>
+  In CPU autoscaling, a new instance is ready in 30&ndash;60 seconds. GPU workers carry
+  multi-gigabyte container images, multi-gigabyte model weights, and need to compile CUDA
+  kernels on first use. This is like cold-starting a database replica instead of a stateless
+  web server &mdash; there's inherent data gravity.
+</div>
+
+
+<!-- ============================================================
+     WHAT WE OPTIMIZED
+     ============================================================ -->
+<h2>What We Optimized</h2>
+
+<div class="opt-grid">
+  <div class="opt-card" style="border-left: 3px solid #7ee787;">
+    <div class="title" style="color: #7ee787;">S3 Model Cache</div>
+    <div class="saved" style="color: #7ee787;">60s &rarr; 48s (saved ~12s)</div>
+    <div class="body">
+      Init container downloads model weights from a same-region S3 bucket instead of HuggingFace CDN.
+      Consistent latency, no rate limits, no external dependency. Graceful fallback to HuggingFace
+      if the bucket is missing.
+    </div>
+  </div>
+  <div class="opt-card" style="border-left: 3px solid #7ee787;">
+    <div class="title" style="color: #7ee787;">CUDA Warmup</div>
+    <div class="saved" style="color: #7ee787;">~41s absorbed at startup</div>
+    <div class="body">
+      Worker sends a synthetic 50-token request before consuming from the queue. Forces CUDA
+      kernel compilation during startup so the first real request isn't slow. Without this,
+      the first user sees ~41s TTFT. With it: ~500ms.
+    </div>
+  </div>
+  <div class="opt-card" style="border-left: 3px solid #7ee787;">
+    <div class="title" style="color: #7ee787;">Graceful Drain</div>
+    <div class="saved" style="color: #7ee787;">0 dropped requests on scale-down</div>
+    <div class="body">
+      On SIGTERM, worker tracks in-flight asyncio tasks and awaits completion (170s timeout)
+      instead of dropping mid-stream responses. Combined with Karpenter's disruption budget
+      (max 1 node at a time), this gives 100% completion on pod kill.
+    </div>
+  </div>
+  <div class="opt-card" style="border-left: 3px solid #7ee787;">
+    <div class="title" style="color: #7ee787;">Karpenter Hardening</div>
+    <div class="saved" style="color: #7ee787;">Prevents premature scale-down</div>
+    <div class="body">
+      Disruption budget limits to 1 node at a time. 300s consolidation delay prevents
+      Karpenter from removing a node that just booted. 300s KEDA cooldown prevents
+      thrashing. Without these, we observed workers getting killed during image pull.
+    </div>
+  </div>
+</div>
+
+<p>
+  The net savings are modest: ~50 seconds off a ~300 second baseline. The CUDA warmup doesn't
+  reduce cold start wall-clock time but shifts the compilation cost from the first user request
+  to startup, which matters more for user experience than raw numbers suggest.
+</p>
+
+
+<!-- ============================================================
+     WARMUP DETAIL
+     ============================================================ -->
+<h2>CUDA Warmup in Detail</h2>
+
+<p>
+  The first request to a freshly-loaded vLLM instance triggers CUDA kernel compilation &mdash;
+  JIT compilation of GPU kernels for the specific model architecture and batch configuration.
+  This adds ~41 seconds to TTFT for that one unlucky request.
+</p>
+
+<p>
+  The warmup sequence fires a synthetic 1-token request before the worker starts consuming from
+  the queue. The compilation cost is absorbed during startup. Every subsequent request sees
+  normal ~500ms TTFT.
+</p>
+
+<div class="flow">
+  <div class="flow-box">
+    vLLM Pod<br>starts
+    <span class="flow-time">t=0</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box">
+    Health probe<br>polling
+    <span class="flow-time">9 probes</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box">
+    vLLM ready<br>(health=OK)
+    <span class="flow-time">~40s</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box">
+    Synthetic<br>warmup request
+    <span class="flow-time">1 token</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color: #e3b341;">
+    CUDA kernels<br>compiled
+    <span class="flow-time" style="color: #e3b341;">~41s</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color: #7ee787;">
+    <strong style="color: #7ee787;">Ready for<br>real traffic</strong>
+    <span class="flow-time">TTFT ~500ms</span>
+  </div>
+</div>
+
+<div class="callout callout-green">
+  <strong>This is JVM warmup for GPUs.</strong>
+  The same pattern exists in Java services: you wouldn't send production traffic before the JIT
+  compiler has warmed up hot paths. GPU inference has the same property &mdash; first invocation
+  compiles kernels, subsequent invocations reuse them.
+</div>
+
+
+<!-- ============================================================
+     WHAT WE DIDN'T SOLVE
+     ============================================================ -->
+<h2>What We Didn't Solve</h2>
+
+<p>
+  The two largest components of cold start remain untouched: container image pull (~110s) and
+  readiness probe delay (~120s). Together they account for ~230 of the ~250 seconds.
+</p>
+
+<h3>Container Image Pull: 110s of Layer Unpacking</h3>
+
+<p>
+  I attempted to eliminate the image pull by pre-baking the vLLM container image into a custom
+  AMI using EBS Fast Snapshot Restore. The hypothesis was that the 110s was network download
+  time for the 3.8GB image.
+</p>
+
+<p>
+  <strong>The hypothesis was wrong.</strong> Investigation revealed that the 110s is containerd
+  <em>layer unpacking</em> &mdash; decompressing compressed image layers into overlayfs snapshots
+  on the node's filesystem. The download itself completes quickly (the image is cached in the
+  AMI), but containerd still needs to decompress and mount every layer. The AMI cache saved only ~7 seconds.
+</p>
+
+<div class="callout callout-red">
+  <strong>The bottleneck is decompression, not download.</strong>
+  Even with the image bytes already on local disk, containerd must decompress each layer into
+  an overlayfs snapshot. This is sequential and CPU-bound. The fix requires fundamentally
+  changing how images are loaded:
+  <br><br>
+  <strong>&bull; SOCI (Seekable OCI)</strong> &mdash; AWS's lazy-loading image format that mounts layers
+  on demand without full decompression. The container starts while layers are still streaming.
+  <br>
+  <strong>&bull; Bottlerocket data volumes</strong> &mdash; Pre-expanded image layers stored on a
+  separate EBS volume, bypassing containerd's unpack pipeline entirely.
+</div>
+
+<h3>Readiness Probe: 120s of Conservative Safety Margin</h3>
+
+<p>
+  The readiness probe uses <span class="mono">initialDelaySeconds: 120</span> &mdash; kubelet
+  waits 120 seconds before even checking if the pod is ready. This is a conservative safety margin
+  to prevent kubelet from killing the pod during model weight loading and GPU initialization.
+</p>
+
+<p>
+  The fix is straightforward but was left for stability: replace the delay with an active probe
+  that polls vLLM's <span class="mono">/health</span> endpoint. The pod would become ready as
+  soon as vLLM is actually serving, rather than waiting a fixed 120 seconds. This could save
+  30&ndash;60 seconds depending on how quickly the model loads.
+</p>
+
+
+<!-- ============================================================
+     THE RESULT
+     ============================================================ -->
+<h2>The Result</h2>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="num green" style="font-size: 28px;">48s</div>
+    <div class="desc">Model download<br>(S3 cache, was 60s)</div>
+  </div>
+  <div class="stat-card">
+    <div class="num green" style="font-size: 28px;">~41s</div>
+    <div class="desc">CUDA warmup<br>(shifted to startup)</div>
+  </div>
+  <div class="stat-card">
+    <div class="num green" style="font-size: 28px;">100%</div>
+    <div class="desc">Drain completion<br>(zero dropped on kill)</div>
+  </div>
+  <div class="stat-card">
+    <div class="num yellow" style="font-size: 28px;">~250s</div>
+    <div class="desc">Total cold start<br>(down from ~300s)</div>
+  </div>
+</div>
+
+<p>
+  Cold start dropped from ~300s to ~250s. The savings come from S3 model cache (~12s) and
+  shifting CUDA warmup into the startup window. The remaining ~250s breaks down as:
+  Spot provisioning (~90s) + image unpack (~110s) + readiness probe (~50s, overlaps with other steps).
+</p>
+
+<p>
+  This is why the <a href="phase4_results_dashboard.html" style="color: #58a6ff;">scaling trigger policy</a>
+  matters so much: it determines <em>when</em> you pay this 250-second cost. Scale too late and users
+  queue for minutes. Scale too early and you pay for idle GPUs at $0.16/hr each. With composite
+  triggers, the policy fires on KV cache pressure ~200 seconds earlier than queue-only, which
+  means the new worker arrives ~200 seconds sooner relative to when it's actually needed.
+</p>
+
+
+<!-- ============================================================
+     SCALE-UP LATENCY
+     ============================================================ -->
+<h2>End-to-End Scale-Up Latency</h2>
+
+<p>
+  Measured from KEDA trigger firing to worker serving its first real request, across the four
+  scaling policies tested in Phase 4:
+</p>
+
+<div style="margin: 16px 0;">
+  <div class="bar-row">
+    <span class="bar-label">A &mdash; Queue-Only (5)</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 100%; background: linear-gradient(90deg, #238636, #7ee787);">1028s</div>
+    </div>
+    <span class="bar-value">17.1m</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">B &mdash; Queue-Eager (3)</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 88.9%; background: linear-gradient(90deg, #9e6a03, #e3b341);">914s</div>
+    </div>
+    <span class="bar-value">15.2m</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">C &mdash; Composite (KV&gt;80%)</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 80.9%; background: linear-gradient(90deg, #1f6feb, #58a6ff);">832s</div>
+    </div>
+    <span class="bar-value">13.9m</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">D &mdash; Composite (KV&gt;65%)</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: 80.3%; background: linear-gradient(90deg, #8957e5, #bc8cff);">825s</div>
+    </div>
+    <span class="bar-value">13.8m</span>
+  </div>
+</div>
+
+<div class="callout callout-yellow">
+  <strong>Even the fastest policy takes ~14 minutes to get a new worker online.</strong>
+  This means reactive scaling is always too late for the <em>current</em> load spike &mdash;
+  it benefits the <em>next</em> one. For true SLA compliance under bursty traffic, you need
+  either standing capacity (min replicas &gt; 1), proactive/predictive scaling, or fundamentally
+  faster cold starts via SOCI or pre-expanded images.
+</div>
+
+
+<!-- ============================================================
+     WHAT I LEARNED
+     ============================================================ -->
+<h2>What I Learned</h2>
+
+<h3>1. The image pull bottleneck is decompression, not download</h3>
+<p>
+  Pre-baking the image into the AMI only saved ~7s. The 110s is containerd layer unpacking
+  (decompressing 3.8GB into overlayfs snapshots), not network transfer. This was the most
+  surprising finding &mdash; the intuitive fix (cache the image) doesn't address the actual bottleneck.
+</p>
+
+<h3>2. CUDA warmup is the GPU equivalent of JVM warmup</h3>
+<p>
+  Without a warmup request, the first real user pays ~41s of kernel compilation. A single
+  synthetic request at startup eliminates this entirely. This pattern should be standard in
+  any GPU serving deployment.
+</p>
+
+<h3>3. Karpenter needs guardrails for GPU workloads</h3>
+<p>
+  Without disruption budgets and consolidation delays, Karpenter would remove nodes that had
+  just started booting workers. The default consolidation behavior assumes stateless workloads
+  that start in seconds &mdash; GPU workers that take minutes to initialize need explicit protection.
+</p>
+
+<h3>4. Scale-up latency dominates the autoscaling story</h3>
+<p>
+  At 14&ndash;17 minutes end-to-end, reactive GPU autoscaling can't respond to current load &mdash;
+  it can only prepare for the next phase. This makes trigger <em>timing</em> (when to fire) just as
+  important as trigger <em>accuracy</em> (what to fire on). An earlier, slightly noisier trigger
+  can outperform a precise but delayed one.
+</p>
+
+<h3>5. Graceful drain is non-negotiable for streaming workloads</h3>
+<p>
+  LLM inference generates tokens over 30&ndash;120 seconds. Without graceful drain (tracking
+  in-flight tasks and awaiting completion), scale-down kills active streams. The 170-second
+  timeout plus Karpenter's disruption budget gave us 100% completion on pod termination.
+</p>
+
+
+<div class="footer">
+  Phase 4 &mdash; Cold Start Optimization &bull; LLM Inference Learning Lab &bull; 2026-04-06
+  <br><a href="phase4_results_dashboard.html">&larr; Scaling Policy Comparison</a>
+</div>
+
+</body>
+</html>

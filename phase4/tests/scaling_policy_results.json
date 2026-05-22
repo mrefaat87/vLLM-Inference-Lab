@@ -1,0 +1,1586 @@
+{
+  "experiment": "phase4_scaling_policy_comparison",
+  "start_time": "2026-04-06T04:51:23.592896+00:00",
+  "end_time": "2026-04-06T06:29:57.018539+00:00",
+  "policies_tested": [
+    "policy-a",
+    "policy-b",
+    "policy-c",
+    "policy-d"
+  ],
+  "load_phases": [
+    "light",
+    "moderate",
+    "heavy",
+    "sustained",
+    "kv_stress",
+    "burst",
+    "cooldown"
+  ],
+  "results": {
+    "policy-a": {
+      "policy": "Queue-Only (value=5)",
+      "phases": [
+        {
+          "phase": "light",
+          "steady_state_requests": 10,
+          "total_errors": 6,
+          "completion_rate": 0.625,
+          "ttft_p50": 0.7011,
+          "ttft_p99": 1.3108,
+          "queue_wait_p99_ms": 51.0,
+          "throughput_tok_per_sec": 62.1,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 12,
+                "met": 6,
+                "missed": 6,
+                "compliance": 0.5,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 0.625
+          },
+          "cost": {
+            "total_tokens": 931,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 0.98
+          }
+        },
+        {
+          "phase": "moderate",
+          "steady_state_requests": 22,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4976,
+          "ttft_p99": 0.6715,
+          "queue_wait_p99_ms": 54.1,
+          "throughput_tok_per_sec": 55.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 19,
+                "met": 19,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 834,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 1.1
+          }
+        },
+        {
+          "phase": "heavy",
+          "steady_state_requests": 257,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 4.1481,
+          "ttft_p99": 22.5711,
+          "queue_wait_p99_ms": 22227.1,
+          "throughput_tok_per_sec": 255.9,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 192,
+                "met": 99,
+                "missed": 93,
+                "compliance": 0.5156,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 48,
+                "met": 23,
+                "missed": 25,
+                "compliance": 0.4792,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 10,
+                "met": 9,
+                "missed": 1,
+                "compliance": 0.9,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 7,
+                "met": 2,
+                "missed": 5,
+                "compliance": 0.2857,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.5175
+          },
+          "cost": {
+            "total_tokens": 26874,
+            "gpu_hours": 0.0292,
+            "gpu_cost_usd": 0.0064,
+            "cost_per_million_tokens": 0.24
+          }
+        },
+        {
+          "phase": "sustained",
+          "steady_state_requests": 351,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 38.3732,
+          "ttft_p99": 49.1496,
+          "queue_wait_p99_ms": 48839.8,
+          "throughput_tok_per_sec": 235.3,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 276,
+                "met": 18,
+                "missed": 258,
+                "compliance": 0.0652,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 54,
+                "met": 6,
+                "missed": 48,
+                "compliance": 0.1111,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 16,
+                "met": 6,
+                "missed": 10,
+                "compliance": 0.375,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 5,
+                "met": 0,
+                "missed": 5,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0855
+          },
+          "cost": {
+            "total_tokens": 28231,
+            "gpu_hours": 0.0333,
+            "gpu_cost_usd": 0.0073,
+            "cost_per_million_tokens": 0.26
+          }
+        },
+        {
+          "phase": "kv_stress",
+          "steady_state_requests": 5,
+          "total_errors": 25,
+          "completion_rate": 0.167,
+          "ttft_p50": 75.1948,
+          "ttft_p99": 77.2019,
+          "queue_wait_p99_ms": 76383.8,
+          "throughput_tok_per_sec": 227.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 0,
+                "compliance": null
+              },
+              "medium": {
+                "count": 0,
+                "compliance": null
+              },
+              "long": {
+                "count": 0,
+                "compliance": null
+              },
+              "very_long": {
+                "count": 30,
+                "met": 0,
+                "missed": 30,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0
+          },
+          "cost": {
+            "total_tokens": 10240,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.27
+          }
+        },
+        {
+          "phase": "burst",
+          "steady_state_requests": 45,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 23.8871,
+          "ttft_p99": 34.5844,
+          "queue_wait_p99_ms": 34278.0,
+          "throughput_tok_per_sec": 260.5,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 37,
+                "met": 0,
+                "missed": 37,
+                "compliance": 0.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 1,
+                "met": 0,
+                "missed": 1,
+                "compliance": 0.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 1,
+                "missed": 1,
+                "compliance": 0.5,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 5,
+                "met": 1,
+                "missed": 4,
+                "compliance": 0.2,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0444
+          },
+          "cost": {
+            "total_tokens": 11724,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.23
+          }
+        },
+        {
+          "phase": "cooldown",
+          "note": "No requests (cooldown phase)"
+        }
+      ],
+      "scaling_summary": {
+        "scale_events": 10,
+        "max_replicas_reached": 4,
+        "scale_up_trigger_time": 1775451117.747772,
+        "scale_up_ready_time": 1775452145.622742,
+        "scale_up_latency_sec": 1027.9,
+        "scale_down_time": null
+      },
+      "scaling_events": [
+        {
+          "time": 1775451117.747772,
+          "event": "desired_changed",
+          "from": null,
+          "to": 1,
+          "ready": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775451117.747772,
+          "event": "ready_changed",
+          "from": null,
+          "to": 1,
+          "desired": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775451565.210795,
+          "event": "desired_changed",
+          "from": 1,
+          "to": 2,
+          "ready": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775451757.653585,
+          "event": "desired_changed",
+          "from": 2,
+          "to": 3,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775451819.983628,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 4,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775452145.622742,
+          "event": "ready_changed",
+          "from": 1,
+          "to": 2,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775452206.998514,
+          "event": "ready_changed",
+          "from": 2,
+          "to": 3,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775452293.104767,
+          "event": "ready_changed",
+          "from": 3,
+          "to": 4,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775452509.705724,
+          "event": "desired_changed",
+          "from": 4,
+          "to": 3,
+          "ready": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775452509.705724,
+          "event": "ready_changed",
+          "from": 4,
+          "to": 3,
+          "desired": 3,
+          "nodes": 4
+        }
+      ],
+      "duration_sec": 1414.2
+    },
+    "policy-b": {
+      "policy": "Queue-Only Eager (value=3)",
+      "phases": [
+        {
+          "phase": "light",
+          "steady_state_requests": 12,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4919,
+          "ttft_p99": 0.6762,
+          "queue_wait_p99_ms": 44.1,
+          "throughput_tok_per_sec": 66.7,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 8,
+                "met": 8,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 1001,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 0.92
+          }
+        },
+        {
+          "phase": "moderate",
+          "steady_state_requests": 22,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4779,
+          "ttft_p99": 0.939,
+          "queue_wait_p99_ms": 33.5,
+          "throughput_tok_per_sec": 56.5,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 19,
+                "met": 19,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 848,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 1.08
+          }
+        },
+        {
+          "phase": "heavy",
+          "steady_state_requests": 260,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 4.4078,
+          "ttft_p99": 28.3988,
+          "queue_wait_p99_ms": 28099.5,
+          "throughput_tok_per_sec": 254.0,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 195,
+                "met": 99,
+                "missed": 96,
+                "compliance": 0.5077,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 48,
+                "met": 23,
+                "missed": 25,
+                "compliance": 0.4792,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 10,
+                "met": 8,
+                "missed": 2,
+                "compliance": 0.8,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 7,
+                "met": 1,
+                "missed": 6,
+                "compliance": 0.1429,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.5038
+          },
+          "cost": {
+            "total_tokens": 26669,
+            "gpu_hours": 0.0292,
+            "gpu_cost_usd": 0.0064,
+            "cost_per_million_tokens": 0.24
+          }
+        },
+        {
+          "phase": "sustained",
+          "steady_state_requests": 354,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 36.3443,
+          "ttft_p99": 47.3773,
+          "queue_wait_p99_ms": 47074.0,
+          "throughput_tok_per_sec": 232.7,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 279,
+                "met": 16,
+                "missed": 263,
+                "compliance": 0.0573,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 54,
+                "met": 6,
+                "missed": 48,
+                "compliance": 0.1111,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 16,
+                "met": 6,
+                "missed": 10,
+                "compliance": 0.375,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 5,
+                "met": 1,
+                "missed": 4,
+                "compliance": 0.2,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0819
+          },
+          "cost": {
+            "total_tokens": 27924,
+            "gpu_hours": 0.0333,
+            "gpu_cost_usd": 0.0073,
+            "cost_per_million_tokens": 0.26
+          }
+        },
+        {
+          "phase": "kv_stress",
+          "steady_state_requests": 5,
+          "total_errors": 25,
+          "completion_rate": 0.167,
+          "ttft_p50": 77.6904,
+          "ttft_p99": 77.9615,
+          "queue_wait_p99_ms": 77129.1,
+          "throughput_tok_per_sec": 227.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 0,
+                "compliance": null
+              },
+              "medium": {
+                "count": 0,
+                "compliance": null
+              },
+              "long": {
+                "count": 0,
+                "compliance": null
+              },
+              "very_long": {
+                "count": 30,
+                "met": 0,
+                "missed": 30,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0
+          },
+          "cost": {
+            "total_tokens": 10240,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.27
+          }
+        },
+        {
+          "phase": "burst",
+          "steady_state_requests": 45,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 27.1141,
+          "ttft_p99": 41.6481,
+          "queue_wait_p99_ms": 40814.4,
+          "throughput_tok_per_sec": 305.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 36,
+                "met": 0,
+                "missed": 36,
+                "compliance": 0.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 1,
+                "met": 0,
+                "missed": 1,
+                "compliance": 0.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 1,
+                "missed": 1,
+                "compliance": 0.5,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 6,
+                "met": 0,
+                "missed": 6,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0222
+          },
+          "cost": {
+            "total_tokens": 13752,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.2
+          }
+        },
+        {
+          "phase": "cooldown",
+          "note": "No requests (cooldown phase)"
+        }
+      ],
+      "scaling_summary": {
+        "scale_events": 9,
+        "max_replicas_reached": 4,
+        "scale_up_trigger_time": 1775452760.893097,
+        "scale_up_ready_time": 1775453674.850167,
+        "scale_up_latency_sec": 914.0,
+        "scale_down_time": null
+      },
+      "scaling_events": [
+        {
+          "time": 1775452760.893097,
+          "event": "desired_changed",
+          "from": null,
+          "to": 1,
+          "ready": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775452760.893097,
+          "event": "ready_changed",
+          "from": null,
+          "to": 1,
+          "desired": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775453088.8994849,
+          "event": "desired_changed",
+          "from": 1,
+          "to": 2,
+          "ready": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775453284.517958,
+          "event": "desired_changed",
+          "from": 2,
+          "to": 3,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775453334.6614609,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 4,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775453674.850167,
+          "event": "ready_changed",
+          "from": 1,
+          "to": 2,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775453783.991584,
+          "event": "ready_changed",
+          "from": 2,
+          "to": 4,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775454046.864672,
+          "event": "desired_changed",
+          "from": 4,
+          "to": 3,
+          "ready": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775454046.864672,
+          "event": "ready_changed",
+          "from": 4,
+          "to": 3,
+          "desired": 3,
+          "nodes": 4
+        }
+      ],
+      "duration_sec": 1308.7
+    },
+    "policy-c": {
+      "policy": "Composite Conservative (KV>0.80)",
+      "phases": [
+        {
+          "phase": "light",
+          "steady_state_requests": 12,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4921,
+          "ttft_p99": 0.6762,
+          "queue_wait_p99_ms": 4.5,
+          "throughput_tok_per_sec": 66.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 8,
+                "met": 8,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 999,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 0.92
+          }
+        },
+        {
+          "phase": "moderate",
+          "steady_state_requests": 22,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4861,
+          "ttft_p99": 0.6788,
+          "queue_wait_p99_ms": 22.2,
+          "throughput_tok_per_sec": 56.6,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 19,
+                "met": 19,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 849,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 1.08
+          }
+        },
+        {
+          "phase": "heavy",
+          "steady_state_requests": 259,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 4.6121,
+          "ttft_p99": 29.5741,
+          "queue_wait_p99_ms": 29220.5,
+          "throughput_tok_per_sec": 262.7,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 194,
+                "met": 99,
+                "missed": 95,
+                "compliance": 0.5103,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 48,
+                "met": 23,
+                "missed": 25,
+                "compliance": 0.4792,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 10,
+                "met": 8,
+                "missed": 2,
+                "compliance": 0.8,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 7,
+                "met": 0,
+                "missed": 7,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.5019
+          },
+          "cost": {
+            "total_tokens": 27580,
+            "gpu_hours": 0.0292,
+            "gpu_cost_usd": 0.0064,
+            "cost_per_million_tokens": 0.23
+          }
+        },
+        {
+          "phase": "sustained",
+          "steady_state_requests": 354,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 36.4773,
+          "ttft_p99": 46.7319,
+          "queue_wait_p99_ms": 46380.0,
+          "throughput_tok_per_sec": 238.2,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 279,
+                "met": 16,
+                "missed": 263,
+                "compliance": 0.0573,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 54,
+                "met": 6,
+                "missed": 48,
+                "compliance": 0.1111,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 16,
+                "met": 6,
+                "missed": 10,
+                "compliance": 0.375,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 5,
+                "met": 0,
+                "missed": 5,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0791
+          },
+          "cost": {
+            "total_tokens": 28584,
+            "gpu_hours": 0.0333,
+            "gpu_cost_usd": 0.0073,
+            "cost_per_million_tokens": 0.26
+          }
+        },
+        {
+          "phase": "kv_stress",
+          "steady_state_requests": 19,
+          "total_errors": 11,
+          "completion_rate": 0.633,
+          "ttft_p50": 88.9714,
+          "ttft_p99": 118.5082,
+          "queue_wait_p99_ms": 117713.0,
+          "throughput_tok_per_sec": 824.5,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 0,
+                "compliance": null
+              },
+              "medium": {
+                "count": 0,
+                "compliance": null
+              },
+              "long": {
+                "count": 0,
+                "compliance": null
+              },
+              "very_long": {
+                "count": 30,
+                "met": 0,
+                "missed": 30,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0
+          },
+          "cost": {
+            "total_tokens": 37104,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.07
+          }
+        },
+        {
+          "phase": "burst",
+          "steady_state_requests": 45,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4993,
+          "ttft_p99": 0.879,
+          "queue_wait_p99_ms": 57.3,
+          "throughput_tok_per_sec": 294.0,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 36,
+                "met": 36,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 6,
+                "met": 6,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 13232,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.21
+          }
+        },
+        {
+          "phase": "cooldown",
+          "note": "No requests (cooldown phase)"
+        }
+      ],
+      "scaling_summary": {
+        "scale_events": 12,
+        "max_replicas_reached": 4,
+        "scale_up_trigger_time": 1775454288.473085,
+        "scale_up_ready_time": 1775455120.817021,
+        "scale_up_latency_sec": 832.3,
+        "scale_down_time": null
+      },
+      "scaling_events": [
+        {
+          "time": 1775454288.473085,
+          "event": "desired_changed",
+          "from": null,
+          "to": 1,
+          "ready": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775454288.473085,
+          "event": "ready_changed",
+          "from": null,
+          "to": 1,
+          "desired": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775454613.7159538,
+          "event": "desired_changed",
+          "from": 1,
+          "to": 2,
+          "ready": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775454817.491958,
+          "event": "desired_changed",
+          "from": 2,
+          "to": 3,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775454878.350106,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 4,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775455120.817021,
+          "event": "ready_changed",
+          "from": 1,
+          "to": 2,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775455288.180751,
+          "event": "ready_changed",
+          "from": 2,
+          "to": 3,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775455312.5168152,
+          "event": "ready_changed",
+          "from": 3,
+          "to": 4,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775455396.26981,
+          "event": "desired_changed",
+          "from": 4,
+          "to": 3,
+          "ready": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775455396.26981,
+          "event": "ready_changed",
+          "from": 4,
+          "to": 3,
+          "desired": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775455516.795338,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 2,
+          "ready": 2,
+          "nodes": 4
+        },
+        {
+          "time": 1775455516.795338,
+          "event": "ready_changed",
+          "from": 3,
+          "to": 2,
+          "desired": 2,
+          "nodes": 4
+        }
+      ],
+      "duration_sec": 1345.6
+    },
+    "policy-d": {
+      "policy": "Composite Aggressive (KV>0.65)",
+      "phases": [
+        {
+          "phase": "light",
+          "steady_state_requests": 12,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4767,
+          "ttft_p99": 0.6673,
+          "queue_wait_p99_ms": 31.7,
+          "throughput_tok_per_sec": 66.5,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 8,
+                "met": 8,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 998,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 0.92
+          }
+        },
+        {
+          "phase": "moderate",
+          "steady_state_requests": 22,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4841,
+          "ttft_p99": 0.6483,
+          "queue_wait_p99_ms": 39.7,
+          "throughput_tok_per_sec": 56.7,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 19,
+                "met": 19,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 0,
+                "compliance": null
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 850,
+            "gpu_hours": 0.0042,
+            "gpu_cost_usd": 0.0009,
+            "cost_per_million_tokens": 1.08
+          }
+        },
+        {
+          "phase": "heavy",
+          "steady_state_requests": 259,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 4.4354,
+          "ttft_p99": 26.847,
+          "queue_wait_p99_ms": 26485.7,
+          "throughput_tok_per_sec": 262.8,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 194,
+                "met": 99,
+                "missed": 95,
+                "compliance": 0.5103,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 48,
+                "met": 23,
+                "missed": 25,
+                "compliance": 0.4792,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 10,
+                "met": 9,
+                "missed": 1,
+                "compliance": 0.9,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 7,
+                "met": 1,
+                "missed": 6,
+                "compliance": 0.1429,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.5097
+          },
+          "cost": {
+            "total_tokens": 27594,
+            "gpu_hours": 0.0292,
+            "gpu_cost_usd": 0.0064,
+            "cost_per_million_tokens": 0.23
+          }
+        },
+        {
+          "phase": "sustained",
+          "steady_state_requests": 354,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 39.3653,
+          "ttft_p99": 49.8601,
+          "queue_wait_p99_ms": 49550.0,
+          "throughput_tok_per_sec": 238.5,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 279,
+                "met": 17,
+                "missed": 262,
+                "compliance": 0.0609,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 54,
+                "met": 6,
+                "missed": 48,
+                "compliance": 0.1111,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 16,
+                "met": 6,
+                "missed": 10,
+                "compliance": 0.375,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 5,
+                "met": 0,
+                "missed": 5,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0819
+          },
+          "cost": {
+            "total_tokens": 28615,
+            "gpu_hours": 0.0333,
+            "gpu_cost_usd": 0.0073,
+            "cost_per_million_tokens": 0.26
+          }
+        },
+        {
+          "phase": "kv_stress",
+          "steady_state_requests": 23,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 57.9613,
+          "ttft_p99": 111.0581,
+          "queue_wait_p99_ms": 108113.3,
+          "throughput_tok_per_sec": 968.1,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 0,
+                "compliance": null
+              },
+              "medium": {
+                "count": 0,
+                "compliance": null
+              },
+              "long": {
+                "count": 0,
+                "compliance": null
+              },
+              "very_long": {
+                "count": 23,
+                "met": 0,
+                "missed": 23,
+                "compliance": 0.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 0.0
+          },
+          "cost": {
+            "total_tokens": 43563,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.06
+          }
+        },
+        {
+          "phase": "burst",
+          "steady_state_requests": 45,
+          "total_errors": 0,
+          "completion_rate": 1.0,
+          "ttft_p50": 0.4893,
+          "ttft_p99": 0.8132,
+          "queue_wait_p99_ms": 8.3,
+          "throughput_tok_per_sec": 300.7,
+          "nack_count": 0,
+          "sla": {
+            "per_type": {
+              "short": {
+                "count": 36,
+                "met": 36,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 5
+              },
+              "medium": {
+                "count": 1,
+                "met": 1,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 15
+              },
+              "long": {
+                "count": 2,
+                "met": 2,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 30
+              },
+              "very_long": {
+                "count": 6,
+                "met": 6,
+                "missed": 0,
+                "compliance": 1.0,
+                "threshold_sec": 90
+              }
+            },
+            "overall_compliance": 1.0
+          },
+          "cost": {
+            "total_tokens": 13531,
+            "gpu_hours": 0.0125,
+            "gpu_cost_usd": 0.0028,
+            "cost_per_million_tokens": 0.2
+          }
+        },
+        {
+          "phase": "cooldown",
+          "note": "No requests (cooldown phase)"
+        }
+      ],
+      "scaling_summary": {
+        "scale_events": 12,
+        "max_replicas_reached": 4,
+        "scale_up_trigger_time": 1775455663.085341,
+        "scale_up_ready_time": 1775456487.7484758,
+        "scale_up_latency_sec": 824.7,
+        "scale_down_time": null
+      },
+      "scaling_events": [
+        {
+          "time": 1775455663.085341,
+          "event": "desired_changed",
+          "from": null,
+          "to": 1,
+          "ready": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775455663.085341,
+          "event": "ready_changed",
+          "from": null,
+          "to": 1,
+          "desired": 1,
+          "nodes": 4
+        },
+        {
+          "time": 1775455990.46813,
+          "event": "desired_changed",
+          "from": 1,
+          "to": 2,
+          "ready": 1,
+          "nodes": 1
+        },
+        {
+          "time": 1775456181.405748,
+          "event": "desired_changed",
+          "from": 2,
+          "to": 3,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775456241.6008909,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 4,
+          "ready": 1,
+          "nodes": 2
+        },
+        {
+          "time": 1775456487.7484758,
+          "event": "ready_changed",
+          "from": 1,
+          "to": 2,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775456646.3713548,
+          "event": "ready_changed",
+          "from": 2,
+          "to": 3,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775456658.0105631,
+          "event": "ready_changed",
+          "from": 3,
+          "to": 4,
+          "desired": 4,
+          "nodes": 4
+        },
+        {
+          "time": 1775456768.998112,
+          "event": "desired_changed",
+          "from": 4,
+          "to": 3,
+          "ready": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775456768.998112,
+          "event": "ready_changed",
+          "from": 4,
+          "to": 3,
+          "desired": 3,
+          "nodes": 4
+        },
+        {
+          "time": 1775456890.209114,
+          "event": "desired_changed",
+          "from": 3,
+          "to": 2,
+          "ready": 2,
+          "nodes": 4
+        },
+        {
+          "time": 1775456890.209114,
+          "event": "ready_changed",
+          "from": 3,
+          "to": 2,
+          "desired": 2,
+          "nodes": 4
+        }
+      ],
+      "duration_sec": 1341.9
+    }
+  }
+}

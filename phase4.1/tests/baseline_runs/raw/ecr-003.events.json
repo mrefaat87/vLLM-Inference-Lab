@@ -1,0 +1,395 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "action": "Scheduling",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T11:44:02.927151Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309390",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "0/2 nodes are available: 2 node(s) didn't match Pod's node affinity/selector. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:44:02Z",
+                "name": "baseline-ecr-003.18ab6e617dacd1be",
+                "namespace": "baseline",
+                "resourceVersion": "309392",
+                "uid": "0b639770-bff5-4cfc-8671-05bb76b7e150"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:44:04Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309391",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:44:04Z",
+            "message": "Pod should schedule on: nodeclaim/gpu-pool-j22gm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:44:04Z",
+                "name": "baseline-ecr-003.18ab6e61be5d1ed1",
+                "namespace": "baseline",
+                "resourceVersion": "309399",
+                "uid": "b424c350-887a-4bf7-9277-029ccccc8f61"
+            },
+            "reason": "Nominated",
+            "reportingComponent": "karpenter",
+            "reportingInstance": "",
+            "source": {
+                "component": "karpenter"
+            },
+            "type": "Normal"
+        },
+        {
+            "action": "Binding",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T11:45:30.429908Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309391",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "Successfully assigned baseline/baseline-ecr-003 to ip-10-5-16-247.ec2.internal",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:45:30Z",
+                "name": "baseline-ecr-003.18ab6e75dd3f0fae",
+                "namespace": "baseline",
+                "resourceVersion": "309915",
+                "uid": "20a6078e-ff5f-46b5-b05c-ee24ee20f385"
+            },
+            "reason": "Scheduled",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:45:30Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:45:30Z",
+            "message": "Pulling image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:45:30Z",
+                "name": "baseline-ecr-003.18ab6e75fd0c758b",
+                "namespace": "baseline",
+                "resourceVersion": "309920",
+                "uid": "9e6ce0df-74ea-4520-b4e0-548959f65963"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:45:38Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:45:38Z",
+            "message": "Successfully pulled image \"public.ecr.aws/aws-cli/aws-cli:2.17.18\" in 7.092s (7.092s including waiting). Image size: 125889031 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:45:38Z",
+                "name": "baseline-ecr-003.18ab6e77a3c7bd0c",
+                "namespace": "baseline",
+                "resourceVersion": "309957",
+                "uid": "e31a15b6-8f95-408f-8607-d3f094b8f148"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:45:38Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:45:38Z",
+            "message": "Created container: model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:45:38Z",
+                "name": "baseline-ecr-003.18ab6e77a61900d4",
+                "namespace": "baseline",
+                "resourceVersion": "309958",
+                "uid": "b9b90661-1632-471d-8016-9620f306e369"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:45:39Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{model-download}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:45:39Z",
+            "message": "Started container model-download",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:45:39Z",
+                "name": "baseline-ecr-003.18ab6e7802a6e877",
+                "namespace": "baseline",
+                "resourceVersion": "309966",
+                "uid": "4dca22fc-f8f7-470b-be06-2af253aed1c7"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:46:31Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:46:31Z",
+            "message": "Pulling image \"019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0\"",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:46:31Z",
+                "name": "baseline-ecr-003.18ab6e842448f319",
+                "namespace": "baseline",
+                "resourceVersion": "310182",
+                "uid": "2d256a5d-7e47-4f0f-a191-74f72a09b04d"
+            },
+            "reason": "Pulling",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:51:20Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:51:20Z",
+            "message": "Successfully pulled image \"019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0\" in 4m48.736s (4m48.736s including waiting). Image size: 9577341348 bytes.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:51:20Z",
+                "name": "baseline-ecr-003.18ab6ec75e5128be",
+                "namespace": "baseline",
+                "resourceVersion": "311390",
+                "uid": "edccfb66-c929-4af0-95c9-1f3673f3f4c3"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:51:20Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:51:20Z",
+            "message": "Created container: vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:51:20Z",
+                "name": "baseline-ecr-003.18ab6ec77799ab01",
+                "namespace": "baseline",
+                "resourceVersion": "311394",
+                "uid": "89692ac8-9096-4bf0-82ea-8d50499a076c"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:51:29Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:51:29Z",
+            "message": "Started container vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:51:29Z",
+                "name": "baseline-ecr-003.18ab6ec97e9de975",
+                "namespace": "baseline",
+                "resourceVersion": "311432",
+                "uid": "d05d770e-023f-490a-88f0-83362d7db8a2"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 4,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T11:53:30Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-ecr-003",
+                "namespace": "baseline",
+                "resourceVersion": "309913",
+                "uid": "96d2bc79-4023-4ffb-ada3-ffd01171b31c"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T11:54:00Z",
+            "message": "Readiness probe failed: Get \"http://10.5.6.100:8000/health\": dial tcp 10.5.6.100:8000: connect: connection refused",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T11:53:30Z",
+                "name": "baseline-ecr-003.18ab6ee5b246dae8",
+                "namespace": "baseline",
+                "resourceVersion": "312068",
+                "uid": "804db7d4-cd8a-4407-903d-7c0428cb4e54"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-16-247.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-16-247.ec2.internal"
+            },
+            "type": "Warning"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

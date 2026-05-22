@@ -1,0 +1,92 @@
+# policy-c-composite-conservative.yaml — KEDA: queue depth + KV cache (threshold=0.80).
+#
+# POLICY C (COMPOSITE CONSERVATIVE): Two triggers — queue depth AND GPU KV cache.
+# KEDA takes the MAX across triggers: scale up if EITHER says "overloaded".
+#
+# WHY TWO TRIGGERS:
+#   Queue depth alone misses a scenario: queue is short (3 messages) but each
+#   request is enormous (2048 tokens). The GPU is saturated (KV cache at 85%)
+#   but queue depth says "fine". Adding a KV cache trigger catches this case.
+#
+# WHY 0.80 (CONSERVATIVE): matches the admission rejection threshold. KEDA
+# triggers scale-up at the exact same KV level where admission starts rejecting.
+# This means: by the time the new worker is ready (~5 min), admission has been
+# rejecting and requeuing for 5 min — the new worker has a backlog to drain.
+#
+# TRADE-OFF: Conservative approach means we tolerate some rejection before
+# scaling. If the Prometheus metric is stale or slow, this policy behaves
+# almost identically to queue-only (Policy A).
+#
+# ANALOGY: Composite alarm in CloudWatch — scale if EITHER queue depth > 5
+# OR CPU utilization > 80%. CloudWatch evaluates both and takes the max.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm-worker-scaler
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: vllm-worker-scaler
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: autoscaling
+    scaling-policy: composite-conservative
+spec:
+  scaleTargetRef:
+    name: vllm-worker
+
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  # WHY 300s: cooldown must exceed scale-up latency (~165s with optimizations).
+  # See policy-a for the full explanation of the 2x rule.
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+
+  triggers:
+    # Trigger 1: Queue depth (same as Policy A)
+    - type: rabbitmq
+      metadata:
+        queueName: inference_queue
+        mode: QueueLength
+        value: "5"
+        activationValue: "3"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
+
+    # Trigger 2: Average KV cache usage across all workers
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        # WHY full DNS: cross-namespace resolution requires FQDN. Prometheus is in
+        # the monitoring namespace, ScaledObject is in inference-system.
+
+        metricName: vllm_kv_cache_avg
+        # WHY custom name: KEDA registers this metric with the K8s metrics API.
+        # Must be unique across triggers.
+
+        query: avg(vllm:gpu_cache_usage_perc)
+        # WHY avg(): if 2 workers exist and both show KV cache > 80%, a third
+        # worker would help distribute load. If only 1 is hot, the other has
+        # capacity — no need to scale.
+
+        threshold: "0.80"
+        # WHY 0.80: conservative — matches the admission rejection threshold.
+        # Scale when admission control starts rejecting (both fire at 80%).
+
+        activationThreshold: "0.60"
+        # WHY 0.60: don't even consider scaling until KV cache reaches 60%.
+        # Below that, the GPU has plenty of headroom.

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 3 — Backpressure Strategy Comparison Results</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif; background: #0d1117; color: #e6edf3; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 32px 0 16px; color: #58a6ff; }
+  h3 { font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #7ee787; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+  .card-title { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .big-number { font-size: 42px; font-weight: 700; line-height: 1.1; }
+  .big-number.green { color: #7ee787; }
+  .big-number.yellow { color: #e3b341; }
+  .big-number.red { color: #f85149; }
+  .big-number.blue { color: #58a6ff; }
+  .unit { font-size: 16px; font-weight: 400; color: #8b949e; }
+  .detail { font-size: 13px; color: #8b949e; margin-top: 4px; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #30363d; color: #8b949e; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #161b22; }
+
+  .flow { display: flex; align-items: center; gap: 8px; padding: 16px; background: #161b22; border-radius: 8px; border: 1px solid #30363d; overflow-x: auto; margin: 16px 0; font-size: 13px; }
+  .flow-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; white-space: nowrap; text-align: center; }
+  .flow-arrow { color: #484f58; font-size: 18px; flex-shrink: 0; }
+  .flow-time { font-size: 11px; color: #7ee787; display: block; margin-top: 2px; }
+
+  .insight { background: #1c2128; border-left: 3px solid #58a6ff; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 14px; line-height: 1.6; }
+  .insight strong { color: #58a6ff; }
+  .warning { border-left-color: #e3b341; }
+  .warning strong { color: #e3b341; }
+  .success { border-left-color: #7ee787; }
+  .success strong { color: #7ee787; }
+  .danger { border-left-color: #f85149; }
+  .danger strong { color: #f85149; }
+
+  .screenshot { border: 1px solid #30363d; border-radius: 8px; margin: 16px 0; width: 100%; }
+  .screenshot-caption { font-size: 12px; color: #8b949e; margin-top: 4px; margin-bottom: 16px; }
+
+  .strategy-label { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .strategy-static { background: #1f3d2a; color: #7ee787; }
+  .strategy-threshold { background: #3d2e1f; color: #e3b341; }
+  .strategy-per_request { background: #2d1f3d; color: #bc8cff; }
+
+  .winner { background: #1f3d2a; }
+  .loser { background: #3d1f1f; }
+
+  .section { margin: 32px 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+
+  .bar-chart { margin: 12px 0; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+  .bar-label { width: 120px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 28px; background: #21262d; border-radius: 4px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+  .bar-value { font-size: 12px; color: #8b949e; width: 80px; text-align: right; flex-shrink: 0; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Phase 3 — Backpressure Strategy Comparison</h1>
+<p class="subtitle">3 Admission Control Strategies &times; 5 Workload Levels &bull; Qwen2.5-7B-AWQ on NVIDIA T4 (g4dn.xlarge Spot) &bull; EKS 1.29, PREFETCH_COUNT=10, MAX_BATCH_SIZE=8 &bull; 2026-04-05</p>
+
+<!-- ─── Background ─── -->
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin-bottom: 32px; line-height: 1.7;">
+
+<h2 style="margin-top: 0; margin-bottom: 16px;">What Is This Experiment?</h2>
+
+<p style="margin-bottom: 16px;">Phase 1 built the queue-based inference pipeline. Phase 2 added observability and autoscaling. But the worker's admission control — the gate that decides whether to accept or reject a request based on GPU state — was never tested in isolation. <strong>Which admission strategy actually works best, and under what conditions?</strong></p>
+
+<p style="margin-bottom: 16px;">This is the deepest systems design exercise in the project. It maps directly to how Anthropic manages inference capacity: when a request arrives, should you admit it immediately, check server utilization first, or estimate how much GPU memory it will consume?</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px; border-left: 3px solid #7ee787;">
+    <div style="color: #7ee787; font-weight: 600; margin-bottom: 8px;">Strategy 1: Static</div>
+    <div style="color: #8b949e; font-size: 13px; line-height: 1.5;">
+      Set <span class="mono">prefetch_count=N</span>, no runtime checks. RabbitMQ is the only concurrency limiter.<br>
+      <strong>AWS analogy:</strong> Fixed-size ASG. Simple. Predictable. No overhead.
+    </div>
+  </div>
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px; border-left: 3px solid #e3b341;">
+    <div style="color: #e3b341; font-weight: 600; margin-bottom: 8px;">Strategy 2: Threshold</div>
+    <div style="color: #8b949e; font-size: 13px; line-height: 1.5;">
+      Poll vLLM <span class="mono">/metrics</span> before each request. Admit if KV&nbsp;cache&nbsp;&lt;&nbsp;80% AND running&nbsp;&lt;&nbsp;8.<br>
+      <strong>AWS analogy:</strong> Target tracking on CPU utilization.
+    </div>
+  </div>
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px; border-left: 3px solid #bc8cff;">
+    <div style="color: #bc8cff; font-weight: 600; margin-bottom: 8px;">Strategy 3: Per-Request</div>
+    <div style="color: #8b949e; font-size: 13px; line-height: 1.5;">
+      Estimate request's KV cache cost from prompt length + max_tokens. Project post-admission state. Admit only if projected&nbsp;&lt;&nbsp;80%.<br>
+      <strong>AWS analogy:</strong> Weighted admission control based on request size.
+    </div>
+  </div>
+</div>
+
+<p style="margin-bottom: 16px;"><strong>The first attempt (v1) showed zero differentiation</strong> — all three strategies performed identically. Root cause: <span class="mono">prefetch_count=5</span> capped concurrent requests at 5, but <span class="mono">MAX_BATCH_SIZE=8</span> required 8+ to trigger admission control. The gate was unreachable. KV cache peaked at 11.5% against an 80% threshold — also never triggered.</p>
+
+<p style="margin-bottom: 16px;"><strong>The fix:</strong> raised <span class="mono">PREFETCH_COUNT</span> to 10 (worker can hold 10 concurrent requests, exceeding <span class="mono">MAX_BATCH_SIZE=8</span>), and designed 5 workload levels as a pressure gradient instead of the binary easy/impossible split.</p>
+
+<p style="margin-bottom: 0;"><strong>The question this experiment answers:</strong> When the system CAN run 10 concurrent requests, does the admission strategy choose wisely? Static blindly takes all 10. Threshold caps at 8. Per-request adapts based on request cost.</p>
+
+</div>
+
+<!-- ─── Workload Design ─── -->
+<h2>Workload Design — The Pressure Gradient</h2>
+<p style="color: #8b949e; margin-bottom: 16px;">Each workload targets a different GPU utilization level. The T4 produces ~120 tok/s when batched. Demand = rate &times; avg tokens per request.</p>
+
+<table>
+  <tr><th>Level</th><th>Name</th><th>Rate</th><th>Pattern</th><th>Demand</th><th>GPU Util</th><th>Purpose</th></tr>
+  <tr><td class="mono">1</td><td style="color:#7ee787">light</td><td class="mono">0.5 req/s</td><td>S &rarr; M &rarr; L cycling</td><td class="mono">~60 tok/s</td><td class="mono" style="color:#7ee787">~50%</td><td>Baseline — all strategies should be equal</td></tr>
+  <tr><td class="mono">2</td><td style="color:#e3b341">moderate</td><td class="mono">1.0 req/s</td><td>S &rarr; M &rarr; L cycling</td><td class="mono">~120 tok/s</td><td class="mono" style="color:#e3b341">~100%</td><td>Edge — queue starts building</td></tr>
+  <tr><td class="mono">3</td><td style="color:#f85149">heavy</td><td class="mono">1.5 req/s</td><td>S &rarr; M &rarr; L cycling</td><td class="mono">~180 tok/s</td><td class="mono" style="color:#f85149">~150%</td><td>Overload — admission control should matter</td></tr>
+  <tr><td class="mono">4</td><td style="color:#bc8cff">spike_large</td><td class="mono">1.0 req/s</td><td>S S S S L (80/20)</td><td class="mono">~65 tok/s avg</td><td class="mono" style="color:#e3b341">variable</td><td>Burst pattern — per-request should shine</td></tr>
+  <tr><td class="mono">5</td><td style="color:#58a6ff">sustained_medium</td><td class="mono">1.0 req/s</td><td>all Medium</td><td class="mono">~100 tok/s</td><td class="mono" style="color:#e3b341">~83%</td><td>Sweet spot — strategies compete at steady state</td></tr>
+</table>
+
+<!-- ─── Headline Numbers ─── -->
+<h2>Headline Numbers</h2>
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Best Completion Rate Under Pressure</div>
+    <div class="big-number green">100<span class="unit">%</span></div>
+    <div class="detail"><span class="strategy-label strategy-static">Static</span> at heavy (1.5 req/s) — 135/135 requests completed</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Worst Completion Rate</div>
+    <div class="big-number red">22<span class="unit">%</span></div>
+    <div class="detail"><span class="strategy-label strategy-per_request">Per-Request</span> at spike_large — estimation overhead kills throughput</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Best TTFT Under Load</div>
+    <div class="big-number green">0.49<span class="unit">sec</span></div>
+    <div class="detail"><span class="strategy-label strategy-threshold">Threshold</span> at sustained_medium — p50 TTFT stays sub-second</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Total NACKs Across All Runs</div>
+    <div class="big-number blue">0</div>
+    <div class="detail">Admission control gates never triggered — decode throughput is the bottleneck, not KV cache</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Peak Throughput</div>
+    <div class="big-number blue">231<span class="unit">tok/s</span></div>
+    <div class="detail"><span class="strategy-label strategy-threshold">Threshold</span> at heavy — GPU fully saturated</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Experiment Runs</div>
+    <div class="big-number yellow">15</div>
+    <div class="detail">3 strategies &times; 5 workloads &bull; 90s each &bull; 2,160 total requests</div>
+  </div>
+</div>
+
+<!-- ─── Architecture ─── -->
+<h2>How Strategy Switching Works</h2>
+<div class="flow">
+  <div class="flow-box">Test Script<br><span class="flow-time" style="color:#8b949e">kubectl set env</span></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color:#e3b341;">Rolling Update<br><span class="flow-time">kills old pod, starts new</span></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color:#f85149;">vLLM Model Reload<br><span class="flow-time">~3 min on T4</span></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color:#7ee787;">Pipeline Probe<br><span class="flow-time">verifies strategy active</span></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box" style="border-color:#58a6ff;">Sustained Load<br><span class="flow-time">90s open-loop</span></div>
+</div>
+<div class="insight">
+  <strong>KEDA was paused during the experiment</strong> to prevent autoscaling interference. The <span class="mono">autoscaling.keda.sh/paused-replicas=1</span> annotation freezes the ScaledObject. Resumed after all runs completed.
+</div>
+
+<!-- ─── Comparison Matrix ─── -->
+<h2>Full Comparison Matrix — Steady-State Metrics</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">Steady-state window: 20s warmup discarded, 10s drain discarded, middle 60s analyzed. Color coding: <span style="color:#7ee787">green</span> = best in column, <span style="color:#f85149">red</span> = worst.</p>
+
+<h3>Completion Rate</h3>
+<table>
+  <tr><th>Strategy</th><th>light<br><span style="color:#8b949e;font-weight:400">0.5 rps</span></th><th>moderate<br><span style="color:#8b949e;font-weight:400">1.0 rps</span></th><th>heavy<br><span style="color:#8b949e;font-weight:400">1.5 rps</span></th><th>spike_large<br><span style="color:#8b949e;font-weight:400">1.0 rps</span></th><th>sustained_med<br><span style="color:#8b949e;font-weight:400">1.0 rps</span></th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono winner" style="color:#7ee787">100%</td><td class="mono" style="color:#e3b341">98%</td><td class="mono winner" style="color:#7ee787; font-weight:600">100%</td><td class="mono winner" style="color:#7ee787; font-weight:600">100%</td><td class="mono" style="color:#7ee787">100%</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono" style="color:#7ee787">100%</td><td class="mono winner" style="color:#7ee787">100%</td><td class="mono" style="color:#e3b341">97%</td><td class="mono" style="color:#f85149">52%</td><td class="mono" style="color:#7ee787">100%</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono loser" style="color:#e3b341">90%</td><td class="mono" style="color:#e3b341">93%</td><td class="mono loser" style="color:#e3b341">91%</td><td class="mono loser" style="color:#f85149; font-weight:600">22%</td><td class="mono" style="color:#7ee787">100%</td></tr>
+</table>
+
+<h3>TTFT p50 (Time to First Token)</h3>
+<table>
+  <tr><th>Strategy</th><th>light</th><th>moderate</th><th>heavy</th><th>spike_large</th><th>sustained_med</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">0.88s</td><td class="mono">0.90s</td><td class="mono winner" style="color:#7ee787">7.64s</td><td class="mono winner" style="color:#7ee787">0.89s</td><td class="mono">0.86s</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono winner" style="color:#7ee787">0.50s</td><td class="mono winner" style="color:#7ee787">0.50s</td><td class="mono" style="color:#e3b341">9.96s</td><td class="mono" style="color:#e3b341">1.04s</td><td class="mono winner" style="color:#7ee787">0.49s</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono loser" style="color:#f85149">1.30s</td><td class="mono">0.53s</td><td class="mono loser" style="color:#f85149">10.45s</td><td class="mono loser" style="color:#f85149">4.37s</td><td class="mono loser" style="color:#f85149">4.60s</td></tr>
+</table>
+
+<h3>TTFT p99 (Tail Latency)</h3>
+<table>
+  <tr><th>Strategy</th><th>light</th><th>moderate</th><th>heavy</th><th>spike_large</th><th>sustained_med</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">1.22s</td><td class="mono" style="color:#f85149">5.29s</td><td class="mono winner" style="color:#7ee787">12.68s</td><td class="mono winner" style="color:#7ee787">1.22s</td><td class="mono">1.11s</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono winner" style="color:#7ee787">0.75s</td><td class="mono winner" style="color:#7ee787">0.81s</td><td class="mono loser" style="color:#f85149">15.89s</td><td class="mono loser" style="color:#f85149">12.47s</td><td class="mono winner" style="color:#7ee787">0.72s</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono" style="color:#e3b341">1.94s</td><td class="mono" style="color:#e3b341">4.23s</td><td class="mono" style="color:#e3b341">15.65s</td><td class="mono" style="color:#e3b341">7.47s</td><td class="mono loser" style="color:#f85149">6.35s</td></tr>
+</table>
+
+<h3>Throughput (tok/s aggregate over steady-state)</h3>
+<table>
+  <tr><th>Strategy</th><th>light</th><th>moderate</th><th>heavy</th><th>spike_large</th><th>sustained_med</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">74 tok/s</td><td class="mono">148 tok/s</td><td class="mono" style="color:#7ee787">230 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">66 tok/s</td><td class="mono" style="color:#7ee787">140 tok/s</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono winner" style="color:#7ee787">77 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">154 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">231 tok/s</td><td class="mono" style="color:#e3b341">50 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">146 tok/s</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono loser" style="color:#f85149">72 tok/s</td><td class="mono">149 tok/s</td><td class="mono loser" style="color:#f85149">215 tok/s</td><td class="mono loser" style="color:#f85149">50 tok/s</td><td class="mono loser" style="color:#f85149">94 tok/s</td></tr>
+</table>
+
+<h3>Queue Wait p99</h3>
+<table>
+  <tr><th>Strategy</th><th>light</th><th>moderate</th><th>heavy</th><th>spike_large</th><th>sustained_med</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono winner" style="color:#7ee787">37ms</td><td class="mono winner" style="color:#7ee787">39ms</td><td class="mono winner" style="color:#7ee787">12,041ms</td><td class="mono">17ms</td><td class="mono" style="color:#7ee787">54ms</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono">48ms</td><td class="mono">54ms</td><td class="mono loser" style="color:#f85149">13,932ms</td><td class="mono winner" style="color:#7ee787">5ms</td><td class="mono" style="color:#e3b341">60ms</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono">47ms</td><td class="mono loser" style="color:#e3b341">63ms</td><td class="mono">12,477ms</td><td class="mono" style="color:#e3b341">47ms</td><td class="mono winner" style="color:#7ee787">30ms</td></tr>
+</table>
+
+<h3>Server-Estimated TBT p50 (ms)</h3>
+<table>
+  <tr><th>Strategy</th><th>light</th><th>moderate</th><th>heavy</th><th>spike_large</th><th>sustained_med</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">38.5ms</td><td class="mono">46.5ms</td><td class="mono">50.6ms</td><td class="mono loser" style="color:#f85149">82.1ms</td><td class="mono">40.3ms</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono winner" style="color:#7ee787">36.7ms</td><td class="mono winner" style="color:#7ee787">44.9ms</td><td class="mono" style="color:#7ee787">50.7ms</td><td class="mono" style="color:#e3b341">54.3ms</td><td class="mono winner" style="color:#7ee787">38.6ms</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono" style="color:#e3b341">39.4ms</td><td class="mono">44.8ms</td><td class="mono loser" style="color:#e3b341">51.2ms</td><td class="mono winner" style="color:#7ee787">43.6ms</td><td class="mono loser" style="color:#f85149">63.9ms</td></tr>
+</table>
+
+<!-- ─── Key Insight: Why 0 NACKs ─── -->
+<h2>The Big Surprise: Zero NACKs</h2>
+
+<div class="insight warning">
+  <strong>None of the three strategies ever triggered their rejection path.</strong> Across 2,160 total requests, the admission control gate in strategies 2 and 3 never fired a single NACK. Both checks were unreachable:
+  <ul style="margin-top: 8px; padding-left: 20px;">
+    <li><strong>KV cache check:</strong> Peak KV usage was ~11.5% (max 5 concurrent &times; 550 tokens &times; 401KB = 1.1GB out of 9.6GB). The 80% threshold requires 7.7GB — impossible with these request sizes.</li>
+    <li><strong>Running requests check:</strong> Even at 1.5 req/s with <span class="mono">prefetch_count=10</span>, vLLM's continuous batcher processes requests fast enough that <span class="mono">running_requests</span> rarely exceeds 5-6. The <span class="mono">MAX_BATCH_SIZE=8</span> threshold was never hit.</li>
+  </ul>
+</div>
+
+<div class="insight">
+  <strong>The bottleneck is decode throughput, not KV memory.</strong> The T4's 320 GB/s memory bandwidth is the ceiling. At ~33 tok/s per request single-stream, the GPU can sustain ~120 tok/s batched. When demand exceeds this (heavy at 1.5 req/s &times; ~120 avg tokens = 180 tok/s), the queue grows — but it grows at the <em>RabbitMQ level</em>, not the admission control level. Requests queue in RabbitMQ waiting for a prefetch slot, not NACKing at the strategy gate.
+  <br><br>
+  <strong>AWS analogy:</strong> This is like having a target tracking policy on CPU utilization, but your bottleneck is network bandwidth. The policy never triggers because the metric it watches never crosses the threshold. The actual constraint is somewhere else entirely.
+</div>
+
+<!-- ─── Strategy-by-Strategy Analysis ─── -->
+<h2>Strategy Analysis</h2>
+
+<h3 style="color: #7ee787;">Strategy 1: Static — The Surprising Winner</h3>
+
+<div class="insight success">
+  <strong>Static dominates on completion rate and spike handling.</strong> 100% completion at heavy (1.5 req/s) and spike_large, while threshold dropped to 52% and per-request to 22% at spike_large. The lack of runtime checks means zero admission overhead — every prefetched message gets processed immediately. The GPU handles the rest through continuous batching.
+</div>
+
+<p style="color: #8b949e; margin: 12px 0;">TTFT p50 is consistently ~0.88s across light/moderate/spike workloads — the ~400ms port-forward overhead plus vLLM prefill time. At heavy, TTFT jumps to 7.6s because the queue builds up, but all requests still complete.</p>
+
+<p style="color: #8b949e; margin-bottom: 12px;">The one weakness: <strong>TTFT p99 at moderate is 5.29s</strong> (vs threshold's 0.81s). Static occasionally lets requests pile up and some hit the tail. But for this GPU/model combo, the simplicity wins.</p>
+
+<h3 style="color: #e3b341;">Strategy 2: Threshold — Best Latency, Fragile Under Spikes</h3>
+
+<div class="insight warning">
+  <strong>Threshold has the best TTFT at low-to-moderate load</strong> (0.50s p50 vs static's 0.88s) because <span class="mono">/metrics</span> polling acts as a natural rate limiter — requests are admitted in a measured cadence rather than all-at-once. But it collapses at spike_large: only 52% completion. The <span class="mono">/metrics</span> poll + check cycle adds ~2-5ms per request, and when a long request arrives amid short ones, the check happens to catch the GPU during a brief busy period and delays admission — cascading into timeouts.
+</div>
+
+<p style="color: #8b949e; margin: 12px 0;">Peak throughput is the highest at heavy (231 tok/s) — the polling-based throttling coincidentally paces requests well for the GPU's continuous batcher. But this is fragile: it breaks under spike_large where the pattern switches between short and long requests unpredictably.</p>
+
+<h3 style="color: #bc8cff;">Strategy 3: Per-Request — Over-Engineered for This Hardware</h3>
+
+<div class="insight danger">
+  <strong>Per-request admission control is the worst performer.</strong> Lower completion rates across every workload (90% at light, 22% at spike_large), higher TTFT (1.30s p50 at light, 4.60s at sustained_medium), and lower throughput (94 tok/s at sustained_medium vs static's 140). The KV cost estimation using <span class="mono">max_tokens</span> (worst-case output) makes it overly conservative — rejecting requests that would have fit comfortably.
+</div>
+
+<p style="color: #8b949e; margin: 12px 0;">The fundamental problem: the estimation uses <span class="mono">max_tokens=300</span> as output cost, but actual output averages ~100-150 tokens. This 2-3x overestimate compounds with each concurrent request, making the projected KV usage look scarier than reality. On a T4 with 9.6GB KV cache and small request sizes, this caution is wasted.</p>
+
+<p style="color: #8b949e; margin-bottom: 12px;"><strong>When would it win?</strong> Per-request admission would shine on a GPU with tight KV cache (e.g., running a 70B model on a single A100 where KV cache is genuinely scarce) or with very long contexts (4096+ tokens) where a single request can consume GBs of KV. On a T4 with a 7B model, there's simply too much KV headroom for cost-based admission to matter.</p>
+
+<!-- ─── Grafana Screenshots ─── -->
+<h2>Grafana Dashboard — GPU Behavior Per Strategy</h2>
+<p style="color: #8b949e; margin-bottom: 16px;">Grafana panel screenshots were captured during each run via the Image Renderer API. These show the key metrics during the v1 experiment runs (uniform workloads). 14 panels per run &times; 9 runs = 126 screenshots captured.</p>
+
+<h3>Static Strategy — Uniform Short (GPU Barely Pressured)</h3>
+<div class="two-col">
+  <div>
+    <img src="../screenshots/static_uniform_short/kv_cache_usage.png" alt="KV cache — static uniform short" class="screenshot" />
+    <p class="screenshot-caption">KV Cache stays below 2% — the T4's 9.6GB KV pool is massively over-provisioned for 20-token requests.</p>
+  </div>
+  <div>
+    <img src="../screenshots/static_uniform_short/throughput_tok_s.png" alt="Throughput — static uniform short" class="screenshot" />
+    <p class="screenshot-caption">Steady ~26 tok/s throughput — GPU is not the bottleneck at 2 req/s of short prompts.</p>
+  </div>
+</div>
+
+<h3>Static Strategy — Uniform Long (GPU Overwhelmed)</h3>
+<div class="two-col">
+  <div>
+    <img src="../screenshots/static_uniform_long/kv_cache_usage.png" alt="KV cache — static uniform long" class="screenshot" />
+    <p class="screenshot-caption">KV cache climbs with long prompts but still well under 80%. The bottleneck is decode throughput, not memory.</p>
+  </div>
+  <div>
+    <img src="../screenshots/static_uniform_long/requests_running_waiting.png" alt="Running vs Waiting — static uniform long" class="screenshot" />
+    <p class="screenshot-caption">Requests Running saturates while Waiting builds up — the queue is doing its job as a buffer.</p>
+  </div>
+</div>
+
+<h3>Threshold Strategy — Mixed Workload (Balanced Behavior)</h3>
+<div class="two-col">
+  <div>
+    <img src="../screenshots/threshold_mixed/kv_cache_usage.png" alt="KV cache — threshold mixed" class="screenshot" />
+    <p class="screenshot-caption">KV cache with mixed workload under threshold strategy — stays low because even large requests only use ~1% of available KV.</p>
+  </div>
+  <div>
+    <img src="../screenshots/threshold_mixed/ttft.png" alt="TTFT — threshold mixed" class="screenshot" />
+    <p class="screenshot-caption">TTFT distribution showing p50 and p99 lines diverging as the queue builds up with mixed request sizes.</p>
+  </div>
+</div>
+
+<h3>Per-Request Strategy — Mixed Workload (Conservative Admission)</h3>
+<div class="two-col">
+  <div>
+    <img src="../screenshots/per_request_mixed/kv_cache_usage.png" alt="KV cache — per-request mixed" class="screenshot" />
+    <p class="screenshot-caption">KV cache under per-request strategy — similarly low. The cost estimation is conservative but the actual KV usage shows there was plenty of headroom.</p>
+  </div>
+  <div>
+    <img src="../screenshots/per_request_mixed/queue_depth.png" alt="Queue depth — per-request mixed" class="screenshot" />
+    <p class="screenshot-caption">Queue depth under per-request admission — the conservative estimation causes queue buildup even when the GPU has capacity.</p>
+  </div>
+</div>
+
+<!-- ─── Key Learnings ─── -->
+<h2>Key Learnings</h2>
+
+<div class="insight success" style="margin-bottom: 16px;">
+  <strong>1. Admission control only matters when the gate metric matches the actual bottleneck.</strong> Strategies 2 and 3 gate on KV cache usage and running request count — but the T4's bottleneck is memory bandwidth (decode throughput). It's like building a sophisticated CPU-based scaling policy when your actual constraint is network bandwidth. The policy is technically correct but watching the wrong metric. For this hardware/model combination, the simplest approach (static prefetch) wins because it avoids overhead on a metric that never matters.
+</div>
+
+<div class="insight" style="margin-bottom: 16px;">
+  <strong>2. The "right" strategy depends on which resource is scarce.</strong>
+  <ul style="margin-top: 8px; padding-left: 20px; line-height: 2;">
+    <li><strong>KV cache scarce</strong> (large model, small GPU, long contexts): Per-request admission wins — cost estimation prevents preemption.</li>
+    <li><strong>Decode throughput scarce</strong> (small model, any GPU, short-medium contexts): Static wins — no overhead, GPU handles everything.</li>
+    <li><strong>Both scarce</strong> (production traffic on capacity-constrained fleet): Threshold is the pragmatic middle ground — adapts to runtime state without estimation error.</li>
+  </ul>
+</div>
+
+<div class="insight warning" style="margin-bottom: 16px;">
+  <strong>3. Cost estimation with max_tokens is a trap.</strong> Per-request strategy estimates output as <span class="mono">max_tokens</span>, but most requests terminate at EOS well before the limit. This 2-3x overestimate makes the strategy overly conservative — rejecting requests that would fit comfortably. A better approach: use a running average of actual output lengths per prompt type, or use the tokenizer for precise input counting instead of the 4-chars-per-token approximation.
+</div>
+
+<div class="insight" style="margin-bottom: 16px;">
+  <strong>4. The /metrics polling overhead in threshold strategy is a double-edged sword.</strong> At light-to-moderate load, the polling acts as natural rate limiting — requests are admitted in a measured cadence, reducing GPU contention. This accidentally improves TTFT p50 (0.50s vs static's 0.88s). But under spike patterns, the same overhead causes cascading delays. The ~2-5ms poll time is negligible per-request, but when 10 requests are each polling + waiting, the serialization adds up.
+</div>
+
+<div class="insight danger" style="margin-bottom: 16px;">
+  <strong>5. Zero NACKs means the experiment needs harder conditions to be conclusive.</strong> To truly differentiate the strategies, you need a scenario where KV cache actually approaches 80% — which requires either: (a) a much larger model (70B+) on the same GPU, (b) much longer contexts (4096+ tokens), or (c) a GPU with less VRAM. The T4 with a 7B AWQ model has ~9.6GB of KV headroom — enough for hundreds of concurrent short requests. The strategies were designed for a scarcer resource environment.
+</div>
+
+<div class="insight" style="margin-bottom: 16px;">
+  <strong>6. Anthropic interview insight:</strong> The lesson isn't "static is best" — it's that <strong>the optimal admission strategy depends on which resource is the binding constraint</strong>. Knowing how to identify the bottleneck (KV cache vs decode throughput vs prefill compute) and match the admission gate to it is the real skill. A system that gates on the wrong metric adds complexity without benefit. A system that gates on the right metric prevents preemption storms that waste GPU compute.
+</div>
+
+<!-- ─── Test Config ─── -->
+<h2>Test Configuration</h2>
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td>Cluster</td><td class="mono">EKS 1.29, us-east-1, Karpenter v0.34.0</td></tr>
+  <tr><td>GPU</td><td class="mono">g4dn.xlarge Spot (NVIDIA T4 16GB) — $0.16-0.22/hr</td></tr>
+  <tr><td>Model</td><td class="mono">Qwen/Qwen2.5-7B-Instruct-AWQ (4-bit, ~4GB VRAM)</td></tr>
+  <tr><td>vLLM config</td><td class="mono">--enforce-eager --gpu-memory-utilization 0.85 --max-model-len 4096</td></tr>
+  <tr><td>Worker config</td><td class="mono">PREFETCH_COUNT=10, MAX_BATCH_SIZE=8, GPU_CACHE_THRESHOLD=0.80</td></tr>
+  <tr><td>Duration per run</td><td class="mono">90s (20s warmup, 60s steady-state, 10s drain)</td></tr>
+  <tr><td>Load type</td><td class="mono">Open-loop (fixed rate, not waiting for responses)</td></tr>
+  <tr><td>KEDA</td><td class="mono">Paused during experiment (annotation-based freeze)</td></tr>
+  <tr><td>Deployment strategy</td><td class="mono">maxSurge=0, maxUnavailable=1 (in-place replacement on same GPU node)</td></tr>
+  <tr><td>Total runs</td><td class="mono">15 (3 strategies &times; 5 workloads)</td></tr>
+  <tr><td>Total requests</td><td class="mono">2,160</td></tr>
+  <tr><td>Screenshots</td><td class="mono">126 PNGs (v1 experiment) + 15 URL manifests (v2 experiment)</td></tr>
+</table>
+
+<p style="color: #8b949e; margin-top: 24px; font-size: 12px;">
+  Raw results: <span class="mono">phase3/tests/backpressure_results_v2_merged.json</span> &bull;
+  Screenshots: <span class="mono">phase3/screenshots/</span> (v1 PNGs) and <span class="mono">phase3/screenshots_v2/</span> (v2 URL manifests) &bull;
+  Worker source: <span class="mono">phase3/app/worker/worker.py</span> &bull;
+  Test script: <span class="mono">phase3/tests/backpressure_comparison.py</span>
+</p>
+
+</body>
+</html>

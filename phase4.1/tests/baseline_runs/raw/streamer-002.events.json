@@ -1,0 +1,261 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "action": "Scheduling",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T22:23:15.680468Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "466900",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "0/2 nodes are available: 2 node(s) didn't match Pod's node affinity/selector. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:23:15Z",
+                "name": "baseline-streamer-002.18ab91432fe9a7e9",
+                "namespace": "baseline",
+                "resourceVersion": "466902",
+                "uid": "6cc68ee0-4ee1-444f-92b0-2208729150bc"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Warning"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:23:16Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "466901",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:23:16Z",
+            "message": "Pod should schedule on: nodeclaim/gpu-pool-prebaked-streamer-8g6p8",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:23:16Z",
+                "name": "baseline-streamer-002.18ab9143721a2883",
+                "namespace": "baseline",
+                "resourceVersion": "466908",
+                "uid": "1c88be99-b780-4a7d-bd9f-fbd264101ffd"
+            },
+            "reason": "Nominated",
+            "reportingComponent": "karpenter",
+            "reportingInstance": "",
+            "source": {
+                "component": "karpenter"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:25:26Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "466901",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:25:26Z",
+            "message": "Pod should schedule on: nodeclaim/gpu-pool-prebaked-streamer-8g6p8, node/ip-10-5-22-116.ec2.internal",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:25:26Z",
+                "name": "baseline-streamer-002.18ab9161bdbd9a91",
+                "namespace": "baseline",
+                "resourceVersion": "467565",
+                "uid": "45b8e6dc-6261-4203-987f-2efdf4527c64"
+            },
+            "reason": "Nominated",
+            "reportingComponent": "karpenter",
+            "reportingInstance": "",
+            "source": {
+                "component": "karpenter"
+            },
+            "type": "Normal"
+        },
+        {
+            "action": "Binding",
+            "apiVersion": "v1",
+            "eventTime": "2026-05-01T22:25:29.967799Z",
+            "firstTimestamp": null,
+            "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "466901",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": null,
+            "message": "Successfully assigned baseline/baseline-streamer-002 to ip-10-5-22-116.ec2.internal",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:25:29Z",
+                "name": "baseline-streamer-002.18ab9162740fc9ba",
+                "namespace": "baseline",
+                "resourceVersion": "467601",
+                "uid": "7207db27-a45d-4ca4-a622-da70889b8aee"
+            },
+            "reason": "Scheduled",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "default-scheduler-ip-172-16-184-76.ec2.internal",
+            "source": {},
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:25:30Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "467599",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:25:30Z",
+            "message": "Container image \"019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0-streamer\" already present on machine",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:25:30Z",
+                "name": "baseline-streamer-002.18ab916295812dc2",
+                "namespace": "baseline",
+                "resourceVersion": "467615",
+                "uid": "eefb87e3-4f46-4524-8be2-78215fc6dff0"
+            },
+            "reason": "Pulled",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-22-116.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-22-116.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:25:32Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "467599",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:25:32Z",
+            "message": "Created container: vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:25:32Z",
+                "name": "baseline-streamer-002.18ab916309d47c31",
+                "namespace": "baseline",
+                "resourceVersion": "467629",
+                "uid": "ff8c4445-2f85-4cfc-a263-c89561d7716a"
+            },
+            "reason": "Created",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-22-116.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-22-116.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 1,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:25:55Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "467599",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:25:55Z",
+            "message": "Started container vllm",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:25:55Z",
+                "name": "baseline-streamer-002.18ab9168501c3b44",
+                "namespace": "baseline",
+                "resourceVersion": "467728",
+                "uid": "8ba129dd-d580-416c-b8c0-3884abb5df62"
+            },
+            "reason": "Started",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-22-116.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-22-116.ec2.internal"
+            },
+            "type": "Normal"
+        },
+        {
+            "apiVersion": "v1",
+            "count": 23,
+            "eventTime": null,
+            "firstTimestamp": "2026-05-01T22:28:00Z",
+            "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{vllm}",
+                "kind": "Pod",
+                "name": "baseline-streamer-002",
+                "namespace": "baseline",
+                "resourceVersion": "467599",
+                "uid": "1c41cc49-2e23-4210-94fd-1059a404327a"
+            },
+            "kind": "Event",
+            "lastTimestamp": "2026-05-01T22:31:10Z",
+            "message": "Readiness probe failed: Get \"http://10.5.17.39:8000/health\": dial tcp 10.5.17.39:8000: connect: connection refused",
+            "metadata": {
+                "creationTimestamp": "2026-05-01T22:28:00Z",
+                "name": "baseline-streamer-002.18ab918574295de2",
+                "namespace": "baseline",
+                "resourceVersion": "469062",
+                "uid": "4967e07f-13c9-49bc-b81a-5aba8994808b"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "ip-10-5-22-116.ec2.internal",
+            "source": {
+                "component": "kubelet",
+                "host": "ip-10-5-22-116.ec2.internal"
+            },
+            "type": "Warning"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

@@ -1,0 +1,33 @@
+# rabbitmq/service.yaml — Stable DNS endpoint for the RabbitMQ broker.
+#
+# WHY ClusterIP: RabbitMQ is internal-only. API gateway and workers connect
+# via the DNS name "rabbitmq.inference-system.svc.cluster.local" (or just
+# "rabbitmq" within the same namespace). No external access needed.
+# Same concept as an internal NLB in a private subnet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: messaging
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rabbitmq
+    # WHY match on app.kubernetes.io/name: standard label convention.
+    # Must match the pod template labels in the Deployment.
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+      protocol: TCP
+      # Primary data plane — producers enqueue, consumers dequeue
+    - name: management
+      port: 15672
+      targetPort: management
+      protocol: TCP
+      # Management UI + API — we'll port-forward this for local debugging:
+      # kubectl port-forward svc/rabbitmq 15672:15672 -n inference-system

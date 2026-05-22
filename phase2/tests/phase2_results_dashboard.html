@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 2 — Observability + Autoscaling Results</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif; background: #0d1117; color: #e6edf3; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 32px 0 16px; color: #58a6ff; }
+  h3 { font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #7ee787; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+  .card-title { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .big-number { font-size: 42px; font-weight: 700; line-height: 1.1; }
+  .big-number.green { color: #7ee787; }
+  .big-number.yellow { color: #e3b341; }
+  .big-number.red { color: #f85149; }
+  .big-number.blue { color: #58a6ff; }
+  .unit { font-size: 16px; font-weight: 400; color: #8b949e; }
+  .detail { font-size: 13px; color: #8b949e; margin-top: 4px; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+  .bar-chart { margin: 12px 0; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+  .bar-label { width: 80px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 28px; background: #21262d; border-radius: 4px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+  .bar-value { font-size: 12px; color: #8b949e; width: 100px; text-align: right; flex-shrink: 0; margin-left: 8px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #30363d; color: #8b949e; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #161b22; }
+
+  .legend { display: flex; gap: 16px; margin: 8px 0; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  .flow { display: flex; align-items: center; gap: 8px; padding: 16px; background: #161b22; border-radius: 8px; border: 1px solid #30363d; overflow-x: auto; margin: 16px 0; font-size: 13px; }
+  .flow-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; white-space: nowrap; text-align: center; }
+  .flow-arrow { color: #484f58; font-size: 18px; flex-shrink: 0; }
+  .flow-time { font-size: 11px; color: #7ee787; display: block; margin-top: 2px; }
+
+  .section { margin: 32px 0; }
+  .insight { background: #1c2128; border-left: 3px solid #58a6ff; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 14px; line-height: 1.6; }
+  .insight strong { color: #58a6ff; }
+  .warning { border-left-color: #e3b341; }
+  .warning strong { color: #e3b341; }
+  .success { border-left-color: #7ee787; }
+  .success strong { color: #7ee787; }
+  .danger { border-left-color: #f85149; }
+  .danger strong { color: #f85149; }
+
+  .screenshot { border: 1px solid #30363d; border-radius: 8px; margin: 16px 0; width: 100%; }
+  .screenshot-caption { font-size: 12px; color: #8b949e; margin-top: 4px; margin-bottom: 16px; }
+
+  .timeline-row { display: grid; grid-template-columns: 200px 80px 1fr; align-items: center; margin-bottom: 4px; }
+  .timeline-label { font-size: 13px; }
+  .timeline-dur { font-size: 12px; color: #8b949e; text-align: right; padding-right: 12px; }
+  .timeline-bar-container { height: 24px; background: #21262d; border-radius: 4px; overflow: hidden; }
+  .timeline-bar { height: 100%; border-radius: 3px; display: flex; align-items: center; font-size: 10px; color: white; padding: 0 6px; }
+</style>
+</head>
+<body>
+
+<h1>Phase 2 — Observability + GPU Autoscaling</h1>
+<p class="subtitle">Prometheus + Grafana + DCGM + KEDA on EKS &bull; Qwen2.5-7B-AWQ on NVIDIA T4 (g4dn.xlarge Spot) &bull; 2026-04-04</p>
+
+<!-- ─── Background ─── -->
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin-bottom: 32px; line-height: 1.7;">
+
+<h2 style="margin-top: 0; margin-bottom: 16px;">What Is This Experiment?</h2>
+
+<p style="margin-bottom: 16px;">Phase 1 proved the queue architecture works: requests flow through RabbitMQ, the GPU processes 5 at a time, and the queue absorbs burst overflow. At N=15, the last request waited <strong>12 seconds</strong> in the queue. That's the scaling signal — but nothing was watching it.</p>
+
+<p style="margin-bottom: 16px;"><strong>Phase 2 adds two capabilities:</strong></p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px;">
+    <div style="color: #58a6ff; font-weight: 600; margin-bottom: 8px;">Eyes — Observability</div>
+    <ul style="color: #8b949e; font-size: 13px; padding-left: 16px; line-height: 1.6;">
+      <li><strong>Prometheus</strong> scrapes metrics from vLLM, RabbitMQ, API gateway, and GPU hardware (DCGM)</li>
+      <li><strong>Grafana</strong> dashboard with 14 panels across 4 rows: GPU hardware, inference engine, latency, queue &amp; scaling</li>
+      <li>You can see KV cache pressure, memory bandwidth saturation, token throughput, and queue depth in real-time</li>
+    </ul>
+  </div>
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px;">
+    <div style="color: #7ee787; font-weight: 600; margin-bottom: 8px;">Muscles — Autoscaling</div>
+    <ul style="color: #8b949e; font-size: 13px; padding-left: 16px; line-height: 1.6;">
+      <li><strong>KEDA</strong> watches RabbitMQ queue depth via AMQP</li>
+      <li>When <span class="mono">queue_depth &gt; 5</span> (= prefetch slots full), KEDA sets <span class="mono">replicas: 2</span></li>
+      <li><strong>Karpenter</strong> provisions a new GPU Spot node for the second worker</li>
+      <li>Both workers drain the queue in parallel, halving wait times</li>
+    </ul>
+  </div>
+</div>
+
+<p style="margin-bottom: 16px;"><strong>The AWS analogy:</strong> Prometheus = CloudWatch. Grafana = CloudWatch Dashboards. KEDA = ASG scaling policy watching SQS queue depth. Karpenter = ASG launching a new EC2 instance from a launch template. The only difference: GPU autoscaling takes ~5 minutes instead of ~90 seconds because you have to download and load a 4GB neural network into GPU VRAM.</p>
+
+<p style="margin-bottom: 0;"><strong>The questions this experiment answers:</strong></p>
+<ol style="color: #8b949e; font-size: 13px; padding-left: 20px; margin-top: 8px; line-height: 1.6;">
+  <li>How much does a second GPU worker reduce queue wait time?</li>
+  <li>How long does GPU autoscaling actually take, and where does the time go?</li>
+  <li>What does the GPU hardware look like under sustained inference load?</li>
+</ol>
+
+</div>
+
+<!-- ─── What Was Deployed ─── -->
+<h2>What Was Deployed</h2>
+<div class="flow">
+  <div class="flow-box">Prometheus<br><span class="flow-time" style="color:#8b949e">scrapes every 15s</span></div>
+  <div class="flow-arrow">←</div>
+  <div class="flow-box" style="border-color:#58a6ff;">4 ServiceMonitors<br><span class="flow-time" style="color:#8b949e">vLLM, RabbitMQ, Gateway, DCGM</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box" style="border-color:#7ee787;">Grafana<br><span class="flow-time" style="color:#8b949e">14-panel dashboard</span></div>
+</div>
+<div class="flow">
+  <div class="flow-box" style="border-color:#da3633;">RabbitMQ queue_depth<br><span class="flow-time" style="color:#8b949e">polled via AMQP every 15s</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box" style="border-color:#e3b341;">KEDA ScaledObject<br><span class="flow-time" style="color:#8b949e">if depth &gt; 5 → replicas++</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box" style="border-color:#238636;">Karpenter<br><span class="flow-time" style="color:#8b949e">provisions GPU Spot node</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-box">2nd vLLM Worker<br><span class="flow-time" style="color:#8b949e">model loads, starts consuming</span></div>
+</div>
+
+<!-- ─── Headline Numbers ─── -->
+<h2>Headline Numbers</h2>
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Queue Wait — 1 Worker (N=15)</div>
+    <div class="big-number red">16.8<span class="unit">sec</span></div>
+    <div class="detail">Last request waited 16.8s for a worker slot</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Queue Wait — 2 Workers (N=15)</div>
+    <div class="big-number green">1.7<span class="unit">sec</span></div>
+    <div class="detail">90% reduction — target of &lt;2s met</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Scale-Up Latency</div>
+    <div class="big-number yellow">~5<span class="unit">min</span></div>
+    <div class="detail">Pending → Ready (70% model-related)</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Peak GPU Compute</div>
+    <div class="big-number red">95<span class="unit">%</span></div>
+    <div class="detail">SMs near-fully saturated under N=20 load</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Peak Memory Bandwidth</div>
+    <div class="big-number red">94<span class="unit">%</span></div>
+    <div class="detail">Near T4's 320 GB/s limit — decode bottleneck confirmed</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Peak Batched Throughput</div>
+    <div class="big-number blue">118<span class="unit">tok/s</span></div>
+    <div class="detail">3.6x single-request throughput (33 tok/s)</div>
+  </div>
+</div>
+
+<!-- ─── Grafana Screenshots ─── -->
+<h2>Grafana Dashboard — GPU Under Sustained Load</h2>
+
+<p style="color: #8b949e; margin-bottom: 16px;">These screenshots are from the live Grafana dashboard during sustained inference load (20 concurrent heavy requests). The dashboard has 4 rows: GPU Hardware (DCGM), Inference Engine (vLLM), Latency &amp; Traffic (gateway), Queue &amp; Scaling (KEDA).</p>
+
+<h3>Peak Load — The Money Shot</h3>
+<img src="../screenshots/06-dashboard-during-inference.png" alt="Dashboard at peak load" class="screenshot" />
+<p class="screenshot-caption">GPU Compute 94%, Memory Bandwidth 92%, KV Cache 1.46%, 5 requests running, 118 tok/s throughput, KEDA triggered (Desired=2, Ready=1). Temperature at 45°C (well below T4's 83°C throttle).</p>
+
+<div class="insight">
+  <strong>Why are GPU Compute (94%) and Memory Bandwidth (92%) both high at the same time?</strong> With 5 requests in-flight under continuous batching, vLLM interleaves prefill and decode steps in the same batch. Some requests are in prefill (compute-heavy — matrix multiplications to process input tokens), while others are in decode (memory-bandwidth-heavy — reading the full model weights + KV cache to generate one token). The GPU is simultaneously doing both types of work, saturating both resources. This is actually the optimal state — it means the GPU has no idle capacity whatsoever.
+</div>
+
+<div class="insight warning">
+  <strong>Memory Bandwidth at 92% confirms decode is the bottleneck.</strong> The T4 has 320 GB/s memory bandwidth. With a 4GB AWQ model, each decode step reads the full model weights (~4GB) plus all KV caches for in-flight requests. At 5 concurrent requests with ~200MB KV each: (4GB + 5×0.2GB) × 33 decode steps/sec = ~165 GB/s just for one request stream. With 5 batched, the model weights are read once but KV reads multiply — pushing bandwidth to the physical limit. This is why inference throughput doesn't scale linearly with batch size: more concurrent requests = more KV cache reads = more bandwidth consumed per decode step.
+</div>
+
+<h3>Post-Burst — Scale-Up Triggered</h3>
+<img src="../screenshots/07-dashboard-post-burst.png" alt="Dashboard post-burst showing KEDA scale-up" class="screenshot" />
+<p class="screenshot-caption">GPU Compute 95%, Memory Bandwidth 94%, Temperature climbing to 46°C. Worker Replicas showing Desired=2, Ready=1 — KEDA has triggered scale-up, Karpenter is provisioning a second GPU Spot node.</p>
+
+<h3>Dashboard During Test Window (Historical)</h3>
+<img src="../screenshots/03-dashboard-test-window.png" alt="Dashboard covering full test period" class="screenshot" />
+<p class="screenshot-caption">50-minute window covering all test phases. Time axis runs from ~19:13 to ~20:03 local time.</p>
+
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin: 12px 0; line-height: 1.7; font-size: 13px;">
+<strong style="color: #58a6ff;">Reading this graph left to right:</strong>
+
+<p style="margin: 12px 0;"><strong style="color: #7ee787;">~19:20 — Baseline N=5 test.</strong> First small spike in "Requests Running" to ~3. TTFT shows a brief blip. Request Rate shows a tiny bump. This is 5 requests flowing through with near-zero queue wait — all within the prefetch window.</p>
+
+<p style="margin: 12px 0;"><strong style="color: #e3b341;">~19:25 — N=15 burst (single worker).</strong> Requests Running spikes to 5 and holds for several seconds (worker saturated, processing batches). TTFT chart shows the p99 line jumping to ~800ms-1s as later requests queue. The sustained flat-top in Requests Running = GPU continuously busy processing the 15-request queue in batches of 5.</p>
+
+<p style="margin: 12px 0;"><strong style="color: #e3b341;">~19:30-19:45 — Sustained load + second N=15 run.</strong> Repeated spikes in Requests Running. Request Rate shows the most activity here — multiple test rounds firing. This is where KEDA eventually detected the queue depth and triggered scale-up.</p>
+
+<p style="margin: 12px 0;"><strong style="color: #f85149;">~19:35 — KEDA scale-up triggered.</strong> Worker Replicas panel (bottom row) shows <strong>Desired jumping from 1 to 2</strong>. But Ready stays at 1 — the second worker is still being provisioned (Spot node launching, model downloading). The ~5 min gap between Desired=2 and Ready=2 is the scale-up delay.</p>
+
+<p style="margin: 12px 0;"><strong style="color: #7ee787;">~19:40 — Second worker ready.</strong> Worker Replicas shows both Desired=2 and Ready=2. VRAM chart now shows two traces for "Used" — each GPU node's VRAM independently tracked. This is also where the second DCGM Exporter pod started (DaemonSet auto-deployed to new GPU node).</p>
+
+<p style="margin: 12px 0;"><strong style="color: #8b949e;">~19:50 — Scale-down.</strong> Load stops, queue drains, KEDA cooldown expires. Worker Replicas drops back to Desired=1, Ready=1. The second VRAM trace disappears as the GPU node is consolidated by Karpenter.</p>
+
+<p style="margin: 12px 0;"><strong style="color: #58a6ff;">Key pattern to notice:</strong> The TTFT chart shows spikes correlating exactly with the Requests Running flat-tops. When the GPU is saturated at 5 concurrent, new requests wait in the queue — that queue wait becomes TTFT latency. After scale-up, the same load produces shorter TTFT spikes because two workers share the queue.</p>
+</div>
+
+<h3>Light Load — Baseline State</h3>
+<img src="../screenshots/02-dashboard-with-load.png" alt="Dashboard during light load" class="screenshot" />
+<p class="screenshot-caption">N=8 burst: KV Cache 0.526%, throughput 30.2 tok/s, TTFT p99 visible on the latency chart. GPU Compute and Memory BW at 0% — DCGM polls every few seconds and the burst was too brief to register.</p>
+
+<!-- ─── Test 1 ─── -->
+<h2>Test 1: Baseline — N=5 Concurrent (1 Worker)</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">Validates that Phase 2 changes (patched RabbitMQ, v2 API gateway, monitoring stack) didn't regress performance. Same 5-request mixed test from Phase 1.</p>
+
+<table>
+  <tr><th>Type</th><th>Count</th><th>Queue Wait Max</th><th>TTFT p50</th><th>Throughput</th></tr>
+  <tr><td style="color:#7ee787">Short</td><td class="mono">2</td><td class="mono" style="color:#7ee787">2.6ms</td><td class="mono">666ms</td><td class="mono">33.2 tok/s</td></tr>
+  <tr><td style="color:#e3b341">Medium</td><td class="mono">2</td><td class="mono" style="color:#7ee787">4.8ms</td><td class="mono">636ms</td><td class="mono">32.7 tok/s</td></tr>
+  <tr><td style="color:#f85149">Long</td><td class="mono">1</td><td class="mono" style="color:#7ee787">4.9ms</td><td class="mono">634ms</td><td class="mono">33.3 tok/s</td></tr>
+</table>
+
+<div class="insight success">
+  <strong>No regression.</strong> Queue wait &lt;5ms, throughput ~33 tok/s — identical to Phase 1. The added monitoring stack (Prometheus, Grafana, DCGM, 4 ServiceMonitors) adds zero measurable overhead to the inference path. The ~500ms client TTFT is kubectl port-forward latency, not queue or GPU latency.
+</div>
+
+<!-- ─── Test 2 ─── -->
+<h2>Test 2: Queue Saturation — N=15 Concurrent (1 Worker)</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">The scaling signal: 15 requests with only 5 prefetch slots = requests 6-15 queue. This is the "before" measurement for the autoscaling comparison.</p>
+
+<table>
+  <tr><th>Type</th><th>Count</th><th>Queue Wait p50</th><th>Queue Wait Max</th><th>TTFT p50</th><th>TTFT Max</th><th>Throughput</th></tr>
+  <tr><td style="color:#7ee787">Short</td><td class="mono">5</td><td class="mono">5.2ms</td><td class="mono" style="color:#f85149; font-weight:600">16,798ms</td><td class="mono">542ms</td><td class="mono">17,111ms</td><td class="mono">32.7 tok/s</td></tr>
+  <tr><td style="color:#e3b341">Medium</td><td class="mono">5</td><td class="mono">846ms</td><td class="mono" style="color:#f85149; font-weight:600">13,089ms</td><td class="mono">1,619ms</td><td class="mono">13,449ms</td><td class="mono">27.9 tok/s</td></tr>
+  <tr><td style="color:#f85149">Long</td><td class="mono">5</td><td class="mono">5,957ms</td><td class="mono" style="color:#f85149; font-weight:600">7,001ms</td><td class="mono">6,623ms</td><td class="mono">7,669ms</td><td class="mono">28.7 tok/s</td></tr>
+</table>
+
+<div class="bar-chart">
+  <h3 style="margin-top: 16px;">Queue Wait Distribution — 1 Worker at N=15</h3>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#7ee787"></div>Batch 1 (instant — within prefetch)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>Batch 2 (~1s wait)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>Batch 3 (5-17s wait)</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Batch 1</div>
+    <div class="bar-track"><div class="bar-fill" style="width: 1%; min-width: 40px; background: #7ee787;">2-6ms</div></div>
+    <div class="bar-value">2 - 6 ms</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Batch 2</div>
+    <div class="bar-track"><div class="bar-fill" style="width: 8%; background: #e3b341;">846ms</div></div>
+    <div class="bar-value">840 - 1,600 ms</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Batch 3</div>
+    <div class="bar-track"><div class="bar-fill" style="width: 100%; background: #f85149;">5,957 - 16,798ms</div></div>
+    <div class="bar-value">5,957 - 16,798 ms</div>
+  </div>
+</div>
+
+<div class="insight danger">
+  <strong>16.8 seconds of queue wait.</strong> The last short request waited nearly 17 seconds because it happened to enqueue after all prefetch slots were occupied by long-running requests. With <span class="mono">prefetch_count=5</span>, the worker holds 5 messages at a time. Requests 6-15 sit in RabbitMQ until a slot frees up. Short requests recycle slots in ~1s, but long requests hold them for ~10s — so the tail of the queue grows fast when dominated by longs.
+</div>
+
+<!-- ─── Test 3 ─── -->
+<h2>Test 3: Autoscaled — N=15 Concurrent (2 Workers)</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">After KEDA scaled to 2 workers on 2 GPU nodes, the same N=15 test. Each worker has its own <span class="mono">prefetch_count=5</span>, giving 10 total slots.</p>
+
+<table>
+  <tr><th>Type</th><th>Count</th><th>Queue Wait p50</th><th>Queue Wait Max</th><th>TTFT p50</th><th>Throughput</th></tr>
+  <tr><td style="color:#7ee787">Short</td><td class="mono">5</td><td class="mono">6.0ms</td><td class="mono" style="color:#7ee787; font-weight:600">824ms</td><td class="mono">595ms</td><td class="mono">33.3 tok/s</td></tr>
+  <tr><td style="color:#e3b341">Medium</td><td class="mono">5</td><td class="mono">824ms</td><td class="mono" style="color:#e3b341; font-weight:600">1,722ms</td><td class="mono">1,395ms</td><td class="mono">30.7 tok/s</td></tr>
+  <tr><td style="color:#f85149">Long</td><td class="mono">5</td><td class="mono">5.6ms</td><td class="mono" style="color:#7ee787; font-weight:600">824ms</td><td class="mono">713ms</td><td class="mono">31.5 tok/s</td></tr>
+</table>
+
+<div class="bar-chart">
+  <h3 style="margin-top: 16px;">Queue Wait Distribution — 2 Workers at N=15</h3>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#7ee787"></div>Batch 1 (instant — 10 prefetch slots cover most requests)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>Overflow (~0.8-1.7s wait)</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Batch 1</div>
+    <div class="bar-track"><div class="bar-fill" style="width: 5%; min-width: 50px; background: #7ee787;">5-6ms</div></div>
+    <div class="bar-value">5 - 6 ms</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Overflow</div>
+    <div class="bar-track"><div class="bar-fill" style="width: 10%; background: #e3b341;">824 - 1,722ms</div></div>
+    <div class="bar-value">824 - 1,722 ms</div>
+  </div>
+</div>
+
+<div class="insight success">
+  <strong>Target met: 1,722ms max queue wait (down from 16,798ms = 90% reduction).</strong> With 2 workers, RabbitMQ distributes messages round-robin. Each worker's prefetch window covers 5 requests = 10 total slots for 15 requests. Only 5 requests need to wait, and they wait for much less time because two GPUs are draining the queue concurrently.
+</div>
+
+<!-- ─── Comparison ─── -->
+<h2>Side-by-Side: 1 Worker vs 2 Workers</h2>
+
+<table>
+  <tr><th>Metric</th><th>1 Worker</th><th>2 Workers</th><th>Change</th></tr>
+  <tr>
+    <td>Short queue_wait max</td>
+    <td class="mono" style="color:#f85149">16,798ms</td>
+    <td class="mono" style="color:#7ee787">824ms</td>
+    <td style="color:#7ee787; font-weight:600">-95%</td>
+  </tr>
+  <tr>
+    <td>Medium queue_wait max</td>
+    <td class="mono" style="color:#f85149">13,089ms</td>
+    <td class="mono" style="color:#e3b341">1,722ms</td>
+    <td style="color:#7ee787; font-weight:600">-87%</td>
+  </tr>
+  <tr>
+    <td>Long queue_wait max</td>
+    <td class="mono" style="color:#f85149">7,001ms</td>
+    <td class="mono" style="color:#7ee787">824ms</td>
+    <td style="color:#7ee787; font-weight:600">-88%</td>
+  </tr>
+  <tr style="border-top: 2px solid #30363d;">
+    <td style="font-weight:600">Overall max queue_wait</td>
+    <td class="mono" style="color:#f85149; font-weight:600">16,798ms</td>
+    <td class="mono" style="color:#7ee787; font-weight:600">1,722ms</td>
+    <td style="color:#7ee787; font-weight:700; font-size: 16px;">-90%</td>
+  </tr>
+  <tr>
+    <td>Throughput per worker</td>
+    <td class="mono">~33 tok/s</td>
+    <td class="mono">~33 tok/s</td>
+    <td style="color:#8b949e">Same</td>
+  </tr>
+  <tr>
+    <td>Total system throughput</td>
+    <td class="mono">~33 tok/s</td>
+    <td class="mono" style="color:#58a6ff">~66 tok/s</td>
+    <td style="color:#58a6ff; font-weight:600">2x</td>
+  </tr>
+</table>
+
+<div class="insight">
+  <strong>Why is the improvement better than 2x?</strong> You might expect 2 workers to halve the max wait from 16.8s to ~8.4s. Instead it dropped to 1.7s — a 10x improvement. The reason is non-linear: with 1 worker, the 10th request must wait for 5 requests to fully complete before it gets a slot. With 2 workers, the 11th request only needs to wait for 1 request to complete on either worker (whichever frees a slot first). The wait time is determined by the <em>minimum of two completion times</em>, not the average — that's the power of parallel queuing. Same reason having 2 cashier lanes doesn't just halve the average wait — it collapses the tail.
+</div>
+
+<!-- ─── GPU Hardware Under Load ─── -->
+<h2>GPU Hardware Metrics Under Sustained Load</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">Captured via DCGM Exporter during N=20 sustained heavy inference. These numbers are from the Grafana dashboard (screenshot 06).</p>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="card">
+    <div class="card-title">GPU Compute</div>
+    <div class="big-number red">95<span class="unit">%</span></div>
+    <div class="detail">SMs near-fully saturated</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Memory Bandwidth</div>
+    <div class="big-number red">94<span class="unit">%</span></div>
+    <div class="detail">Near 320 GB/s limit</div>
+  </div>
+  <div class="card">
+    <div class="card-title">VRAM Used</div>
+    <div class="big-number yellow">14<span class="unit">GB / 16GB</span></div>
+    <div class="detail">4GB model + KV cache + overhead</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Temperature</div>
+    <div class="big-number green">46<span class="unit">&deg;C</span></div>
+    <div class="detail">Well below 83&deg;C throttle point</div>
+  </div>
+  <div class="card">
+    <div class="card-title">KV Cache Usage</div>
+    <div class="big-number green">1.66<span class="unit">%</span></div>
+    <div class="detail">AWQ 7B uses minimal KV per request</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Batched Throughput</div>
+    <div class="big-number blue">118<span class="unit">tok/s</span></div>
+    <div class="detail">3.6x single-request (33 tok/s)</div>
+  </div>
+</div>
+
+<div class="insight">
+  <strong>Why 118 tok/s with batch=5, but only 33 tok/s with batch=1?</strong> vLLM's continuous batching processes all in-flight requests in a single GPU pass. The model weights (4GB) are read from VRAM once per decode step regardless of batch size. With 1 request, each weight-read produces 1 token. With 5 requests, the same weight-read produces 5 tokens — one for each request's KV cache. The cost of reading weights is amortized across the batch. Throughput scales sub-linearly (not 5x = 165 tok/s) because KV cache reads scale linearly with batch size, consuming more of the finite memory bandwidth.
+</div>
+
+<div class="insight warning">
+  <strong>VRAM 14/16GB used but KV cache only 1.66% — how?</strong> These measure different things. VRAM (from DCGM) is total GPU framebuffer: 4GB model weights + <strong>~10GB KV cache pool pre-allocated by vLLM at startup</strong> + 0.5GB CUDA runtime. The KV cache pool is allocated in full when vLLM starts (<span class="mono">gpu_memory_utilization=0.85</span> = "grab 85% of 16GB"), but it's mostly empty — like a parking garage that reserves 1000 spots at startup but only has 5 cars parked. The 1.66% means only ~165MB of the 10GB pool is holding actual request KV data (5 requests × ~33MB each). The 80% admission threshold would allow ~40 concurrent requests before rejecting — meaning <strong>for this model size on T4, the queue limits concurrency (prefetch_count=5), not GPU memory</strong>. A 13B+ model or 8K+ context lengths would flip this.
+</div>
+
+<!-- ─── Scale-Up Delay Breakdown ─── -->
+<h2>GPU Scale-Up Delay Breakdown</h2>
+<p style="color: #8b949e; margin-bottom: 16px;">The most important learning from Phase 2: <strong>GPU autoscaling takes ~5 minutes</strong>. This is fundamentally different from CPU autoscaling (~60-90s) because you're not just starting a process — you're downloading and loading a neural network into GPU VRAM.</p>
+
+<!-- Waterfall-style Gantt chart for scale-up phases -->
+<div style="display: grid; grid-template-columns: 200px 60px 1fr 60px; gap: 4px 0; align-items: center; margin: 16px 0;">
+  <!-- Header -->
+  <div style="font-size: 11px; color: #8b949e; font-weight: 600;">Phase</div>
+  <div style="font-size: 11px; color: #8b949e; font-weight: 600; text-align: center;">Duration</div>
+  <div style="font-size: 11px; color: #8b949e; display: flex; justify-content: space-between; padding: 0 4px;">
+    <span>0s</span><span>60s</span><span>120s</span><span>180s</span><span>240s</span><span>300s</span>
+  </div>
+  <div style="font-size: 11px; color: #8b949e; font-weight: 600; text-align: center;">Cumulative</div>
+
+  <!-- KEDA detects -->
+  <div style="font-size: 13px;">KEDA detects queue &gt; 5</div>
+  <div style="font-size: 12px; color: #8b949e; text-align: center;">15s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 0; width: 5%; height: 100%; background: #58a6ff; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white; min-width: 30px;">15s</div>
+  </div>
+  <div style="font-size: 12px; color: #58a6ff; text-align: center;">15s</div>
+
+  <!-- Karpenter -->
+  <div style="font-size: 13px;">Karpenter selects Spot</div>
+  <div style="font-size: 12px; color: #8b949e; text-align: center;">15s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 5%; width: 5%; height: 100%; background: #58a6ff; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white; min-width: 30px;">15s</div>
+  </div>
+  <div style="font-size: 12px; color: #58a6ff; text-align: center;">30s</div>
+
+  <!-- EC2 Spot -->
+  <div style="font-size: 13px;">EC2 Spot launch + boot</div>
+  <div style="font-size: 12px; color: #8b949e; text-align: center;">60s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 10%; width: 20%; height: 100%; background: #e3b341; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white;">60s</div>
+  </div>
+  <div style="font-size: 12px; color: #e3b341; text-align: center;">90s</div>
+
+  <!-- Node join -->
+  <div style="font-size: 13px;">Node joins cluster (kubelet)</div>
+  <div style="font-size: 12px; color: #8b949e; text-align: center;">10s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 30%; width: 3.3%; height: 100%; background: #e3b341; border-radius: 4px; min-width: 24px;"></div>
+  </div>
+  <div style="font-size: 12px; color: #e3b341; text-align: center;">100s</div>
+
+  <!-- Image pull -->
+  <div style="font-size: 13px; color: #f85149; font-weight: 600;">vLLM image pull (~8GB)</div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">90s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 33.3%; width: 30%; height: 100%; background: #f85149; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white;">90s &mdash; image pull</div>
+  </div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">190s</div>
+
+  <!-- Model download -->
+  <div style="font-size: 13px; color: #f85149; font-weight: 600;">Model download (4GB HF)</div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">60s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 63.3%; width: 20%; height: 100%; background: #da3633; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white;">60s &mdash; download</div>
+  </div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">250s</div>
+
+  <!-- Model load VRAM -->
+  <div style="font-size: 13px; color: #f85149; font-weight: 600;">Model load into VRAM</div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">50s</div>
+  <div style="height: 24px; background: #21262d; border-radius: 4px; position: relative;">
+    <div style="position: absolute; left: 83.3%; width: 16.7%; height: 100%; background: #da3633; border-radius: 4px; display: flex; align-items: center; padding-left: 4px; font-size: 10px; color: white;">50s &mdash; GPU</div>
+  </div>
+  <div style="font-size: 12px; color: #f85149; text-align: center; font-weight: 600;">300s</div>
+</div>
+
+<div style="margin-top: 12px;">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div>Detection (10%)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div>Infrastructure (20%)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>Model-related (70%)</div>
+  </div>
+</div>
+
+<div class="insight warning">
+  <strong>70% of scale-up time is model-related.</strong> The infrastructure (Spot launch + node join) takes ~85s — competitive with CPU autoscaling. But then you spend another ~200s pulling the 8GB vLLM container image, downloading the 4GB model from HuggingFace, and loading it into GPU VRAM. This is the fundamental challenge of GPU autoscaling: your "application startup" includes loading a neural network. Three production optimizations could cut this from 300s to ~60s:
+</div>
+
+<table>
+  <tr><th>Optimization</th><th>Saves</th><th>How</th></tr>
+  <tr>
+    <td>Pre-baked AMI with vLLM image</td>
+    <td class="mono" style="color:#7ee787">~90s</td>
+    <td>Container image cached on the AMI — no ECR pull on startup</td>
+  </tr>
+  <tr>
+    <td>S3 model cache + init container</td>
+    <td class="mono" style="color:#7ee787">~60s</td>
+    <td>Model pre-downloaded to S3, init container copies to local NVMe — no HuggingFace download</td>
+  </tr>
+  <tr>
+    <td>Warm standby node pool</td>
+    <td class="mono" style="color:#7ee787">~240s</td>
+    <td>Keep 1 idle GPU node with model loaded — scale from warm, not cold. Drops to ~10s.</td>
+  </tr>
+</table>
+
+<!-- ─── Key Learnings ─── -->
+<h2>Key Learnings</h2>
+
+<div class="insight">
+  <strong>KEDA needs sustained load, not bursts.</strong> A burst of 15 requests drains within 20-30s. KEDA polls queue depth every 15s and may miss a transient spike entirely. Only sustained load (2+ req/s for 60s+) keeps the queue above threshold long enough for KEDA to detect it and trigger scale-up. In production, this is actually the right behavior — you don't want to spin up a $0.22/hr GPU for a 20-second burst. The queue absorbs bursts; autoscaling handles sustained demand shifts. Same design philosophy as ASG cooldown periods preventing thrashing on traffic spikes.
+</div>
+
+<div class="insight warning">
+  <strong>Cooldown period must exceed scale-up latency.</strong> With <span class="mono">cooldownPeriod: 60s</span> (initial config), KEDA scaled the worker back down before it even finished loading the model. The queue drained within 30s of the burst ending, and 60s later KEDA killed the new worker that was still downloading weights. Setting cooldown to 180s gives the full 5-min scale-up cycle enough time to complete and prove its value before scaling back down. In production, you'd set this to at least 2x your scale-up latency.
+</div>
+
+<div class="insight">
+  <strong>DCGM Exporter needs /dev/nvidia* device mounts.</strong> DCGM reads GPU hardware counters through NVIDIA's kernel driver device files. Without mounting <span class="mono">/dev/nvidia0</span>, <span class="mono">/dev/nvidiactl</span>, and <span class="mono">/dev/nvidia-uvm</span>, the exporter container starts but reports 0% for all utilization metrics. This is the same privilege level as the NVIDIA device plugin DaemonSet — both need direct hardware access.
+</div>
+
+<div class="insight">
+  <strong>Prometheus <span class="mono">retentionSize</span> format is <span class="mono">5GB</span> not <span class="mono">5Gi</span>.</strong> Kubernetes uses binary suffixes (Gi, Mi) but Prometheus uses SI suffixes with a mandatory B suffix (GB, MB). <span class="mono">5Gi</span> fails Prometheus CRD validation. Small gotcha, 2 minutes to fix, but would block a deploy pipeline.
+</div>
+
+<div class="insight">
+  <strong>Grafana dashboard sidecar only watches its own namespace by default.</strong> Our dashboard ConfigMap was in <span class="mono">inference-system</span> but the Grafana sidecar watches <span class="mono">monitoring</span> namespace. Either set <span class="mono">searchNamespace: ALL</span> in Helm values or create the ConfigMap in the monitoring namespace. We chose the latter since it's simpler and the dashboard is an ops artifact, not an application one.
+</div>
+
+<!-- ─── Architecture Diagram ─── -->
+<h2>Phase 2 Architecture</h2>
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; font-family: 'SF Mono', monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; color: #8b949e;">
+<span style="color:#58a6ff">Monitoring Namespace</span>                        <span style="color:#7ee787">inference-system Namespace</span>
+
+┌─────────────────────┐                   ┌────────────────────────────────────┐
+│ <span style="color:#e6edf3">Prometheus</span>          │ ── scrape/15s ──► │ <span style="color:#e6edf3">vLLM /metrics</span> (port 8000)         │
+│   3d retention      │ ── scrape/15s ──► │ <span style="color:#e6edf3">RabbitMQ /metrics</span> (port 15692)    │
+│   10GB storage      │ ── scrape/15s ──► │ <span style="color:#e6edf3">API Gateway /metrics</span> (port 8080)  │
+│                     │ ── scrape/15s ──► │ <span style="color:#e6edf3">DCGM Exporter /metrics</span> (port 9400)│
+└────────┬────────────┘                   └────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│ <span style="color:#e6edf3">Grafana</span>             │   <span style="color:#e3b341">KEDA Namespace</span>
+│  14-panel dashboard │
+│  admin/inference-lab│   ┌──────────────────────────┐
+│  :3000 (port-fwd)   │   │ <span style="color:#e6edf3">KEDA Operator</span>            │
+└─────────────────────┘   │   polls RabbitMQ/AMQP    │
+                          │   queue_depth > 5 →      │
+                          │   set replicas: 2        │
+                          └──────────┬───────────────┘
+                                     │
+                                     ▼
+                          ┌──────────────────────────┐
+                          │ <span style="color:#e6edf3">Karpenter</span>                │
+                          │   provisions g4dn.xlarge │
+                          │   Spot in us-east-1a/1b  │
+                          └──────────────────────────┘
+</div>
+
+<!-- ─── Footer ─── -->
+<p style="margin-top: 32px; color: #484f58; font-size: 12px;">Generated from phase2/tests/autoscale_results.json &bull; Screenshots in phase2/screenshots/ &bull; Phase 2: EKS 1.29 + Karpenter v0.34 + KEDA 2.19 + kube-prometheus-stack &bull; 2026-04-04</p>
+
+</body>
+</html>

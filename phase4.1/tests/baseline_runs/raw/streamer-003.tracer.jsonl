@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777674840050, "run_id": "streamer-003"}
+{"event": "vllm_import_done", "epoch_ms": 1777674859986, "run_id": "streamer-003"}
+{"event": "cuda_context_ready", "epoch_ms": 1777674860309, "run_id": "streamer-003"}
+{"event": "weight_load_start", "epoch_ms": 1777674901679, "run_id": "streamer-003"}
+{"event": "weight_load_done", "epoch_ms": 1777674966754, "run_id": "streamer-003"}
+{"event": "graph_capture_start", "epoch_ms": 1777674966754, "run_id": "streamer-003"}
+{"event": "warmup_done", "epoch_ms": 1777674976369, "run_id": "streamer-003"}
+{"event": "server_ready", "epoch_ms": 1777674978920, "run_id": "streamer-003"}

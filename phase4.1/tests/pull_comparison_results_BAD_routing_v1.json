@@ -1,0 +1,946 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-01T10:49:01Z",
+  "runs_per_variant": 3,
+  "variants": {
+    "docker_hub": {
+      "manifest": "/Users/mrefaat/Apps/LLM_Hands_On/vLLM_Inference/phase4.1/k8s/baseline/baseline-pod.yaml",
+      "run_ids": [
+        "hub-001",
+        "hub-002",
+        "hub-003"
+      ]
+    },
+    "ecr_same_region": {
+      "manifest": "/Users/mrefaat/Apps/LLM_Hands_On/vLLM_Inference/phase4.1/k8s/baseline/baseline-pod-ecr.yaml",
+      "run_ids": [
+        "ecr-001",
+        "ecr-002",
+        "ecr-003"
+      ]
+    },
+    "prebaked_ami": {
+      "manifest": "/Users/mrefaat/Apps/LLM_Hands_On/vLLM_Inference/phase4.1/k8s/baseline/baseline-pod-prebaked.yaml",
+      "run_ids": [
+        "prebaked-001",
+        "prebaked-002",
+        "prebaked-003"
+      ]
+    }
+  },
+  "results": {
+    "docker_hub": [
+      {
+        "run_id": "hub-001",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T09:16:51.964399+00:00",
+        "node": {
+          "name": "ip-10-5-6-54.ec2.internal",
+          "instance_id": "i-089cfa1ba85ccaccf",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-hub-001",
+          "uid": "1e939ae1-7b48-441c-92ef-f17852bc6a89",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777626256000,
+            "end_ms": 1777626257000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777626257000,
+            "end_ms": 1777626260000,
+            "duration_ms": 3000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777626260000,
+            "end_ms": 1777626444000,
+            "duration_ms": 184000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777626507102,
+            "end_ms": 1777626508401,
+            "duration_ms": 1299,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777626508401,
+            "end_ms": 1777626508469,
+            "duration_ms": 68,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777626460000,
+            "end_ms": 1777626506000,
+            "duration_ms": 46000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777626546207,
+            "end_ms": 1777626682026,
+            "duration_ms": 135819,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777626808846,
+            "end_ms": 1777626840447,
+            "duration_ms": 31601,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777626969463,
+            "end_ms": 1777626979197,
+            "duration_ms": 9734,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777626979197,
+            "end_ms": 1777626987000,
+            "duration_ms": 7803,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777626987660,
+            "end_ms": 1777626994600,
+            "duration_ms": 6940,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 731660,
+          "scale_up_to_first_token_ms": 738600
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      },
+      {
+        "run_id": "hub-002",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T09:28:09.146122+00:00",
+        "node": {
+          "name": "ip-10-5-13-20.ec2.internal",
+          "instance_id": "i-0c18e15899a7d80d0",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-hub-002",
+          "uid": "46fdfc33-12f2-44a1-bffc-31b4078cd936",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777627021000,
+            "end_ms": 1777627022000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777627022000,
+            "end_ms": 1777627024000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777627024000,
+            "end_ms": 1777627204000,
+            "duration_ms": 180000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777627264130,
+            "end_ms": 1777627267105,
+            "duration_ms": 2975,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777627267105,
+            "end_ms": 1777627267248,
+            "duration_ms": 143,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777627218000,
+            "end_ms": 1777627263000,
+            "duration_ms": 45000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777627302774,
+            "end_ms": 1777627427338,
+            "duration_ms": 124564,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777627552634,
+            "end_ms": 1777627580820,
+            "duration_ms": 28186,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777627653917,
+            "end_ms": 1777627663357,
+            "duration_ms": 9440,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777627663357,
+            "end_ms": 1777627666000,
+            "duration_ms": 2643,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777627666678,
+            "end_ms": 1777627671877,
+            "duration_ms": 5199,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 645678,
+          "scale_up_to_first_token_ms": 650877
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      },
+      {
+        "run_id": "hub-003",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T09:40:42.267657+00:00",
+        "node": {
+          "name": "ip-10-5-31-15.ec2.internal",
+          "instance_id": "i-0916080b160bd08c9",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-hub-003",
+          "uid": "3ef03325-30dd-4d7e-8eac-472b4bcc8b11",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777627698000,
+            "end_ms": 1777627700000,
+            "duration_ms": 2000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777627700000,
+            "end_ms": 1777627702000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777627702000,
+            "end_ms": 1777627873000,
+            "duration_ms": 171000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777627935137,
+            "end_ms": 1777627936422,
+            "duration_ms": 1285,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777627936422,
+            "end_ms": 1777627936481,
+            "duration_ms": 59,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777627889000,
+            "end_ms": 1777627934000,
+            "duration_ms": 45000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777627969505,
+            "end_ms": 1777628113730,
+            "duration_ms": 144225,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777628236696,
+            "end_ms": 1777628268869,
+            "duration_ms": 32173,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777628396719,
+            "end_ms": 1777628406143,
+            "duration_ms": 9424,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777628406143,
+            "end_ms": 1777628416000,
+            "duration_ms": 9857,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777628416852,
+            "end_ms": 1777628424735,
+            "duration_ms": 7883,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 718852,
+          "scale_up_to_first_token_ms": 726735
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      }
+    ],
+    "ecr_same_region": [
+      {
+        "run_id": "ecr-001",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T09:52:21.217360+00:00",
+        "node": {
+          "name": "ip-10-5-6-116.ec2.internal",
+          "instance_id": "i-0df1cf4cfbe8e170e",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-ecr-001",
+          "uid": "5ce1ed03-013d-4bb8-85a6-908c4ce2bc5c",
+          "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777628452000,
+            "end_ms": 1777628453000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777628453000,
+            "end_ms": 1777628455000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777628455000,
+            "end_ms": 1777628624000,
+            "duration_ms": 169000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777628641000,
+            "end_ms": 1777628686000,
+            "duration_ms": 45000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777628715639,
+            "end_ms": 1777628834074,
+            "duration_ms": 118435,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777628949547,
+            "end_ms": 1777628976487,
+            "duration_ms": 26940,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777629098006,
+            "end_ms": 1777629107770,
+            "duration_ms": 9764,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777629107770,
+            "end_ms": 1777629118000,
+            "duration_ms": 10230,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777629118739,
+            "end_ms": 1777629123842,
+            "duration_ms": 5103,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 666739,
+          "scale_up_to_first_token_ms": 671842
+        },
+        "validation": {
+          "all_stages_present": false,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": [
+            "missing_stages: ['image_download', 'image_unpack']"
+          ]
+        }
+      },
+      {
+        "run_id": "ecr-002",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T10:02:32.570624+00:00",
+        "node": {
+          "name": "ip-10-5-27-195.ec2.internal",
+          "instance_id": "i-0fe2595c575f9de4a",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-ecr-002",
+          "uid": "4124283a-3345-4300-b58b-90b06fae7747",
+          "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777629150000,
+            "end_ms": 1777629151000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777629151000,
+            "end_ms": 1777629153000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777629153000,
+            "end_ms": 1777629291000,
+            "duration_ms": 138000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777629309000,
+            "end_ms": 1777629352000,
+            "duration_ms": 43000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777629387472,
+            "end_ms": 1777629495283,
+            "duration_ms": 107811,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777629604511,
+            "end_ms": 1777629634287,
+            "duration_ms": 29776,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777629709693,
+            "end_ms": 1777629719207,
+            "duration_ms": 9514,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777629719207,
+            "end_ms": 1777629727000,
+            "duration_ms": 7793,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777629727192,
+            "end_ms": 1777629735160,
+            "duration_ms": 7968,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 577192,
+          "scale_up_to_first_token_ms": 585160
+        },
+        "validation": {
+          "all_stages_present": false,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": [
+            "missing_stages: ['image_download', 'image_unpack']"
+          ]
+        }
+      },
+      {
+        "run_id": "ecr-003",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T10:14:26.454504+00:00",
+        "node": {
+          "name": "ip-10-5-23-161.ec2.internal",
+          "instance_id": "i-09186f368d59b76e9",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-ecr-003",
+          "uid": "ee70c0bb-511f-4e29-ad94-369e2fb379a8",
+          "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777629761000,
+            "end_ms": 1777629762000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777629762000,
+            "end_ms": 1777629764000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777629764000,
+            "end_ms": 1777629892000,
+            "duration_ms": 128000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": null,
+            "end_ms": null,
+            "duration_ms": null,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777629912000,
+            "end_ms": 1777629960000,
+            "duration_ms": 48000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777630009423,
+            "end_ms": 1777630147288,
+            "duration_ms": 137865,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777630258969,
+            "end_ms": 1777630291694,
+            "duration_ms": 32725,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777630422548,
+            "end_ms": 1777630432011,
+            "duration_ms": 9463,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777630432011,
+            "end_ms": 1777630440000,
+            "duration_ms": 7989,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777630440732,
+            "end_ms": 1777630449304,
+            "duration_ms": 8572,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 679732,
+          "scale_up_to_first_token_ms": 688304
+        },
+        "validation": {
+          "all_stages_present": false,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": [
+            "missing_stages: ['image_download', 'image_unpack']"
+          ]
+        }
+      }
+    ],
+    "prebaked_ami": [
+      {
+        "run_id": "prebaked-001",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T10:26:13.393756+00:00",
+        "node": {
+          "name": "ip-10-5-10-113.ec2.internal",
+          "instance_id": "i-0933c252bca692469",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-prebaked-001",
+          "uid": "7a92eca3-f6bb-4c57-b075-f5b55d75a1f4",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777630475000,
+            "end_ms": 1777630476000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777630476000,
+            "end_ms": 1777630478000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777630478000,
+            "end_ms": 1777630632000,
+            "duration_ms": 154000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777630697165,
+            "end_ms": 1777630700173,
+            "duration_ms": 3008,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777630700173,
+            "end_ms": 1777630700323,
+            "duration_ms": 150,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777630651000,
+            "end_ms": 1777630696000,
+            "duration_ms": 45000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777630739886,
+            "end_ms": 1777630871063,
+            "duration_ms": 131177,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777630986070,
+            "end_ms": 1777631000274,
+            "duration_ms": 14204,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777631127312,
+            "end_ms": 1777631136926,
+            "duration_ms": 9614,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777631136926,
+            "end_ms": 1777631148000,
+            "duration_ms": 11074,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777631148431,
+            "end_ms": 1777631156063,
+            "duration_ms": 7632,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 673431,
+          "scale_up_to_first_token_ms": 681063
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      },
+      {
+        "run_id": "prebaked-002",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T10:37:12.209255+00:00",
+        "node": {
+          "name": "ip-10-5-13-123.ec2.internal",
+          "instance_id": "i-0027d70e0f9314cad",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-prebaked-002",
+          "uid": "5ffe7fa7-a42e-4919-a8db-e9b4a45952c1",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777631183000,
+            "end_ms": 1777631184000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777631184000,
+            "end_ms": 1777631186000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777631186000,
+            "end_ms": 1777631313000,
+            "duration_ms": 127000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777631378807,
+            "end_ms": 1777631380427,
+            "duration_ms": 1620,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777631380427,
+            "end_ms": 1777631380528,
+            "duration_ms": 101,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777631332000,
+            "end_ms": 1777631377000,
+            "duration_ms": 45000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777631424388,
+            "end_ms": 1777631543654,
+            "duration_ms": 119266,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777631651263,
+            "end_ms": 1777631676238,
+            "duration_ms": 24975,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777631796489,
+            "end_ms": 1777631806389,
+            "duration_ms": 9900,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777631806389,
+            "end_ms": 1777631810000,
+            "duration_ms": 3611,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777631810436,
+            "end_ms": 1777631814700,
+            "duration_ms": 4264,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 627436,
+          "scale_up_to_first_token_ms": 631700
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      },
+      {
+        "run_id": "prebaked-003",
+        "arm": "fresh_node",
+        "started_at": "2026-05-01T10:49:01.127209+00:00",
+        "node": {
+          "name": "ip-10-5-25-148.ec2.internal",
+          "instance_id": "i-0e5763f1aed1c1668",
+          "instance_type": "g4dn.xlarge",
+          "az": "us-east-1a",
+          "ami_id": "ami-0220c5477659429c3",
+          "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+          "kernel": "5.10.245-245.983.amzn2.x86_64",
+          "spot": true
+        },
+        "pod": {
+          "name": "baseline-prebaked-003",
+          "uid": "91cb4dd0-aae2-4209-bed9-2b43d568d49d",
+          "image": "vllm/vllm-openai:v0.19.0"
+        },
+        "stages": {
+          "karpenter_scheduling": {
+            "start_ms": 1777631843000,
+            "end_ms": 1777631844000,
+            "duration_ms": 1000,
+            "source": "k8s_events"
+          },
+          "ec2_spot_fulfillment": {
+            "start_ms": 1777631844000,
+            "end_ms": 1777631846000,
+            "duration_ms": 2000,
+            "source": "cloudtrail+ec2"
+          },
+          "node_bootstrap": {
+            "start_ms": 1777631846000,
+            "end_ms": 1777631999000,
+            "duration_ms": 153000,
+            "source": "ec2+node_conditions"
+          },
+          "image_download": {
+            "start_ms": 1777632060384,
+            "end_ms": 1777632062729,
+            "duration_ms": 2345,
+            "source": "containerd_journal"
+          },
+          "image_unpack": {
+            "start_ms": 1777632062729,
+            "end_ms": 1777632062795,
+            "duration_ms": 66,
+            "source": "containerd_journal"
+          },
+          "model_download_s3": {
+            "start_ms": 1777632018000,
+            "end_ms": 1777632059000,
+            "duration_ms": 41000,
+            "source": "init_container_status"
+          },
+          "vllm_init_cuda_ctx": {
+            "start_ms": 1777632095225,
+            "end_ms": 1777632226492,
+            "duration_ms": 131267,
+            "source": "tracer_jsonl"
+          },
+          "weight_load_gpu_mem": {
+            "start_ms": 1777632344440,
+            "end_ms": 1777632371154,
+            "duration_ms": 26714,
+            "source": "tracer_jsonl"
+          },
+          "cuda_graph_warmup": {
+            "start_ms": 1777632494723,
+            "end_ms": 1777632504271,
+            "duration_ms": 9548,
+            "source": "tracer_jsonl"
+          },
+          "readiness_probe_pass": {
+            "start_ms": 1777632504271,
+            "end_ms": 1777632515000,
+            "duration_ms": 10729,
+            "source": "pod_conditions"
+          },
+          "first_token_served": {
+            "start_ms": 1777632515687,
+            "end_ms": 1777632523752,
+            "duration_ms": 8065,
+            "source": "external_smoke_client"
+          }
+        },
+        "totals": {
+          "scale_up_to_ready_ms": 672687,
+          "scale_up_to_first_token_ms": 680752
+        },
+        "validation": {
+          "all_stages_present": true,
+          "any_negative_durations": false,
+          "probe_spec_hash": "60fab599c6092a0e",
+          "notes": []
+        }
+      }
+    ]
+  },
+  "fingerprint_validation": {
+    "passed": false,
+    "issues": [
+      "variant C used the same AMI as A/B ({'ami-0220c5477659429c3'}) \u2014 the prebake did not take effect. NodeSelector likely landed C on a default-pool node."
+    ],
+    "reference": {
+      "az": "us-east-1a",
+      "instance_type": "g4dn.xlarge",
+      "cpu_model": "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz",
+      "kernel": "5.10.245-245.983.amzn2.x86_64",
+      "ami_id": "ami-0220c5477659429c3"
+    },
+    "ab_amis": [
+      "ami-0220c5477659429c3"
+    ],
+    "c_amis": [
+      "ami-0220c5477659429c3"
+    ]
+  }
+}

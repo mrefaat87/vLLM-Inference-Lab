@@ -1,0 +1,189 @@
+# Phase 4.1 baseline cold-start pod.
+# Single-pod, single-container architecture (no queue worker / RabbitMQ / Redis)
+# so the 10-stage waterfall maps cleanly to one process lifecycle.
+#
+# Probe config: PRE-V3 — initialDelaySeconds=120, no startupProbe.
+# This gives us the un-optimized "before" picture; future Phase 4.1
+# optimizations (e.g. startup probe) can claim credit for stage 9 savings.
+#
+# Image: public vllm/vllm-openai:v0.19.0 from Docker Hub (mirror to ECR later
+# if we hit pull-rate limits — for 3 baseline runs we won't).
+#
+# How tracer is mounted: ConfigMap → /tracer/cold_start_tracer.py at runtime.
+# Avoids rebuilding the vLLM image just to inject a Python script.
+#
+# RUN_ID: parameterised at apply time via `kubectl create -f - --dry-run=client
+# -o yaml | sed s/RUN_ID/.../`. The runner script (run_baseline_matrix.py)
+# will template this; for a manual pilot, do the sed yourself or set RUN_ID
+# explicitly below before applying.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+# ServiceAccount for S3 access — the IRSA role from terraform output
+# `vllm_worker_role_arn` lets pods in this SA read the model bucket.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    # Filled in at apply time (see deploy script). The role ARN is in
+    # `terraform output -raw vllm_worker_role_arn`.
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+# Tracer script lives in a ConfigMap so we don't rebuild the vLLM image.
+# Update via `kubectl create configmap cold-start-tracer --from-file=...
+# --dry-run=client -o yaml | kubectl apply -f -`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+  annotations:
+    # Tell Karpenter NOT to consolidate the node this pod is on, even if it
+    # looks empty. Karpenter v0.37 treats nodes as empty during init-container
+    # phase (pod is Pending, not Running) and terminates them within
+    # `consolidateAfter`, evicting our pod mid-startup. This annotation is the
+    # documented escape hatch.
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never  # Cold-start measurement; failure = throw the run away.
+
+  # Variant A of the 3-way pull comparison: routes to default-eks NodePool.
+  # The explicit image-source=default-eks selector is required because the
+  # prebaked NodePool (variant C) also labels nodes node-role=gpu — without
+  # this guard Karpenter schedules nondeterministically across both pools.
+  nodeSelector:
+    node-role: gpu
+    image-source: default-eks
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # ── Init container: download Qwen2.5-7B-AWQ weights from S3 ───────────────
+  # This is stage 5 of the waterfall (model_download_s3). The collector reads
+  # the init container's startedAt/finishedAt from pod status to time it.
+  initContainers:
+    - name: model-download
+      image: public.ecr.aws/aws-cli/aws-cli:2.17.18
+      command:
+        - sh
+        - -c
+        - |
+          set -euxo pipefail
+          mkdir -p /models/Qwen2.5-7B-Instruct-AWQ
+          aws s3 cp --recursive --no-progress \
+            s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \
+            /models/Qwen2.5-7B-Instruct-AWQ/
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+
+  # ── Main container: vLLM under tracer wrapper ─────────────────────────────
+  containers:
+    - name: vllm
+      image: vllm/vllm-openai:v0.19.0
+      # Pull policy Always to make stage 4 (image pull) fire on every cold start
+      # — otherwise a cached image on a reused node would short-circuit it.
+      # For the fresh-node matrix the node is brand new each run so IfNotPresent
+      # would be fine too, but Always is the explicit safety net.
+      imagePullPolicy: Always
+
+      # Override the upstream entrypoint with our tracer wrapper.
+      # The tracer execs vLLM as a subprocess and scrapes its stdout for stage
+      # boundary log markers (see cold_start_tracer.py).
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        - --model=/models/Qwen2.5-7B-Instruct-AWQ
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096   # Conservative cap; KV cache fits easily on T4.
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      # PRE-V3 readiness probe — the un-optimized baseline.
+      # initialDelaySeconds=120 means kubelet waits a flat 120s before the first
+      # /health check. Even when vLLM is actually ready earlier, the pod sits
+      # idle until the timer expires. Stage 9 (readiness_probe_pass) measures
+      # this lag.
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+      # NO startupProbe — that's a Phase 4 v3 optimization we're measuring against.
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+          readOnly: true
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+
+  # ── Volumes ────────────────────────────────────────────────────────────────
+  volumes:
+    # Model weights from the init container — emptyDir on the node's local SSD.
+    # Wiped when the pod terminates, which is fine: each run downloads fresh.
+    - name: model-cache
+      emptyDir:
+        sizeLimit: 8Gi
+
+    # Tracer script from ConfigMap.
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+
+    # JSONL events written here. hostPath so the collector can fish them off
+    # the node via `kubectl debug` even after the pod is gone.
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate

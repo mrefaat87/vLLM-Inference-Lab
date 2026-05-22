@@ -1,0 +1,167 @@
+# baseline-pod-fsx-weights.yaml — Variant H of the cold-start comparison.
+#
+# DELTA FROM baseline-pod-prebaked-streamer.yaml (closest sibling):
+#   1. Image: stock vllm/vllm-openai:v0.19.0 (NOT the streamer-augmented build).
+#      Variant H reads weights from a local-disk-style mount (FSx Lustre via
+#      CSI), so vLLM's standard weight loader is the right path. The streamer
+#      pip install isn't needed and would only add image bytes.
+#   2. PVC volume: model-weights-fsx (FSx for Lustre, populated once by
+#      fsx-populate-job.yaml). Mounted RO at /mnt/fsx; vLLM reads from
+#      /mnt/fsx/qwen2.5-7b-awq.
+#   3. nodeSelector image-source=prebaked-fsx → routes to gpu-nodepool-prebaked-fsx
+#      (lustre-client-baked AMI). Without this label match, the pod would land
+#      on a node that can't mount the FSx filesystem (no kernel module).
+#   4. No model-download init container, no model-cache emptyDir — same shape
+#      as Variant E and Variant G; tracer reports model_download_s3 = 0s with
+#      source=absent_init_container, and the actual disk read folds into
+#      weight_load_gpu_mem (compare with the SUM, not individual stages — see
+#      LEARNINGS.md "Variant G" findings).
+#
+# WHY THE STAGE TABLE WILL HAVE A NEW STAGE
+#   The FSx CSI driver's first-pod-on-node mount sets up the Lustre client
+#   session (5-30s expected). The tracer adjustment for this variant adds a
+#   new optional fsx_csi_mount_s stage derived from K8s pod events
+#   (MountVolume.SetUp succeeded for "model-fsx"). Compare with the SUM of
+#   (model_download_s3 + weight_load_gpu_mem + fsx_csi_mount_s) across
+#   D / G / H to avoid the per-stage attribution traps that bit Variants D
+#   and G in their initial readings.
+#
+# EXPECTED COLD-START SHAPE (per plan hypothesis)
+#   - node_bootstrap ≈ 46s     (same prebaked-image AMI; FSR for image only)
+#   - image_download ≈ 1-2s    (vLLM image is on the AMI)
+#   - model_download_s3 = 0s   (no init container)
+#   - vllm_init_cuda_ctx ≈ 20-23s
+#   - fsx_csi_mount_s 5-30s    (new stage)
+#   - weight_load_gpu_mem 10-35s (Lustre cold first-read)
+#   - cuda_graph_warmup ≈ 9-10s
+#   - readiness_probe_pass <10s
+#   - first_token_served ≈ 3s
+#   Total band: 220-270s; H is the multi-model production answer if it lands
+#   ≤251s with stddev <20s.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+    image-source: prebaked-fsx
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never
+
+  # ─── ROUTES TO THE FSX NODEPOOL ────────────────────────────────────────────
+  # The H NodePool sets BOTH labels on its node template (node-role=gpu and
+  # image-source=prebaked-fsx). Without this match the pod could land on a
+  # stock-EKS-AMI node where the lustre client kernel module isn't loaded —
+  # the FSx CSI mount would fail at mount-syscall time, not at scheduling.
+  nodeSelector:
+    node-role: gpu
+    image-source: prebaked-fsx
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # NOTE: no initContainers. Weights are pre-populated on the FSx PVC.
+
+  containers:
+    - name: vllm
+      image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0
+      # IfNotPresent is critical — the stock vLLM image is baked into this
+      # node's AMI (see packer/lustre-client/gpu-node-lustre.pkr.hcl).
+      imagePullPolicy: IfNotPresent
+
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        # vLLM reads weights from the FSx mount path. No --load-format flag —
+        # the standard loader handles safetensors directly.
+        - --model=/mnt/fsx/qwen2.5-7b-awq
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        - name: model-fsx
+          mountPath: /mnt/fsx
+          readOnly: true
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+
+  volumes:
+    - name: model-fsx
+      persistentVolumeClaim:
+        claimName: model-weights-fsx
+        readOnly: true
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate

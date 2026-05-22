@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Inference Learning Lab — Index</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-hover: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --tag: #1f6feb33;
+    --tag-text: #79c0ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 48px 24px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  header { margin-bottom: 8px; }
+  h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); margin-top: 8px; font-size: 1.05rem; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-top: 12px; }
+
+  .section-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin: 44px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  a.card {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+  a.card:hover {
+    background: var(--panel-hover);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .card-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--tag);
+    color: var(--tag-text);
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+  .card-desc { color: var(--text); margin-top: 8px; font-size: 0.95rem; }
+  .card-detail { color: var(--muted); margin-top: 6px; font-size: 0.88rem; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>LLM Inference Learning Lab</h1>
+    <p class="subtitle">Results &amp; analysis from a hands-on journey through LLM inference infrastructure — from a laptop to an auto-scaling EKS serving platform.</p>
+    <p class="meta">Mohamed Mahmoud · Index updated 2026-05-20</p>
+  </header>
+
+  <div class="section-title">Foundations</div>
+
+  <a class="card" href="lab/inference_lab_dark.html">
+    <div class="card-head">
+      <span class="card-title">Stages 1–2 — Inference Fundamentals</span>
+      <span class="card-tag">Lab Writeup</span>
+    </div>
+    <p class="card-desc">30 investigated tests covering how an inference engine actually behaves: continuous batching &amp; scheduling, FP8/AWQ quantization, KV cache &amp; memory management, prefill vs decode mechanics, decode acceleration, sampling, model ops, and load-testing patterns.</p>
+    <p class="card-detail">Stage 1 runs Ollama locally on an Apple M4 (16&nbsp;GB); Stage 2 moves to vLLM on an AWS g4dn.xlarge spot instance. Includes the critical V1-engine finding. Full results &amp; analysis, dark theme.</p>
+  </a>
+
+  <a class="card" href="reference/MODEL_SIZING_SCALING_REFERENCE.html">
+    <div class="card-head">
+      <span class="card-title">Model Sizing &amp; Scaling — Reference</span>
+      <span class="card-tag">Reference</span>
+    </div>
+    <p class="card-desc">A standalone reference for capacity planning at token granularity: the roofline mental model, KV cache math, parallelism strategies, prefill/decode disaggregation, and vLLM / TensorRT-LLM tuning knobs.</p>
+    <p class="card-detail">Includes a 9-step sizing workflow, an engine-parameter taxonomy, and worked production data from DeepSeek-V3 and Character.AI.</p>
+  </a>
+
+  <div class="section-title">Production Inference Platform on EKS</div>
+
+  <a class="card" href="phase1/tests/stage3_results_dashboard.html">
+    <div class="card-head">
+      <span class="card-title">Phase 1 — Queue-Based Inference on EKS</span>
+      <span class="card-tag">Phase 1</span>
+    </div>
+    <p class="card-desc">The EKS + Karpenter foundation: a queue-based inference load test measured at N=1, N=5, and N=15 concurrent requests, establishing queue wait time as the core scaling signal.</p>
+    <p class="card-detail">Breaks down per-request vs aggregate throughput and compares direct vLLM (Stage 2) against the queue-based architecture.</p>
+  </a>
+
+  <a class="card" href="phase2/tests/phase2_results_dashboard.html">
+    <div class="card-head">
+      <span class="card-title">Phase 2 — Observability + GPU Autoscaling</span>
+      <span class="card-tag">Phase 2</span>
+    </div>
+    <p class="card-desc">Adds the observability stack — Prometheus, Grafana, and DCGM — and uses it to watch GPU autoscaling in action.</p>
+    <p class="card-detail">Grafana dashboards captured under sustained load, queue saturation at N=15 on one worker, and the scale-up from 1 to 2 workers with the resulting queue-wait improvement.</p>
+  </a>
+
+  <a class="card" href="phase3/tests/phase3_complete_results.html">
+    <div class="card-head">
+      <span class="card-title">Phase 3 — Admission Control: Should a Worker Decide Its Own Limits?</span>
+      <span class="card-tag">Phase 3</span>
+    </div>
+    <p class="card-desc">Six rounds (A–F) of admission-control experiments: gating on memory bandwidth, GPU compute, both compounded, and KV cache; plus adaptive vs static strategies on 7B and 14B models.</p>
+    <p class="card-detail">Concludes with when each strategy wins, infrastructure lessons, and a layered-defense model for what to do when load exceeds capacity. The complete, consolidated Phase 3 results.</p>
+  </a>
+
+  <a class="card" href="phase4/tests/phase4_results_dashboard.html">
+    <div class="card-head">
+      <span class="card-title">Phase 4 — Scaling Policies: When Queue Depth Isn't Enough</span>
+      <span class="card-tag">Phase 4</span>
+    </div>
+    <p class="card-desc">Compares four autoscaling policies across a three-act workload — normal load, KV-cache stress, and burst — showing where composite KV-cache triggers beat queue-depth-only scaling by ~4x in throughput.</p>
+    <p class="card-detail">Covers the cost trade-off and the takeaway that SLA compliance is a capacity problem, not a policy problem.</p>
+  </a>
+
+  <a class="card" href="phase4.1/blog_cold_start.html">
+    <div class="card-head">
+      <span class="card-title">Phase 4 — Cold Start: Why Yours Is Slower Than You Think</span>
+      <span class="card-tag">Phase 4 · Blog</span>
+    </div>
+    <p class="card-desc">A narrative walkthrough of cutting GPU cold start from 590s to 212s, attacking it in three stages: image delivery, model-weight loading, and engine initialization.</p>
+    <p class="card-detail">Findings on EBS Fast Snapshot Restore as a warm-pool analog, why network locality and the RunAI Streamer underperformed, the cost of pre-baking images into the AMI, and a final decision tree.</p>
+  </a>
+
+  <a class="card" href="phase4.5/tests/phase4_5_dynamo_results.html">
+    <div class="card-head">
+      <span class="card-title">Phase 4.5 — NVIDIA Dynamo Hands-On Spike</span>
+      <span class="card-tag">Phase 4.5 · Spike</span>
+    </div>
+    <p class="card-desc">An exploratory spike on NVIDIA Dynamo for disaggregated inference. Headline finding: prefill/decode disaggregation regresses TTFT without RDMA, while KV-aware routing gives a modest p99 win on bursty traffic.</p>
+    <p class="card-detail">Documents the operator quirks that consumed the most time — namespace mismatches, the NIXL connector flag, and stale ReplicaSet pile-up.</p>
+  </a>
+
+  <footer>
+    Each link opens a self-contained results page. Phases 5–8 (smart routing, multi-model serving, production hardening, disaggregated inference) are in progress.
+  </footer>
+
+</div>
+</body>
+</html>

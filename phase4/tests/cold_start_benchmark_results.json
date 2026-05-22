@@ -1,0 +1,184 @@
+{
+  "experiment": "phase4_cold_start_benchmark_8configs",
+  "start_time": "2026-04-07T23:03:48.981051+00:00",
+  "end_time": "2026-04-08T01:16:00.638925+00:00",
+  "cluster_info": {
+    "context": "arn:aws:eks:us-east-1:019167255542:cluster/inference-phase4",
+    "vllm_version": "v0.19.0",
+    "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+    "instance_type": "g4dn.xlarge",
+    "gpu_cost_per_hour": 0.16
+  },
+  "configs_run": [
+    "naked",
+    "+s3-init",
+    "+prebaked-ami",
+    "+warmup",
+    "+startup-probe",
+    "+soci",
+    "+streamer",
+    "+cache-hit"
+  ],
+  "config_results": {
+    "naked": {
+      "config_name": "naked",
+      "config_number": 1,
+      "description": "v0.19.0 baseline: default AMI, HF download, initialDelaySeconds:120, --enforce-eager, no warmup",
+      "expected_impact": "True baseline \u2014 expect ~500-600s",
+      "stage_affected": "all",
+      "timings": null,
+      "stages": {
+        "total": 743.9
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+s3-init": {
+      "config_name": "+s3-init",
+      "config_number": 2,
+      "description": "Add S3 model init container. Tiered: EBS hostPath \u2192 S3 \u2192 HuggingFace fallback",
+      "expected_impact": "Saves ~12s on model download (S3 same-region vs HF cross-region)",
+      "stage_affected": "Stage 3",
+      "timings": null,
+      "stages": {
+        "total": 625.8
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+prebaked-ami": {
+      "config_name": "+prebaked-ami",
+      "config_number": 3,
+      "description": "Switch to pre-baked AMI with v0.19.0 image cached in containerd",
+      "expected_impact": "Saves ~7s (layer unpack is bottleneck, not download)",
+      "stage_affected": "Stage 2",
+      "timings": null,
+      "stages": {
+        "total": 644.3
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+warmup": {
+      "config_name": "+warmup",
+      "config_number": 4,
+      "description": "Add model warmup (synthetic 50-token request before consuming queue)",
+      "expected_impact": "Same cold start total, but first real request TTFT drops from ~30s to ~0.5s",
+      "stage_affected": "Stage 4 / TTFT",
+      "timings": null,
+      "stages": {
+        "total": 661.1
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+startup-probe": {
+      "config_name": "+startup-probe",
+      "config_number": 5,
+      "description": "Replace initialDelaySeconds:120 with startup probe (httpGet /health every 5s)",
+      "expected_impact": "Saves ~115s (detects readiness in ~5s vs 120s fixed wait)",
+      "stage_affected": "Stage 5",
+      "timings": null,
+      "stages": {
+        "total": 637.4
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+soci": {
+      "config_name": "+soci",
+      "config_number": 6,
+      "description": "SOCI AMI (lazy FUSE image loading from ECR). Also drops --enforce-eager for CUDA graphs",
+      "expected_impact": "Saves ~250s on image pull (container starts before full decompression)",
+      "stage_affected": "Stage 2",
+      "timings": null,
+      "stages": {
+        "total": 555.5
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+streamer": {
+      "config_name": "+streamer",
+      "config_number": 7,
+      "description": "RunAI Model Streamer: concurrent C++ tensor streaming to GPU (16 threads)",
+      "expected_impact": "Saves ~34s on model loading (48s \u2192 14s from disk)",
+      "stage_affected": "Stage 3",
+      "timings": null,
+      "stages": {
+        "total": 574.6
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "+cache-hit": {
+      "config_name": "+cache-hit",
+      "config_number": 8,
+      "description": "2nd cold start on same node \u2014 /mnt/compile-cache has compiled Triton kernels from +streamer run",
+      "expected_impact": "Saves ~30s (Stage 4 \u2192 ~0s, compiled kernels reused)",
+      "stage_affected": "Stage 4",
+      "timings": null,
+      "stages": {
+        "total": 519.0
+      },
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": null,
+      "pod_name": null,
+      "error": "'NoneType' object has no attribute 'strip'"
+    },
+    "wake-from-sleep": {
+      "config_name": "wake-from-sleep",
+      "config_number": 9,
+      "description": "vLLM sleep mode wake: GPU VRAM offloaded to CPU, CUDA graphs preserved",
+      "expected_impact": "Wake in ~0.3-0.9s (L1: CPU\u2192GPU weight copy)",
+      "stage_affected": "Wake",
+      "timings": null,
+      "stages": null,
+      "wake_latency_ms": null,
+      "first_request": null,
+      "gpu_hours": 0.0,
+      "gpu_cost_usd": 0.0,
+      "node_name": "ip-10-4-62-22.ec2.internal",
+      "pod_name": "vllm-worker-57d88cc56-fb5q6",
+      "error": "vLLM did not enter sleep within 360s"
+    }
+  }
+}

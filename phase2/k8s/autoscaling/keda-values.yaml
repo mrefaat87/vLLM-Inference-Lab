@@ -1,0 +1,83 @@
+# keda-values.yaml — Helm values for KEDA event-driven autoscaler.
+#
+# WHAT KEDA DOES: Watches external event sources (RabbitMQ queue depth in our case)
+# and scales K8s Deployments accordingly. It creates an HPA under the hood but
+# adds custom metric adapters that standard HPA doesn't support.
+#
+# WHY KEDA (not HPA directly):
+#   - Standard HPA can only scale on CPU/memory metrics or custom metrics adapter
+#   - KEDA has a built-in RabbitMQ scaler that connects via AMQP to read queue depth
+#   - No need to pipe RabbitMQ metrics through Prometheus → custom metrics API → HPA
+#   - KEDA is the industry standard for queue-based autoscaling on K8s
+#
+# ANALOGY: KEDA is like an ASG scaling policy that watches SQS queue depth.
+# Standard HPA is like scaling only on CPU utilization.
+#
+# RESOURCE BUDGET: ~200Mi total (operator + metrics server + webhooks)
+
+operator:
+  # WHY CPU affinity: KEDA operator is a control plane component. It shouldn't
+  # consume GPU node resources that should be reserved for inference.
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+metricsServer:
+  # WHY metrics server: KEDA exposes custom metrics to K8s metrics API so HPA
+  # can read them. This bridges KEDA's RabbitMQ scaler → K8s autoscaling API.
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+webhooks:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - cpu
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+logging:
+  operator:
+    level: info
+    # WHY info (not debug): debug floods the logs with AMQP connection details
+    # on every polling interval. Info gives us scaling events without the noise.

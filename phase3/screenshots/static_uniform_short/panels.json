@@ -1,0 +1,28 @@
+{
+  "strategy": "static",
+  "workload": "uniform_short",
+  "time_range": {
+    "from_epoch_ms": 1775330972293,
+    "to_epoch_ms": 1775331093924,
+    "from_iso": "2026-04-04T19:29:32.293000+00:00",
+    "to_iso": "2026-04-04T19:31:33.924000+00:00"
+  },
+  "dashboard_url": "http://localhost:3000/d/inference-platform/inference-platform?from=1775330972293&to=1775331093924",
+  "panels": {
+    "gpu_compute_utilization": "phase3/screenshots/static_uniform_short/gpu_compute_utilization.png",
+    "memory_bandwidth_utilization": "phase3/screenshots/static_uniform_short/memory_bandwidth_utilization.png",
+    "vram_usage": "phase3/screenshots/static_uniform_short/vram_usage.png",
+    "gpu_temperature": "phase3/screenshots/static_uniform_short/gpu_temperature.png",
+    "kv_cache_usage": "phase3/screenshots/static_uniform_short/kv_cache_usage.png",
+    "requests_running_waiting": "phase3/screenshots/static_uniform_short/requests_running_waiting.png",
+    "throughput_tok_s": "phase3/screenshots/static_uniform_short/throughput_tok_s.png",
+    "ttft": "phase3/screenshots/static_uniform_short/ttft.png",
+    "tbt": "phase3/screenshots/static_uniform_short/tbt.png",
+    "request_rate_errors": "phase3/screenshots/static_uniform_short/request_rate_errors.png",
+    "queue_depth": "phase3/screenshots/static_uniform_short/queue_depth.png",
+    "queue_ready_unacked": "phase3/screenshots/static_uniform_short/queue_ready_unacked.png",
+    "worker_replicas": "phase3/screenshots/static_uniform_short/worker_replicas.png",
+    "gpu_nodes": "phase3/screenshots/static_uniform_short/gpu_nodes.png"
+  },
+  "render_available": true
+}

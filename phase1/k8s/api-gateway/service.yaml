@@ -1,0 +1,24 @@
+# api-gateway/service.yaml — Internal endpoint for the API gateway.
+#
+# WHY ClusterIP (not LoadBalancer): in Phase 1, we'll use kubectl port-forward
+# or an Ingress controller to expose the gateway externally. ClusterIP keeps
+# the service internal by default — same principle as putting ALBs in public
+# subnets but backends in private subnets.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: inference-system
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: inference-lab
+    app.kubernetes.io/component: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: api-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

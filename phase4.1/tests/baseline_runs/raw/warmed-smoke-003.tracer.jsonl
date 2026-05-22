@@ -1,0 +1,8 @@
+{"event": "process_start", "epoch_ms": 1777701632127, "run_id": "warmed-smoke-003"}
+{"event": "vllm_import_done", "epoch_ms": 1777701658016, "run_id": "warmed-smoke-003"}
+{"event": "cuda_context_ready", "epoch_ms": 1777701658512, "run_id": "warmed-smoke-003"}
+{"event": "weight_load_start", "epoch_ms": 1777701692115, "run_id": "warmed-smoke-003"}
+{"event": "weight_load_done", "epoch_ms": 1777701697172, "run_id": "warmed-smoke-003"}
+{"event": "graph_capture_start", "epoch_ms": 1777701729720, "run_id": "warmed-smoke-003"}
+{"event": "warmup_done", "epoch_ms": 1777701739055, "run_id": "warmed-smoke-003"}
+{"event": "server_ready", "epoch_ms": 1777701741603, "run_id": "warmed-smoke-003"}

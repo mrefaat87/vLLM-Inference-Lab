@@ -1,0 +1,111 @@
+# gpu-nodepool-prebaked-streamer.yaml — Karpenter NodePool for variant E.
+#
+# DIFFERENCES FROM gpu-nodepool-prebaked.yaml:
+#   - amiSelectorTerms targets Variant=prebaked-streamer (built by
+#     gpu-node-streamer.pkr.hcl) instead of Variant=prebaked-stock.
+#   - Node template label image-source=prebaked-streamer routes only
+#     baseline-pod-prebaked-streamer.yaml's pod here.
+#   - Distinct EC2NodeClass/NodePool names so this NodePool coexists with
+#     gpu-pool-prebaked (variant D's) without colliding on AMI selection.
+#
+# Everything else (g4dn.xlarge, Spot, us-east-1a, GPU taint, disruption) is
+# identical to the variant-D NodePool — so node_bootstrap differences
+# between D and E are attributable only to the cached image, not infra.
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: gpu-nodes-prebaked-streamer
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  amiFamily: AL2
+
+  # Targets the AMI built by gpu-node-streamer.pkr.hcl + tagged manually
+  # post-build (Packer's wait-for-ready timed out before tags applied — see
+  # memory feedback_packer_ami_wait_timeout.md).
+  amiSelectorTerms:
+    - tags:
+        Project: inference-lab
+        Stage: phase4.1
+        Variant: prebaked-streamer
+
+  role: "inference-phase4-1-karpenter-node"
+
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-phase4-1"
+
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+
+  tags:
+    Project: inference-lab
+    Stage: phase4.1
+    NodePool: prebaked-streamer
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: gpu-pool-prebaked-streamer
+  labels:
+    app.kubernetes.io/part-of: inference-phase4-1
+spec:
+  template:
+    metadata:
+      labels:
+        # Both labels are required by baseline-pod-prebaked-streamer.yaml's
+        # nodeSelector. node-role=gpu is the standard guard; image-source
+        # disambiguates the streamer NodePool from prebaked-stock.
+        node-role: gpu
+        image-source: prebaked-streamer
+    spec:
+      nodeClassRef:
+        name: gpu-nodes-prebaked-streamer
+
+      requirements:
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - g4dn.xlarge
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - spot
+
+        # us-east-1a — co-located with the prebaked-streamer AMI's snapshot
+        # and the FSR enablement scope (FSR is per-AZ).
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+
+  limits:
+    cpu: "8"
+    memory: 32Gi
+
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 300s
+    expireAfter: 6h
+    budgets:
+      - nodes: "1"

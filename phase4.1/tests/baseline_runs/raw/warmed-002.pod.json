@@ -1,0 +1,413 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "karpenter.sh/do-not-disrupt": "true",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{\"karpenter.sh/do-not-disrupt\":\"true\"},\"labels\":{\"app\":\"baseline\",\"image-source\":\"prebaked-warmed\",\"run-id\":\"warmed-002\"},\"name\":\"baseline-warmed-002\",\"namespace\":\"baseline\"},\"spec\":{\"containers\":[{\"command\":[\"python3\",\"/tracer/cold_start_tracer.py\",\"--run-id=warmed-002\",\"--jsonl-dir=/var/log/cold_start\",\"--\",\"python3\",\"-m\",\"vllm.entrypoints.openai.api_server\",\"--model=/models/Qwen2.5-7B-Instruct-AWQ\",\"--quantization=awq\",\"--dtype=half\",\"--gpu-memory-utilization=0.85\",\"--max-model-len=4096\",\"--host=0.0.0.0\",\"--port=8000\"],\"env\":[{\"name\":\"TORCHINDUCTOR_CACHE_DIR\",\"value\":\"/opt/vllm-cache/torchinductor\"},{\"name\":\"TRITON_CACHE_DIR\",\"value\":\"/opt/vllm-cache/triton\"},{\"name\":\"FLASHINFER_JIT_DIR\",\"value\":\"/opt/vllm-cache/flashinfer\"},{\"name\":\"VLLM_CACHE_ROOT\",\"value\":\"/opt/vllm-cache/vllm_compile\"},{\"name\":\"HF_HOME\",\"value\":\"/opt/vllm-cache/hf\"}],\"image\":\"vllm/vllm-openai:v0.19.0\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"vllm\",\"ports\":[{\"containerPort\":8000,\"name\":\"http\"}],\"readinessProbe\":{\"failureThreshold\":6,\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":120,\"periodSeconds\":10,\"timeoutSeconds\":5},\"resources\":{\"limits\":{\"cpu\":\"4\",\"memory\":\"14Gi\",\"nvidia.com/gpu\":1},\"requests\":{\"cpu\":\"2\",\"memory\":\"12Gi\",\"nvidia.com/gpu\":1}},\"volumeMounts\":[{\"mountPath\":\"/models\",\"name\":\"model-cache\",\"readOnly\":true},{\"mountPath\":\"/tracer\",\"name\":\"tracer-script\",\"readOnly\":true},{\"mountPath\":\"/var/log/cold_start\",\"name\":\"tracer-logs\"},{\"mountPath\":\"/opt/vllm-cache\",\"name\":\"compile-cache\",\"readOnly\":false}]}],\"initContainers\":[{\"command\":[\"sh\",\"-c\",\"set -euxo pipefail\\nmkdir -p /models/Qwen2.5-7B-Instruct-AWQ\\naws s3 cp --recursive --no-progress \\\\\\n  s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \\\\\\n  /models/Qwen2.5-7B-Instruct-AWQ/\\n\"],\"image\":\"public.ecr.aws/aws-cli/aws-cli:2.17.18\",\"name\":\"model-download\",\"volumeMounts\":[{\"mountPath\":\"/models\",\"name\":\"model-cache\"}]}],\"nodeSelector\":{\"image-source\":\"prebaked-warmed\",\"node-role\":\"gpu\"},\"restartPolicy\":\"Never\",\"serviceAccountName\":\"baseline-runner\",\"tolerations\":[{\"effect\":\"NoSchedule\",\"key\":\"nvidia.com/gpu\",\"operator\":\"Equal\",\"value\":\"true\"}],\"volumes\":[{\"emptyDir\":{\"sizeLimit\":\"8Gi\"},\"name\":\"model-cache\"},{\"configMap\":{\"defaultMode\":493,\"name\":\"cold-start-tracer\"},\"name\":\"tracer-script\"},{\"hostPath\":{\"path\":\"/var/log/cold_start\",\"type\":\"DirectoryOrCreate\"},\"name\":\"tracer-logs\"},{\"hostPath\":{\"path\":\"/opt/vllm-cache\",\"type\":\"Directory\"},\"name\":\"compile-cache\"}]}}\n"
+        },
+        "creationTimestamp": "2026-05-02T06:08:44Z",
+        "labels": {
+            "app": "baseline",
+            "image-source": "prebaked-warmed",
+            "run-id": "warmed-002"
+        },
+        "name": "baseline-warmed-002",
+        "namespace": "baseline",
+        "resourceVersion": "582543",
+        "uid": "b2b0ac03-aa8a-4a40-a562-39f1b55e5762"
+    },
+    "spec": {
+        "containers": [
+            {
+                "command": [
+                    "python3",
+                    "/tracer/cold_start_tracer.py",
+                    "--run-id=warmed-002",
+                    "--jsonl-dir=/var/log/cold_start",
+                    "--",
+                    "python3",
+                    "-m",
+                    "vllm.entrypoints.openai.api_server",
+                    "--model=/models/Qwen2.5-7B-Instruct-AWQ",
+                    "--quantization=awq",
+                    "--dtype=half",
+                    "--gpu-memory-utilization=0.85",
+                    "--max-model-len=4096",
+                    "--host=0.0.0.0",
+                    "--port=8000"
+                ],
+                "env": [
+                    {
+                        "name": "TORCHINDUCTOR_CACHE_DIR",
+                        "value": "/opt/vllm-cache/torchinductor"
+                    },
+                    {
+                        "name": "TRITON_CACHE_DIR",
+                        "value": "/opt/vllm-cache/triton"
+                    },
+                    {
+                        "name": "FLASHINFER_JIT_DIR",
+                        "value": "/opt/vllm-cache/flashinfer"
+                    },
+                    {
+                        "name": "VLLM_CACHE_ROOT",
+                        "value": "/opt/vllm-cache/vllm_compile"
+                    },
+                    {
+                        "name": "HF_HOME",
+                        "value": "/opt/vllm-cache/hf"
+                    },
+                    {
+                        "name": "AWS_STS_REGIONAL_ENDPOINTS",
+                        "value": "regional"
+                    },
+                    {
+                        "name": "AWS_DEFAULT_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_ROLE_ARN",
+                        "value": "arn:aws:iam::019167255542:role/inference-phase4-1-vllm-worker"
+                    },
+                    {
+                        "name": "AWS_WEB_IDENTITY_TOKEN_FILE",
+                        "value": "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+                    }
+                ],
+                "image": "vllm/vllm-openai:v0.19.0",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "vllm",
+                "ports": [
+                    {
+                        "containerPort": 8000,
+                        "name": "http",
+                        "protocol": "TCP"
+                    }
+                ],
+                "readinessProbe": {
+                    "failureThreshold": 6,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": 8000,
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 120,
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                },
+                "resources": {
+                    "limits": {
+                        "cpu": "4",
+                        "memory": "14Gi",
+                        "nvidia.com/gpu": "1"
+                    },
+                    "requests": {
+                        "cpu": "2",
+                        "memory": "12Gi",
+                        "nvidia.com/gpu": "1"
+                    }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/models",
+                        "name": "model-cache",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/tracer",
+                        "name": "tracer-script",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/log/cold_start",
+                        "name": "tracer-logs"
+                    },
+                    {
+                        "mountPath": "/opt/vllm-cache",
+                        "name": "compile-cache"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-p6f8h",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/eks.amazonaws.com/serviceaccount",
+                        "name": "aws-iam-token",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "initContainers": [
+            {
+                "command": [
+                    "sh",
+                    "-c",
+                    "set -euxo pipefail\nmkdir -p /models/Qwen2.5-7B-Instruct-AWQ\naws s3 cp --recursive --no-progress \\\n  s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/ \\\n  /models/Qwen2.5-7B-Instruct-AWQ/\n"
+                ],
+                "env": [
+                    {
+                        "name": "AWS_STS_REGIONAL_ENDPOINTS",
+                        "value": "regional"
+                    },
+                    {
+                        "name": "AWS_DEFAULT_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_REGION",
+                        "value": "us-east-1"
+                    },
+                    {
+                        "name": "AWS_ROLE_ARN",
+                        "value": "arn:aws:iam::019167255542:role/inference-phase4-1-vllm-worker"
+                    },
+                    {
+                        "name": "AWS_WEB_IDENTITY_TOKEN_FILE",
+                        "value": "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+                    }
+                ],
+                "image": "public.ecr.aws/aws-cli/aws-cli:2.17.18",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "model-download",
+                "resources": {},
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/models",
+                        "name": "model-cache"
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                        "name": "kube-api-access-p6f8h",
+                        "readOnly": true
+                    },
+                    {
+                        "mountPath": "/var/run/secrets/eks.amazonaws.com/serviceaccount",
+                        "name": "aws-iam-token",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "nodeName": "ip-10-5-6-38.ec2.internal",
+        "nodeSelector": {
+            "image-source": "prebaked-warmed",
+            "node-role": "gpu"
+        },
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "baseline-runner",
+        "serviceAccountName": "baseline-runner",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+            {
+                "effect": "NoSchedule",
+                "key": "nvidia.com/gpu",
+                "operator": "Equal",
+                "value": "true"
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoSchedule",
+                "key": "nvidia.com/gpu",
+                "operator": "Exists"
+            }
+        ],
+        "volumes": [
+            {
+                "name": "aws-iam-token",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "audience": "sts.amazonaws.com",
+                                "expirationSeconds": 86400,
+                                "path": "token"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "emptyDir": {
+                    "sizeLimit": "8Gi"
+                },
+                "name": "model-cache"
+            },
+            {
+                "configMap": {
+                    "defaultMode": 493,
+                    "name": "cold-start-tracer"
+                },
+                "name": "tracer-script"
+            },
+            {
+                "hostPath": {
+                    "path": "/var/log/cold_start",
+                    "type": "DirectoryOrCreate"
+                },
+                "name": "tracer-logs"
+            },
+            {
+                "hostPath": {
+                    "path": "/opt/vllm-cache",
+                    "type": "Directory"
+                },
+                "name": "compile-cache"
+            },
+            {
+                "name": "kube-api-access-p6f8h",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                        {
+                            "serviceAccountToken": {
+                                "expirationSeconds": 3607,
+                                "path": "token"
+                            }
+                        },
+                        {
+                            "configMap": {
+                                "items": [
+                                    {
+                                        "key": "ca.crt",
+                                        "path": "ca.crt"
+                                    }
+                                ],
+                                "name": "kube-root-ca.crt"
+                            }
+                        },
+                        {
+                            "downwardAPI": {
+                                "items": [
+                                    {
+                                        "fieldRef": {
+                                            "apiVersion": "v1",
+                                            "fieldPath": "metadata.namespace"
+                                        },
+                                        "path": "namespace"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "status": {
+        "conditions": [
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-02T06:09:47Z",
+                "status": "True",
+                "type": "PodReadyToStartContainers"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-02T06:10:20Z",
+                "status": "True",
+                "type": "Initialized"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-02T06:12:33Z",
+                "status": "True",
+                "type": "Ready"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-02T06:12:33Z",
+                "status": "True",
+                "type": "ContainersReady"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-05-02T06:09:43Z",
+                "status": "True",
+                "type": "PodScheduled"
+            }
+        ],
+        "containerStatuses": [
+            {
+                "containerID": "containerd://ff5a94bd6bb0b0e2ec55dc712289c544b17ffd796d93b70fa549092f276b7528",
+                "image": "019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0",
+                "imageID": "docker.io/vllm/vllm-openai@sha256:d9a5c1c1614c959fde8d2a4d68449db184572528a6055afdd0caf1e66fb51504",
+                "lastState": {},
+                "name": "vllm",
+                "ready": true,
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-05-02T06:10:24Z"
+                    }
+                }
+            }
+        ],
+        "hostIP": "10.5.6.38",
+        "hostIPs": [
+            {
+                "ip": "10.5.6.38"
+            }
+        ],
+        "initContainerStatuses": [
+            {
+                "containerID": "containerd://f5f0e3c6ef49341832d4c41cc0c45a812e3610f46ce9b9bd77c2e81a17000edf",
+                "image": "docker.io/amazon/aws-cli:2.17.18",
+                "imageID": "public.ecr.aws/aws-cli/aws-cli@sha256:639f44347ec484ca2cb82b7a38ff65e655d566f001880aaa0820826bd90729ad",
+                "lastState": {},
+                "name": "model-download",
+                "ready": true,
+                "restartCount": 0,
+                "started": false,
+                "state": {
+                    "terminated": {
+                        "containerID": "containerd://f5f0e3c6ef49341832d4c41cc0c45a812e3610f46ce9b9bd77c2e81a17000edf",
+                        "exitCode": 0,
+                        "finishedAt": "2026-05-02T06:10:20Z",
+                        "reason": "Completed",
+                        "startedAt": "2026-05-02T06:09:46Z"
+                    }
+                }
+            }
+        ],
+        "phase": "Running",
+        "podIP": "10.5.26.58",
+        "podIPs": [
+            {
+                "ip": "10.5.26.58"
+            }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-05-02T06:09:43Z"
+    }
+}

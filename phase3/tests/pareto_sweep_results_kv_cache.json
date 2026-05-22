@@ -1,0 +1,2305 @@
+{
+  "static_prefetch_1": {
+    "strategy": "static",
+    "param_label": "prefetch_1",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 1
+    },
+    "analysis": {
+      "steady_state_requests": 0,
+      "note": "No successful requests in steady-state window"
+    },
+    "raw_results": [
+      {
+        "request_id": 0,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 0.0,
+        "client_ttft_sec": 1.3084,
+        "client_avg_tbt_sec": 0.05918,
+        "client_total_sec": 122.45,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 16.9,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.5,
+        "server_ttft_ms": 982.8,
+        "server_prefill_ms": 982.8,
+        "server_total_ms": 122215.0,
+        "server_tokens_per_sec": 16.8,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "static",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 0,
+        "server_admit_count": 2,
+        "server_tracker_utilization": 0.1
+      },
+      {
+        "request_id": 1,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 6.67,
+        "client_ttft_sec": 116.8981,
+        "client_avg_tbt_sec": 0.05993,
+        "client_total_sec": 239.573,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 16.7,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 115530.3,
+        "server_ttft_ms": 1071.2,
+        "server_prefill_ms": 1071.2,
+        "server_total_ms": 123787.9,
+        "server_tokens_per_sec": 16.5,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "static",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 0,
+        "server_admit_count": 3,
+        "server_tracker_utilization": 0.1
+      },
+      {
+        "request_id": 2,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.461,
+        "submit_offset_sec": 13.34
+      },
+      {
+        "request_id": 3,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.479,
+        "submit_offset_sec": 20.01
+      },
+      {
+        "request_id": 4,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.454,
+        "submit_offset_sec": 26.69
+      },
+      {
+        "request_id": 5,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.464,
+        "submit_offset_sec": 33.36
+      },
+      {
+        "request_id": 6,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 40.04
+      },
+      {
+        "request_id": 7,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.512,
+        "submit_offset_sec": 46.71
+      },
+      {
+        "request_id": 8,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.453,
+        "submit_offset_sec": 53.38
+      },
+      {
+        "request_id": 9,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 60.05
+      },
+      {
+        "request_id": 10,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.49,
+        "submit_offset_sec": 66.73
+      },
+      {
+        "request_id": 11,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.472,
+        "submit_offset_sec": 73.4
+      },
+      {
+        "request_id": 12,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.481,
+        "submit_offset_sec": 80.08
+      },
+      {
+        "request_id": 13,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.47,
+        "submit_offset_sec": 86.75
+      },
+      {
+        "request_id": 14,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 93.42
+      },
+      {
+        "request_id": 15,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 100.1
+      },
+      {
+        "request_id": 16,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.465,
+        "submit_offset_sec": 106.77
+      },
+      {
+        "request_id": 17,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 113.44
+      },
+      {
+        "request_id": 18,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 120.11
+      },
+      {
+        "request_id": 19,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.471,
+        "submit_offset_sec": 126.78
+      },
+      {
+        "request_id": 20,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 133.46
+      },
+      {
+        "request_id": 21,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 140.13
+      },
+      {
+        "request_id": 22,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.505,
+        "submit_offset_sec": 146.81
+      },
+      {
+        "request_id": 23,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 153.48
+      },
+      {
+        "request_id": 24,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.482,
+        "submit_offset_sec": 160.15
+      },
+      {
+        "request_id": 25,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.49,
+        "submit_offset_sec": 166.82
+      },
+      {
+        "request_id": 26,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.458,
+        "submit_offset_sec": 173.49
+      },
+      {
+        "request_id": 27,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.561,
+        "submit_offset_sec": 180.17
+      },
+      {
+        "request_id": 28,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.491,
+        "submit_offset_sec": 186.84
+      },
+      {
+        "request_id": 29,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.46,
+        "submit_offset_sec": 193.51
+      },
+      {
+        "request_id": 30,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.511,
+        "submit_offset_sec": 200.18
+      },
+      {
+        "request_id": 31,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.464,
+        "submit_offset_sec": 206.86
+      },
+      {
+        "request_id": 32,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.477,
+        "submit_offset_sec": 213.53
+      },
+      {
+        "request_id": 33,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.476,
+        "submit_offset_sec": 220.2
+      },
+      {
+        "request_id": 34,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.451,
+        "submit_offset_sec": 226.87
+      },
+      {
+        "request_id": 35,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.531,
+        "submit_offset_sec": 233.54
+      },
+      {
+        "request_id": 36,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.476,
+        "submit_offset_sec": 240.22
+      },
+      {
+        "request_id": 37,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.538,
+        "submit_offset_sec": 246.89
+      },
+      {
+        "request_id": 38,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.483,
+        "submit_offset_sec": 253.56
+      },
+      {
+        "request_id": 39,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.562,
+        "submit_offset_sec": 260.24
+      },
+      {
+        "request_id": 40,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.509,
+        "submit_offset_sec": 266.91
+      },
+      {
+        "request_id": 41,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.455,
+        "submit_offset_sec": 273.58
+      },
+      {
+        "request_id": 42,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.485,
+        "submit_offset_sec": 280.26
+      },
+      {
+        "request_id": 43,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.489,
+        "submit_offset_sec": 286.93
+      },
+      {
+        "request_id": 44,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.481,
+        "submit_offset_sec": 293.6
+      }
+    ],
+    "timestamp": "2026-04-07T07:32:45.517584+00:00",
+    "baseline_tpot_ms": 62.32,
+    "grafana": {
+      "skipped": "No --grafana URL provided"
+    }
+  },
+  "reactive_threshold_0.80": {
+    "strategy": "reactive",
+    "param_label": "threshold_0.80",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "admission_threshold": 0.8
+    },
+    "analysis": {
+      "steady_state_requests": 4,
+      "steady_state_errors": 37,
+      "total_requests": 45,
+      "total_errors": 38,
+      "completion_rate": 0.098,
+      "ttft": {
+        "p50": 1.4111,
+        "p95": 1.47,
+        "p99": 1.47,
+        "min": 1.3802,
+        "max": 1.47
+      },
+      "prefill_ms": {
+        "p50": 1132.5,
+        "p95": 1132.8,
+        "p99": 1132.8,
+        "min": 1086.9,
+        "max": 1132.8
+      },
+      "tpot_ms": {
+        "p50": 135.98,
+        "p95": 157.18,
+        "p99": 157.18,
+        "min": 105.82,
+        "max": 157.18
+      },
+      "tbt_client": {
+        "p50": 0.0721,
+        "p95": 0.102,
+        "p99": 0.1075,
+        "min": 1e-05,
+        "max": 112.55008,
+        "count": 8172,
+        "note": "Client-side through port-forward \u2014 high jitter, use tpot_ms instead"
+      },
+      "server_est_tbt_ms": {
+        "p50": 136.5,
+        "p95": 157.7,
+        "p99": 157.7,
+        "min": 106.3,
+        "max": 157.7
+      },
+      "queue_wait_ms": {
+        "p50": 1.2,
+        "p95": 1.3,
+        "p99": 1.3,
+        "min": 1.2,
+        "max": 1.3
+      },
+      "throughput": {
+        "total_tokens": 8176,
+        "tok_per_sec_avg": 30.3,
+        "per_request_tok_per_sec_avg": 7.9
+      },
+      "tracker_utilization": {
+        "p50": 80.4,
+        "p95": 80.4,
+        "p99": 80.4
+      },
+      "nack_count": 121620,
+      "sla": {
+        "very_long": {
+          "p99_complete_sec": 322.94,
+          "target_sec": 90,
+          "met": false,
+          "compliance_pct": 0.0,
+          "count": 41
+        },
+        "overall_compliance_pct": 0.0
+      },
+      "cost": {
+        "gpu_cost_usd": 0.0165,
+        "total_input_tokens_est": 2640,
+        "total_output_tokens": 8176,
+        "cost_per_1m_input_usd": 6.25,
+        "cost_per_1m_output_usd": 2.02,
+        "cost_per_1m_total_usd": 1.53
+      }
+    },
+    "raw_results": [
+      {
+        "request_id": 0,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 0.0,
+        "client_ttft_sec": 1.3586,
+        "client_avg_tbt_sec": 0.07113,
+        "client_total_sec": 146.97,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 14.1,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 4.1,
+        "server_ttft_ms": 1090.3,
+        "server_prefill_ms": 1090.3,
+        "server_total_ms": 146727.1,
+        "server_tokens_per_sec": 14.0,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 90941,
+        "server_admit_count": 48,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 1,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 6.68,
+        "client_ttft_sec": 1.3133,
+        "client_avg_tbt_sec": 0.07376,
+        "client_total_sec": 152.302,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 13.6,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.3,
+        "server_ttft_ms": 1076.4,
+        "server_prefill_ms": 1076.4,
+        "server_total_ms": 152063.6,
+        "server_tokens_per_sec": 13.5,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 103204,
+        "server_admit_count": 49,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 2,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 13.35,
+        "client_ttft_sec": 1.328,
+        "client_avg_tbt_sec": 0.08734,
+        "client_total_sec": 180.114,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 11.5,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1089.5,
+        "server_prefill_ms": 1089.5,
+        "server_total_ms": 179874.9,
+        "server_tokens_per_sec": 11.4,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 135806,
+        "server_admit_count": 50,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 3,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 20.02,
+        "client_ttft_sec": 1.4111,
+        "client_avg_tbt_sec": 0.1058,
+        "client_total_sec": 217.982,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 9.5,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1132.5,
+        "server_prefill_ms": 1132.5,
+        "server_total_ms": 217751.4,
+        "server_tokens_per_sec": 9.4,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 179778,
+        "server_admit_count": 51,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 4,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 26.69,
+        "client_ttft_sec": 1.3972,
+        "client_avg_tbt_sec": 0.12084,
+        "client_total_sec": 246.942,
+        "tokens_out": 2033,
+        "client_tokens_per_sec": 8.3,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.3,
+        "server_ttft_ms": 1086.9,
+        "server_prefill_ms": 1086.9,
+        "server_total_ms": 246711.3,
+        "server_tokens_per_sec": 8.2,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2033,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 214323,
+        "server_admit_count": 52,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 5,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 33.36,
+        "client_ttft_sec": 1.3802,
+        "client_avg_tbt_sec": 0.13597,
+        "client_total_sec": 279.704,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 7.4,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1123.1,
+        "server_prefill_ms": 1123.1,
+        "server_total_ms": 279476.1,
+        "server_tokens_per_sec": 7.3,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 252885,
+        "server_admit_count": 53,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 6,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 40.04,
+        "client_ttft_sec": 1.47,
+        "client_avg_tbt_sec": 0.15712,
+        "client_total_sec": 322.935,
+        "tokens_out": 2047,
+        "client_tokens_per_sec": 6.4,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1132.8,
+        "server_prefill_ms": 1132.8,
+        "server_total_ms": 322715.5,
+        "server_tokens_per_sec": 6.3,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2047,
+        "server_strategy": "reactive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 301398,
+        "server_admit_count": 54,
+        "server_tracker_utilization": 0.804
+      },
+      {
+        "request_id": 7,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.46,
+        "submit_offset_sec": 46.71
+      },
+      {
+        "request_id": 8,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.452,
+        "submit_offset_sec": 53.38
+      },
+      {
+        "request_id": 9,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.451,
+        "submit_offset_sec": 60.05
+      },
+      {
+        "request_id": 10,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 66.72
+      },
+      {
+        "request_id": 11,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.47,
+        "submit_offset_sec": 73.39
+      },
+      {
+        "request_id": 12,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.466,
+        "submit_offset_sec": 80.06
+      },
+      {
+        "request_id": 13,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.46,
+        "submit_offset_sec": 86.73
+      },
+      {
+        "request_id": 14,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.497,
+        "submit_offset_sec": 93.41
+      },
+      {
+        "request_id": 15,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.463,
+        "submit_offset_sec": 100.08
+      },
+      {
+        "request_id": 16,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.472,
+        "submit_offset_sec": 106.75
+      },
+      {
+        "request_id": 17,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.48,
+        "submit_offset_sec": 113.43
+      },
+      {
+        "request_id": 18,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.466,
+        "submit_offset_sec": 120.1
+      },
+      {
+        "request_id": 19,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.455,
+        "submit_offset_sec": 126.78
+      },
+      {
+        "request_id": 20,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.483,
+        "submit_offset_sec": 133.45
+      },
+      {
+        "request_id": 21,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 140.12
+      },
+      {
+        "request_id": 22,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.461,
+        "submit_offset_sec": 146.8
+      },
+      {
+        "request_id": 23,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 153.47
+      },
+      {
+        "request_id": 24,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.501,
+        "submit_offset_sec": 160.15
+      },
+      {
+        "request_id": 25,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.473,
+        "submit_offset_sec": 166.82
+      },
+      {
+        "request_id": 26,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 173.49
+      },
+      {
+        "request_id": 27,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.479,
+        "submit_offset_sec": 180.16
+      },
+      {
+        "request_id": 28,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 186.84
+      },
+      {
+        "request_id": 29,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.466,
+        "submit_offset_sec": 193.51
+      },
+      {
+        "request_id": 30,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.479,
+        "submit_offset_sec": 200.18
+      },
+      {
+        "request_id": 31,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.476,
+        "submit_offset_sec": 206.86
+      },
+      {
+        "request_id": 32,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.467,
+        "submit_offset_sec": 213.53
+      },
+      {
+        "request_id": 33,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.583,
+        "submit_offset_sec": 220.2
+      },
+      {
+        "request_id": 34,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 226.88
+      },
+      {
+        "request_id": 35,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.458,
+        "submit_offset_sec": 233.55
+      },
+      {
+        "request_id": 36,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 240.22
+      },
+      {
+        "request_id": 37,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 246.89
+      },
+      {
+        "request_id": 38,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.493,
+        "submit_offset_sec": 253.56
+      },
+      {
+        "request_id": 39,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.516,
+        "submit_offset_sec": 260.24
+      },
+      {
+        "request_id": 40,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.5,
+        "submit_offset_sec": 266.91
+      },
+      {
+        "request_id": 41,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.453,
+        "submit_offset_sec": 273.58
+      },
+      {
+        "request_id": 42,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.562,
+        "submit_offset_sec": 280.26
+      },
+      {
+        "request_id": 43,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.463,
+        "submit_offset_sec": 286.93
+      },
+      {
+        "request_id": 44,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.461,
+        "submit_offset_sec": 293.6
+      }
+    ],
+    "timestamp": "2026-04-07T07:46:10.319450+00:00",
+    "baseline_tpot_ms": 62.32,
+    "grafana": {
+      "skipped": "No --grafana URL provided"
+    }
+  },
+  "predictive_threshold_0.50": {
+    "strategy": "predictive",
+    "param_label": "threshold_0.50",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "admission_threshold": 0.5
+    },
+    "analysis": {
+      "steady_state_requests": 3,
+      "steady_state_errors": 38,
+      "total_requests": 45,
+      "total_errors": 39,
+      "completion_rate": 0.073,
+      "ttft": {
+        "p50": 79.5596,
+        "p95": 107.8672,
+        "p99": 107.8672,
+        "min": 18.4916,
+        "max": 107.8672
+      },
+      "prefill_ms": {
+        "p50": 2038.4,
+        "p95": 4925.7,
+        "p99": 4925.7,
+        "min": 1096.7,
+        "max": 4925.7
+      },
+      "tpot_ms": {
+        "p50": 74.24,
+        "p95": 94.76,
+        "p99": 94.76,
+        "min": 72.79,
+        "max": 94.76
+      },
+      "tbt_client": {
+        "p50": 0.0698,
+        "p95": 0.1026,
+        "p99": 0.1074,
+        "min": 0.0,
+        "max": 50.59499,
+        "count": 6137,
+        "note": "Client-side through port-forward \u2014 high jitter, use tpot_ms instead"
+      },
+      "server_est_tbt_ms": {
+        "p50": 75.2,
+        "p95": 95.3,
+        "p99": 95.3,
+        "min": 75.2,
+        "max": 95.3
+      },
+      "queue_wait_ms": {
+        "p50": 74289.8,
+        "p95": 105591.9,
+        "p99": 105591.9,
+        "min": 17093.8,
+        "max": 105591.9
+      },
+      "throughput": {
+        "total_tokens": 6140,
+        "tok_per_sec_avg": 22.7,
+        "per_request_tok_per_sec_avg": 12.6
+      },
+      "tracker_utilization": {
+        "p50": 40.2,
+        "p95": 40.2,
+        "p99": 40.2
+      },
+      "nack_count": 66811,
+      "sla": {
+        "very_long": {
+          "p99_complete_sec": 259.83,
+          "target_sec": 90,
+          "met": false,
+          "compliance_pct": 0.0,
+          "count": 41
+        },
+        "overall_compliance_pct": 0.0
+      },
+      "cost": {
+        "gpu_cost_usd": 0.0165,
+        "total_input_tokens_est": 1980,
+        "total_output_tokens": 6140,
+        "cost_per_1m_input_usd": 8.33,
+        "cost_per_1m_output_usd": 2.69,
+        "cost_per_1m_total_usd": 2.03
+      }
+    },
+    "raw_results": [
+      {
+        "request_id": 0,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 0.0,
+        "client_ttft_sec": 1.3945,
+        "client_avg_tbt_sec": 0.06831,
+        "client_total_sec": 141.215,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 14.6,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.3,
+        "server_ttft_ms": 1069.6,
+        "server_prefill_ms": 1069.6,
+        "server_total_ms": 140985.6,
+        "server_tokens_per_sec": 14.5,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 142362,
+        "server_admit_count": 29,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 1,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 6.68,
+        "client_ttft_sec": 1.3043,
+        "client_avg_tbt_sec": 0.07073,
+        "client_total_sec": 145.87,
+        "tokens_out": 2045,
+        "client_tokens_per_sec": 14.1,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.3,
+        "server_ttft_ms": 1075.8,
+        "server_prefill_ms": 1075.8,
+        "server_total_ms": 145642.7,
+        "server_tokens_per_sec": 14.0,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2045,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 156358,
+        "server_admit_count": 30,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 2,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 13.35,
+        "client_ttft_sec": 1.2807,
+        "client_avg_tbt_sec": 0.08291,
+        "client_total_sec": 171.0,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 12.1,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.6,
+        "server_ttft_ms": 1051.4,
+        "server_prefill_ms": 1051.4,
+        "server_total_ms": 170769.9,
+        "server_tokens_per_sec": 12.0,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 195848,
+        "server_admit_count": 31,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 3,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.469,
+        "submit_offset_sec": 20.02
+      },
+      {
+        "request_id": 4,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.451,
+        "submit_offset_sec": 26.7
+      },
+      {
+        "request_id": 5,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.465,
+        "submit_offset_sec": 33.37
+      },
+      {
+        "request_id": 6,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 40.05,
+        "client_ttft_sec": 18.4916,
+        "client_avg_tbt_sec": 0.09474,
+        "client_total_sec": 212.418,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 10.6,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 17093.8,
+        "server_ttft_ms": 1096.7,
+        "server_prefill_ms": 1096.7,
+        "server_total_ms": 195077.1,
+        "server_tokens_per_sec": 10.5,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 277716,
+        "server_admit_count": 32,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 7,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 46.72,
+        "client_ttft_sec": 107.8672,
+        "client_avg_tbt_sec": 0.07424,
+        "client_total_sec": 259.831,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 13.5,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 105591.9,
+        "server_ttft_ms": 2038.4,
+        "server_prefill_ms": 2038.4,
+        "server_total_ms": 154005.3,
+        "server_tokens_per_sec": 13.3,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 344527,
+        "server_admit_count": 34,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 8,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.471,
+        "submit_offset_sec": 53.39
+      },
+      {
+        "request_id": 9,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.525,
+        "submit_offset_sec": 60.06
+      },
+      {
+        "request_id": 10,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 66.74,
+        "client_ttft_sec": 79.5596,
+        "client_avg_tbt_sec": 0.07273,
+        "client_total_sec": 228.151,
+        "tokens_out": 2044,
+        "client_tokens_per_sec": 13.8,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 74289.8,
+        "server_ttft_ms": 4925.7,
+        "server_prefill_ms": 4925.7,
+        "server_total_ms": 153628.3,
+        "server_tokens_per_sec": 13.3,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2044,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 329963,
+        "server_admit_count": 33,
+        "server_tracker_utilization": 0.402
+      },
+      {
+        "request_id": 11,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.502,
+        "submit_offset_sec": 73.41
+      },
+      {
+        "request_id": 12,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.515,
+        "submit_offset_sec": 80.08
+      },
+      {
+        "request_id": 13,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 86.75
+      },
+      {
+        "request_id": 14,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 93.43
+      },
+      {
+        "request_id": 15,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.485,
+        "submit_offset_sec": 100.1
+      },
+      {
+        "request_id": 16,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.47,
+        "submit_offset_sec": 106.77
+      },
+      {
+        "request_id": 17,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.476,
+        "submit_offset_sec": 113.45
+      },
+      {
+        "request_id": 18,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.463,
+        "submit_offset_sec": 120.12
+      },
+      {
+        "request_id": 19,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 126.79
+      },
+      {
+        "request_id": 20,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.499,
+        "submit_offset_sec": 133.46
+      },
+      {
+        "request_id": 21,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.465,
+        "submit_offset_sec": 140.14
+      },
+      {
+        "request_id": 22,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.461,
+        "submit_offset_sec": 146.81
+      },
+      {
+        "request_id": 23,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.47,
+        "submit_offset_sec": 153.49
+      },
+      {
+        "request_id": 24,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.526,
+        "submit_offset_sec": 160.16
+      },
+      {
+        "request_id": 25,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.475,
+        "submit_offset_sec": 166.83
+      },
+      {
+        "request_id": 26,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.473,
+        "submit_offset_sec": 173.5
+      },
+      {
+        "request_id": 27,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.514,
+        "submit_offset_sec": 180.18
+      },
+      {
+        "request_id": 28,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.525,
+        "submit_offset_sec": 186.85
+      },
+      {
+        "request_id": 29,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.63,
+        "submit_offset_sec": 193.52
+      },
+      {
+        "request_id": 30,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.493,
+        "submit_offset_sec": 200.2
+      },
+      {
+        "request_id": 31,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.574,
+        "submit_offset_sec": 206.87
+      },
+      {
+        "request_id": 32,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.558,
+        "submit_offset_sec": 213.54
+      },
+      {
+        "request_id": 33,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.543,
+        "submit_offset_sec": 220.21
+      },
+      {
+        "request_id": 34,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.528,
+        "submit_offset_sec": 226.88
+      },
+      {
+        "request_id": 35,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.512,
+        "submit_offset_sec": 233.56
+      },
+      {
+        "request_id": 36,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.495,
+        "submit_offset_sec": 240.23
+      },
+      {
+        "request_id": 37,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.464,
+        "submit_offset_sec": 246.9
+      },
+      {
+        "request_id": 38,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.502,
+        "submit_offset_sec": 253.57
+      },
+      {
+        "request_id": 39,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.543,
+        "submit_offset_sec": 260.25
+      },
+      {
+        "request_id": 40,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.525,
+        "submit_offset_sec": 266.92
+      },
+      {
+        "request_id": 41,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.507,
+        "submit_offset_sec": 273.6
+      },
+      {
+        "request_id": 42,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.597,
+        "submit_offset_sec": 280.27
+      },
+      {
+        "request_id": 43,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.579,
+        "submit_offset_sec": 286.94
+      },
+      {
+        "request_id": 44,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.485,
+        "submit_offset_sec": 293.62
+      }
+    ],
+    "timestamp": "2026-04-07T08:00:42.266570+00:00",
+    "baseline_tpot_ms": 62.32,
+    "grafana": {
+      "skipped": "No --grafana URL provided"
+    }
+  },
+  "predictive_threshold_0.80": {
+    "strategy": "predictive",
+    "param_label": "threshold_0.80",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "admission_threshold": 0.8
+    },
+    "analysis": {
+      "steady_state_requests": 4,
+      "steady_state_errors": 37,
+      "total_requests": 45,
+      "total_errors": 38,
+      "completion_rate": 0.098,
+      "ttft": {
+        "p50": 1.3491,
+        "p95": 1.4099,
+        "p99": 1.4099,
+        "min": 1.312,
+        "max": 1.4099
+      },
+      "prefill_ms": {
+        "p50": 1097.6,
+        "p95": 1098.1,
+        "p99": 1098.1,
+        "min": 1081.5,
+        "max": 1098.1
+      },
+      "tpot_ms": {
+        "p50": 129.06,
+        "p95": 149.93,
+        "p99": 149.93,
+        "min": 100.75,
+        "max": 149.93
+      },
+      "tbt_client": {
+        "p50": 0.0688,
+        "p95": 0.1017,
+        "p99": 0.1067,
+        "min": 1e-05,
+        "max": 106.63312,
+        "count": 8188,
+        "note": "Client-side through port-forward \u2014 high jitter, use tpot_ms instead"
+      },
+      "server_est_tbt_ms": {
+        "p50": 129.5,
+        "p95": 150.4,
+        "p99": 150.4,
+        "min": 101.2,
+        "max": 150.4
+      },
+      "queue_wait_ms": {
+        "p50": 1.2,
+        "p95": 1.3,
+        "p99": 1.3,
+        "min": 1.1,
+        "max": 1.3
+      },
+      "throughput": {
+        "total_tokens": 8192,
+        "tok_per_sec_avg": 30.3,
+        "per_request_tok_per_sec_avg": 8.3
+      },
+      "tracker_utilization": {
+        "p50": 70.3,
+        "p95": 70.3,
+        "p99": 70.3
+      },
+      "nack_count": 120931,
+      "sla": {
+        "very_long": {
+          "p99_complete_sec": 308.21,
+          "target_sec": 90,
+          "met": false,
+          "compliance_pct": 0.0,
+          "count": 41
+        },
+        "overall_compliance_pct": 0.0
+      },
+      "cost": {
+        "gpu_cost_usd": 0.0165,
+        "total_input_tokens_est": 2640,
+        "total_output_tokens": 8192,
+        "cost_per_1m_input_usd": 6.25,
+        "cost_per_1m_output_usd": 2.01,
+        "cost_per_1m_total_usd": 1.52
+      }
+    },
+    "raw_results": [
+      {
+        "request_id": 0,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 0.0,
+        "client_ttft_sec": 1.2538,
+        "client_avg_tbt_sec": 0.0683,
+        "client_total_sec": 141.075,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 14.6,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.4,
+        "server_ttft_ms": 1013.9,
+        "server_prefill_ms": 1013.9,
+        "server_total_ms": 140840.3,
+        "server_tokens_per_sec": 14.5,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 93110,
+        "server_admit_count": 35,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 1,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 6.68,
+        "client_ttft_sec": 1.2715,
+        "client_avg_tbt_sec": 0.07067,
+        "client_total_sec": 145.932,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 14.2,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.8,
+        "server_ttft_ms": 1041.3,
+        "server_prefill_ms": 1041.3,
+        "server_total_ms": 145704.0,
+        "server_tokens_per_sec": 14.1,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 105174,
+        "server_admit_count": 36,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 2,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 13.36,
+        "client_ttft_sec": 1.2833,
+        "client_avg_tbt_sec": 0.08331,
+        "client_total_sec": 171.817,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 12.0,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1053.9,
+        "server_prefill_ms": 1053.9,
+        "server_total_ms": 171588.9,
+        "server_tokens_per_sec": 11.9,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 137298,
+        "server_admit_count": 37,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 3,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 20.03,
+        "client_ttft_sec": 1.3491,
+        "client_avg_tbt_sec": 0.10075,
+        "client_total_sec": 207.575,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 9.9,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.1,
+        "server_ttft_ms": 1097.6,
+        "server_prefill_ms": 1097.6,
+        "server_total_ms": 207328.4,
+        "server_tokens_per_sec": 9.9,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 178629,
+        "server_admit_count": 38,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 4,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 26.71,
+        "client_ttft_sec": 1.3262,
+        "client_avg_tbt_sec": 0.11443,
+        "client_total_sec": 235.566,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 8.7,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.3,
+        "server_ttft_ms": 1098.1,
+        "server_prefill_ms": 1098.1,
+        "server_total_ms": 235335.2,
+        "server_tokens_per_sec": 8.7,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 213980,
+        "server_admit_count": 39,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 5,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 33.39,
+        "client_ttft_sec": 1.4099,
+        "client_avg_tbt_sec": 0.129,
+        "client_total_sec": 265.483,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 7.8,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.1,
+        "server_ttft_ms": 1081.5,
+        "server_prefill_ms": 1081.5,
+        "server_total_ms": 265257.3,
+        "server_tokens_per_sec": 7.7,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 250080,
+        "server_admit_count": 40,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 6,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "submit_offset_sec": 40.06,
+        "client_ttft_sec": 1.312,
+        "client_avg_tbt_sec": 0.14993,
+        "client_total_sec": 308.209,
+        "tokens_out": 2048,
+        "client_tokens_per_sec": 6.7,
+        "prompt_char_len": 2642,
+        "max_tokens_requested": 2048,
+        "server_queue_wait_ms": 1.2,
+        "server_ttft_ms": 1087.5,
+        "server_prefill_ms": 1087.5,
+        "server_total_ms": 307985.9,
+        "server_tokens_per_sec": 6.6,
+        "server_input_tokens_est": 660,
+        "server_output_tokens": 2048,
+        "server_strategy": "predictive",
+        "server_bottleneck_metric": "kv_cache",
+        "server_nack_count": 299560,
+        "server_admit_count": 42,
+        "server_tracker_utilization": 0.703
+      },
+      {
+        "request_id": 7,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 46.74
+      },
+      {
+        "request_id": 8,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 53.41
+      },
+      {
+        "request_id": 9,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.471,
+        "submit_offset_sec": 60.09
+      },
+      {
+        "request_id": 10,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.46,
+        "submit_offset_sec": 66.76
+      },
+      {
+        "request_id": 11,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.463,
+        "submit_offset_sec": 73.44
+      },
+      {
+        "request_id": 12,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.463,
+        "submit_offset_sec": 80.11
+      },
+      {
+        "request_id": 13,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.521,
+        "submit_offset_sec": 86.79
+      },
+      {
+        "request_id": 14,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.467,
+        "submit_offset_sec": 93.47
+      },
+      {
+        "request_id": 15,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 100.14
+      },
+      {
+        "request_id": 16,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.512,
+        "submit_offset_sec": 106.82
+      },
+      {
+        "request_id": 17,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.456,
+        "submit_offset_sec": 113.49
+      },
+      {
+        "request_id": 18,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.477,
+        "submit_offset_sec": 120.17
+      },
+      {
+        "request_id": 19,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.465,
+        "submit_offset_sec": 126.85
+      },
+      {
+        "request_id": 20,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.455,
+        "submit_offset_sec": 133.53
+      },
+      {
+        "request_id": 21,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 140.2
+      },
+      {
+        "request_id": 22,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 146.87
+      },
+      {
+        "request_id": 23,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.462,
+        "submit_offset_sec": 153.55
+      },
+      {
+        "request_id": 24,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.477,
+        "submit_offset_sec": 160.23
+      },
+      {
+        "request_id": 25,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.521,
+        "submit_offset_sec": 166.9
+      },
+      {
+        "request_id": 26,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.465,
+        "submit_offset_sec": 173.57
+      },
+      {
+        "request_id": 27,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.454,
+        "submit_offset_sec": 180.24
+      },
+      {
+        "request_id": 28,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.503,
+        "submit_offset_sec": 186.92
+      },
+      {
+        "request_id": 29,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.458,
+        "submit_offset_sec": 193.6
+      },
+      {
+        "request_id": 30,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.459,
+        "submit_offset_sec": 200.27
+      },
+      {
+        "request_id": 31,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.472,
+        "submit_offset_sec": 206.94
+      },
+      {
+        "request_id": 32,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.468,
+        "submit_offset_sec": 213.62
+      },
+      {
+        "request_id": 33,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.494,
+        "submit_offset_sec": 220.3
+      },
+      {
+        "request_id": 34,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.467,
+        "submit_offset_sec": 226.98
+      },
+      {
+        "request_id": 35,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.531,
+        "submit_offset_sec": 233.65
+      },
+      {
+        "request_id": 36,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.47,
+        "submit_offset_sec": 240.33
+      },
+      {
+        "request_id": 37,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.602,
+        "submit_offset_sec": 247.0
+      },
+      {
+        "request_id": 38,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.479,
+        "submit_offset_sec": 253.67
+      },
+      {
+        "request_id": 39,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.479,
+        "submit_offset_sec": 260.35
+      },
+      {
+        "request_id": 40,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.531,
+        "submit_offset_sec": 267.03
+      },
+      {
+        "request_id": 41,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.515,
+        "submit_offset_sec": 273.71
+      },
+      {
+        "request_id": 42,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.483,
+        "submit_offset_sec": 280.39
+      },
+      {
+        "request_id": 43,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.476,
+        "submit_offset_sec": 287.06
+      },
+      {
+        "request_id": 44,
+        "prompt_type": "very_long",
+        "label": "XL",
+        "error": "no tokens received",
+        "total_sec": 120.555,
+        "submit_offset_sec": 293.74
+      }
+    ],
+    "timestamp": "2026-04-07T08:14:16.634645+00:00",
+    "baseline_tpot_ms": 62.32,
+    "grafana": {
+      "skipped": "No --grafana URL provided"
+    }
+  },
+  "static_prefetch_2": {
+    "strategy": "static",
+    "param_label": "prefetch_2",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 2
+    },
+    "analysis": {
+      "steady_state_requests": 1,
+      "tpot_ms": {
+        "p50": 64.8,
+        "p95": 64.8,
+        "p99": 64.8
+      },
+      "throughput": {
+        "tok_per_sec_avg": 7.6,
+        "per_request_tok_per_sec_avg": 15.4
+      },
+      "tracker_utilization": {
+        "p50": 20.1,
+        "p95": 20.1,
+        "p99": 20.1
+      },
+      "nack_count": 0
+    },
+    "baseline_tpot_ms": 62.32,
+    "note": "Reconstructed from sweep log output"
+  },
+  "static_prefetch_3": {
+    "strategy": "static",
+    "param_label": "prefetch_3",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 3
+    },
+    "analysis": {
+      "steady_state_requests": 2,
+      "tpot_ms": {
+        "p50": 67.91,
+        "p95": 67.91,
+        "p99": 67.91
+      },
+      "throughput": {
+        "tok_per_sec_avg": 14.9,
+        "per_request_tok_per_sec_avg": 14.8
+      },
+      "tracker_utilization": {
+        "p50": 30.1,
+        "p95": 30.1,
+        "p99": 30.1
+      },
+      "nack_count": 0
+    },
+    "baseline_tpot_ms": 62.32,
+    "note": "Reconstructed from sweep log output"
+  },
+  "static_prefetch_5": {
+    "strategy": "static",
+    "param_label": "prefetch_5",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 5
+    },
+    "analysis": {
+      "steady_state_requests": 3,
+      "tpot_ms": {
+        "p50": 103.83,
+        "p95": 118.52,
+        "p99": 118.52
+      },
+      "throughput": {
+        "tok_per_sec_avg": 22.8,
+        "per_request_tok_per_sec_avg": 9.5
+      },
+      "tracker_utilization": {
+        "p50": 50.2,
+        "p95": 50.2,
+        "p99": 50.2
+      },
+      "nack_count": 0
+    },
+    "baseline_tpot_ms": 62.32,
+    "note": "Reconstructed from sweep log output"
+  },
+  "static_prefetch_8": {
+    "strategy": "static",
+    "param_label": "prefetch_8",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 8
+    },
+    "analysis": {
+      "steady_state_requests": 4,
+      "tpot_ms": {
+        "p50": 116.8,
+        "p95": 130.14,
+        "p99": 130.14
+      },
+      "throughput": {
+        "tok_per_sec_avg": 23.2,
+        "per_request_tok_per_sec_avg": 6.8
+      },
+      "tracker_utilization": {
+        "p50": 80.4,
+        "p95": 80.4,
+        "p99": 80.4
+      },
+      "nack_count": 0
+    },
+    "baseline_tpot_ms": 62.32,
+    "note": "Reconstructed from sweep log output"
+  },
+  "static_prefetch_10": {
+    "strategy": "static",
+    "param_label": "prefetch_10",
+    "workload": "kv_stress_14b",
+    "bottleneck_metric": "kv_cache",
+    "config": {
+      "rate": 0.15,
+      "duration": 300,
+      "warmup": 20.0,
+      "drain": 10.0,
+      "prefetch_count": 10
+    },
+    "analysis": {
+      "steady_state_requests": 3,
+      "tpot_ms": {
+        "p50": 145.33,
+        "p95": 170.61,
+        "p99": 170.61
+      },
+      "throughput": {
+        "tok_per_sec_avg": 22.8,
+        "per_request_tok_per_sec_avg": 6.9
+      },
+      "tracker_utilization": {
+        "p50": 100.5,
+        "p95": 100.5,
+        "p99": 100.5
+      },
+      "nack_count": 0
+    },
+    "baseline_tpot_ms": 62.32,
+    "note": "Reconstructed from sweep log output"
+  }
+}

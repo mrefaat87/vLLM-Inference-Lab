@@ -1,0 +1,28 @@
+{
+  "strategy": "threshold",
+  "workload": "sustained_medium",
+  "time_range": {
+    "from_epoch_ms": 1775367489660,
+    "to_epoch_ms": 1775367584261,
+    "from_iso": "2026-04-05T05:38:09.660000+00:00",
+    "to_iso": "2026-04-05T05:39:44.261000+00:00"
+  },
+  "dashboard_url": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261",
+  "panels": {
+    "gpu_compute_utilization": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=1",
+    "memory_bandwidth_utilization": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=2",
+    "vram_usage": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=3",
+    "gpu_temperature": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=4",
+    "kv_cache_usage": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=5",
+    "requests_running_waiting": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=6",
+    "throughput_tok_s": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=7",
+    "ttft": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=8",
+    "tbt": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=9",
+    "request_rate_errors": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=10",
+    "queue_depth": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=11",
+    "queue_ready_unacked": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=12",
+    "worker_replicas": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=13",
+    "gpu_nodes": "http://localhost:3000/d/inference-platform/inference-platform?from=1775367489660&to=1775367584261&viewPanel=14"
+  },
+  "render_available": false
+}

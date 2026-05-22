@@ -1,0 +1,161 @@
+# baseline-pod-prebaked-streamer.yaml — Variant E of the pull comparison.
+#
+# DELTA FROM baseline-pod-prebaked.yaml:
+#   1. NO model-download init container. Variant E lets vLLM stream weights
+#      from S3 directly via RunAI Model Streamer; the aws-cli init container
+#      is gone, and there's no /models emptyDir to pre-populate.
+#   2. NO model-cache emptyDir volume / mount. Streamer reads S3 → CPU pinned
+#      buffer → GPU; nothing lands on disk.
+#   3. Image: inference-lab/vllm-openai:v0.19.0-streamer (= v0.19.0 + pip
+#      install runai-model-streamer + s3 extras). Pre-baked into the streamer
+#      AMI so no pull at pod start.
+#   4. vLLM args: --model=s3://… and --load-format=runai_streamer (was
+#      --model=/models/Qwen2.5-7B-Instruct-AWQ with implicit auto load-format).
+#   5. Pod label image-source: prebaked-streamer; nodeSelector pins to the
+#      streamer NodePool (gpu-pool-prebaked-streamer) so this pod gets the
+#      AMI that has the streamer-augmented image cached.
+#
+# WHY THE STAGE TABLE WILL CHANGE SHAPE:
+#   The model_download_s3 stage is measured from the model-download init
+#   container's start/end timestamps. With that container removed, the stage
+#   resolves to 0s (collect_cold_start_run.py reports source=
+#   absent_init_container). The streamer's actual S3-fetch time is absorbed
+#   into weight_load_gpu_mem since the fetch is pipelined with GPU copy.
+#   See LEARNINGS.md "Variant E" section for the analysis.
+#
+# WHY EXPLICIT AWS_REGION:
+#   The streamer's S3 reader is boto3-based and picks up region from env or
+#   IRSA. IRSA exposes AWS_REGION but only after a token refresh; setting it
+#   explicitly avoids a subtle race on the first read.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baseline
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseline-runner
+  namespace: baseline
+  annotations:
+    eks.amazonaws.com/role-arn: ROLE_ARN_PLACEHOLDER
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cold-start-tracer
+  namespace: baseline
+data:
+  cold_start_tracer.py: |
+    PLACEHOLDER_TRACER_SCRIPT
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-RUN_ID
+  namespace: baseline
+  labels:
+    app: baseline
+    run-id: "RUN_ID"
+    image-source: prebaked-streamer
+  annotations:
+    karpenter.sh/do-not-disrupt: "true"
+spec:
+  serviceAccountName: baseline-runner
+  restartPolicy: Never
+
+  # ─── ROUTES TO THE STREAMER NODEPOOL ───────────────────────────────────────
+  # Both labels must match — the prebaked-streamer NodePool sets BOTH on its
+  # node template (gpu-nodepool-prebaked-streamer.yaml). Without
+  # image-source=prebaked-streamer the pod would get a fresh stock-AMI node
+  # from gpu-pool, defeating the prebake.
+  nodeSelector:
+    node-role: gpu
+    image-source: prebaked-streamer
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # NOTE: no initContainers. Variant E's model fetch is part of vLLM's weight
+  # load via the streamer, not a separate container.
+
+  containers:
+    - name: vllm
+      image: 019167255542.dkr.ecr.us-east-1.amazonaws.com/inference-lab/vllm-openai:v0.19.0-streamer
+      # IfNotPresent is critical — the streamer image was baked into this
+      # node's AMI. Always would force a re-pull and contaminate the variant.
+      imagePullPolicy: IfNotPresent
+
+      env:
+        # Defensive: ensure boto3 in the streamer's S3 reader resolves region
+        # immediately. IRSA exposes this eventually but we don't want to race
+        # the first read.
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+
+      command:
+        - python3
+        - /tracer/cold_start_tracer.py
+        - --run-id=RUN_ID
+        - --jsonl-dir=/var/log/cold_start
+        - --
+        - python3
+        - -m
+        - vllm.entrypoints.openai.api_server
+        # Stream weights directly from S3 — RunAI Model Streamer handles the
+        # protocol. Trailing slash matters: it tells the streamer this is a
+        # directory of safetensors shards, not a single file.
+        - --model=s3://inference-lab-model-cache/Qwen/Qwen2.5-7B-Instruct-AWQ/
+        - --load-format=runai_streamer
+        - --quantization=awq
+        - --dtype=half
+        - --gpu-memory-utilization=0.85
+        - --max-model-len=4096
+        - --host=0.0.0.0
+        - --port=8000
+
+      ports:
+        - containerPort: 8000
+          name: http
+
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 120
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 6
+
+      resources:
+        requests:
+          nvidia.com/gpu: 1
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          nvidia.com/gpu: 1
+          cpu: "4"
+          memory: 14Gi
+
+      volumeMounts:
+        - name: tracer-script
+          mountPath: /tracer
+          readOnly: true
+        - name: tracer-logs
+          mountPath: /var/log/cold_start
+
+  volumes:
+    - name: tracer-script
+      configMap:
+        name: cold-start-tracer
+        defaultMode: 0755
+    - name: tracer-logs
+      hostPath:
+        path: /var/log/cold_start
+        type: DirectoryOrCreate

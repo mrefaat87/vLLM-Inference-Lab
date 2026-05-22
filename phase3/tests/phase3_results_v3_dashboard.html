@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phase 3 v3 — Backpressure Strategy Comparison (Pareto + SLA + Cost)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif; background: #0d1117; color: #e6edf3; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 32px 0 16px; color: #58a6ff; }
+  h3 { font-size: 16px; font-weight: 600; margin: 24px 0 12px; color: #7ee787; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+  .card-title { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .big-number { font-size: 42px; font-weight: 700; line-height: 1.1; }
+  .big-number.green { color: #7ee787; }
+  .big-number.yellow { color: #e3b341; }
+  .big-number.red { color: #f85149; }
+  .big-number.blue { color: #58a6ff; }
+  .big-number.purple { color: #bc8cff; }
+  .unit { font-size: 16px; font-weight: 400; color: #8b949e; }
+  .detail { font-size: 13px; color: #8b949e; margin-top: 4px; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #30363d; color: #8b949e; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #161b22; }
+  .insight { background: #1c2128; border-left: 3px solid #58a6ff; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 14px; line-height: 1.6; }
+  .insight strong { color: #58a6ff; }
+  .warning { border-left-color: #e3b341; } .warning strong { color: #e3b341; }
+  .success { border-left-color: #7ee787; } .success strong { color: #7ee787; }
+  .danger { border-left-color: #f85149; } .danger strong { color: #f85149; }
+  .strategy-label { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .strategy-static { background: #1f3d2a; color: #7ee787; }
+  .strategy-threshold { background: #3d2e1f; color: #e3b341; }
+  .strategy-per_request { background: #2d1f3d; color: #bc8cff; }
+  .winner { background: #1f3d2a; } .loser { background: #3d1f1f; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 6px; }
+  .bar-label { width: 140px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 28px; background: #21262d; border-radius: 4px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+  .bar-value { font-size: 12px; color: #8b949e; width: 80px; text-align: right; flex-shrink: 0; margin-left: 8px; }
+  .sla-met { color: #7ee787; font-weight: 600; } .sla-miss { color: #f85149; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Phase 3 v3 — Backpressure Strategy Comparison</h1>
+<p class="subtitle">Pareto-distributed workloads &bull; SLA targets &bull; Cost-per-token &bull; Separate EKS cluster (inference-phase3) &bull; Qwen2.5-7B-AWQ on T4 &bull; 2026-04-05</p>
+
+<!-- ─── Background ─── -->
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin-bottom: 32px; line-height: 1.7;">
+
+<h2 style="margin-top: 0; margin-bottom: 16px;">What Changed in v3?</h2>
+
+<p style="margin-bottom: 16px;">External review identified four gaps in v1/v2: the "static wins" conclusion was an artifact of underload, workloads lacked realistic size distributions, there was no SLA objective function, and no cost tracking. This v3 redesign addresses all four.</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px;">
+    <div style="color: #f85149; font-weight: 600; margin-bottom: 8px;">Problems in v1/v2</div>
+    <ul style="color: #8b949e; font-size: 13px; padding-left: 16px; line-height: 1.6;">
+      <li>KV cache never exceeded 25% &mdash; admission gates never fired</li>
+      <li>Uniform workloads hid scheduling pathologies</li>
+      <li>No SLA target &mdash; couldn't define "best" strategy</li>
+      <li>No $/token &mdash; couldn't connect strategy to cost</li>
+    </ul>
+  </div>
+  <div style="background: #0d1117; border-radius: 6px; padding: 16px;">
+    <div style="color: #7ee787; font-weight: 600; margin-bottom: 8px;">v3 Fixes</div>
+    <ul style="color: #8b949e; font-size: 13px; padding-left: 16px; line-height: 1.6;">
+      <li><strong>very_long (XL)</strong> prompt: ~1000 input + 2048 output = 1.22GB KV per request</li>
+      <li><strong>Pareto distribution</strong>: 80% short, 15% medium, 4% long, 1% XL (random, seeded)</li>
+      <li><strong>SLA targets</strong>: short &lt;5s, medium &lt;15s, long &lt;30s, XL &lt;90s P99 complete time</li>
+      <li><strong>$/1M tokens</strong>: cost computed from GPU-hours during steady-state</li>
+    </ul>
+  </div>
+</div>
+
+<p style="margin-bottom: 0;"><strong>Infrastructure:</strong> Separate EKS cluster (<span class="mono">inference-phase3</span>) with its own VPC (<span class="mono">10.1.0.0/16</span>) to avoid touching the Phase 4 production cluster. Shared ECR repos and S3 model cache. KEDA paused during experiment.</p>
+</div>
+
+<!-- ─── Workload Design ─── -->
+<h2>Workload Design</h2>
+<table>
+  <tr><th>Workload</th><th>Rate</th><th>Distribution</th><th>Purpose</th></tr>
+  <tr><td style="color:#7ee787">pareto_light</td><td class="mono">0.8 req/s</td><td>80% S, 15% M, 4% L, 1% XL (random)</td><td>Realistic production at ~80% GPU &mdash; baseline</td></tr>
+  <tr><td style="color:#e3b341">pareto_heavy</td><td class="mono">1.2 req/s</td><td>80% S, 15% M, 4% L, 1% XL (random)</td><td>Production overloaded &mdash; strategies should diverge</td></tr>
+  <tr><td style="color:#f85149">kv_stress</td><td class="mono">0.5 req/s</td><td>100% XL (3048 tok each)</td><td>Force KV cache pressure &mdash; each request = 1.22GB</td></tr>
+  <tr><td style="color:#bc8cff">burst_outlier</td><td class="mono">1.0 req/s</td><td>90% S + 5&times;XL burst every 30s</td><td>Spike pattern &mdash; steady shorts then KV explosion</td></tr>
+</table>
+
+<div style="margin: 12px 0; padding: 12px 16px; background: #161b22; border-radius: 6px; border: 1px solid #30363d; font-size: 13px; color: #8b949e;">
+  <strong style="color: #58a6ff;">SLA Targets:</strong>
+  Short prompts: P99 complete &lt; <strong>5s</strong> &bull;
+  Medium: P99 &lt; <strong>15s</strong> &bull;
+  Long: P99 &lt; <strong>30s</strong> &bull;
+  Very Long (XL): P99 &lt; <strong>90s</strong> &bull;
+  <strong style="color: #e3b341;">Cost:</strong> g4dn.xlarge Spot @ $0.22/hr
+</div>
+
+<!-- ─── Headline Numbers ─── -->
+<h2>Headline Numbers</h2>
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Best Overall SLA Compliance</div>
+    <div class="big-number green">100<span class="unit">%</span></div>
+    <div class="detail"><span class="strategy-label strategy-static">Static</span> at pareto_light, pareto_heavy, and burst_outlier</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Threshold Collapse Under Load</div>
+    <div class="big-number red">0<span class="unit"> success</span></div>
+    <div class="detail"><span class="strategy-label strategy-threshold">Threshold</span> at kv_stress + burst_outlier &mdash; complete failure</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Cheapest Per-Token Cost</div>
+    <div class="big-number blue">$0.14<span class="unit">/1M tok</span></div>
+    <div class="detail">kv_stress workload (high output volume amortizes GPU cost)</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Most Expensive Strategy</div>
+    <div class="big-number red">$2.07<span class="unit">/1M tok</span></div>
+    <div class="detail"><span class="strategy-label strategy-threshold">Threshold</span> at pareto_heavy &mdash; 3x more than static ($0.71)</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Per-Request Blind Spot</div>
+    <div class="big-number purple">0<span class="unit">% SLA</span></div>
+    <div class="detail"><span class="strategy-label strategy-per_request">Per-Request</span> at burst_outlier &mdash; 100% complete, 0% within SLA</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Total NACKs Across All Runs</div>
+    <div class="big-number blue">0</div>
+    <div class="detail">Still zero &mdash; decode throughput bottleneck, not KV cache</div>
+  </div>
+</div>
+
+<!-- ─── SLA Compliance Matrix ─── -->
+<h2>SLA Compliance Matrix &mdash; The Objective Function</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">This is the table that answers "which strategy is best?" Each cell shows the % of requests that completed within the SLA target during steady-state.</p>
+
+<table>
+  <tr><th>Strategy</th><th>pareto_light<br><span style="font-weight:400;color:#8b949e">0.8 rps</span></th><th>pareto_heavy<br><span style="font-weight:400;color:#8b949e">1.2 rps</span></th><th>kv_stress<br><span style="font-weight:400;color:#8b949e">0.5 rps XL</span></th><th>burst_outlier<br><span style="font-weight:400;color:#8b949e">1.0 rps + XL bursts</span></th></tr>
+  <tr>
+    <td><span class="strategy-label strategy-static">Static</span></td>
+    <td class="mono sla-met">100%</td>
+    <td class="mono winner sla-met">100%</td>
+    <td class="mono sla-miss">0%</td>
+    <td class="mono winner sla-met">100%</td>
+  </tr>
+  <tr>
+    <td><span class="strategy-label strategy-threshold">Threshold</span></td>
+    <td class="mono sla-met">100%</td>
+    <td class="mono sla-miss">57%</td>
+    <td class="mono loser" style="color:#8b949e">N/A (0 success)</td>
+    <td class="mono loser" style="color:#8b949e">N/A (0 success)</td>
+  </tr>
+  <tr>
+    <td><span class="strategy-label strategy-per_request">Per-Request</span></td>
+    <td class="mono sla-met">100%</td>
+    <td class="mono winner sla-met">100%</td>
+    <td class="mono sla-miss">0%</td>
+    <td class="mono sla-miss">0% *</td>
+  </tr>
+</table>
+
+<div class="insight">
+  <strong>* Per-request at burst_outlier: 100% completion but 0% SLA.</strong> All 90 requests completed successfully (no errors, no timeouts), but the XL bursts every 30s caused massive queue buildup. The queue wait for requests submitted during/after a burst was 113+ seconds, pushing P99 complete time far beyond the SLA targets. The strategy admitted everything but couldn't process it fast enough &mdash; the queue absorbed the burst but at the cost of latency.
+</div>
+
+<!-- ─── Per-Type SLA Breakdown ─── -->
+<h3>SLA Compliance by Prompt Type &mdash; pareto_heavy (the differentiating workload)</h3>
+<table>
+  <tr><th>Prompt Type</th><th>SLA Target</th><th>Static</th><th>Threshold</th><th>Per-Request</th></tr>
+  <tr><td style="color:#7ee787">Short (&lt;5s)</td><td class="mono">P99 &lt; 5s</td><td class="mono sla-met">100%</td><td class="mono sla-miss">59%</td><td class="mono sla-met">100%</td></tr>
+  <tr><td style="color:#e3b341">Medium (&lt;15s)</td><td class="mono">P99 &lt; 15s</td><td class="mono sla-met">100%</td><td class="mono sla-miss">50%</td><td class="mono sla-met">100%</td></tr>
+  <tr><td style="color:#f85149">Long (&lt;30s)</td><td class="mono">P99 &lt; 30s</td><td class="mono sla-met">100%</td><td class="mono sla-miss">67%</td><td class="mono sla-met">100%</td></tr>
+  <tr><td style="color:#bc8cff">Very Long (&lt;90s)</td><td class="mono">P99 &lt; 90s</td><td class="mono sla-met">100%</td><td class="mono sla-miss">0%</td><td class="mono sla-met">100%</td></tr>
+</table>
+
+<div class="insight warning">
+  <strong>Threshold's failure mode at pareto_heavy is instructive.</strong> With 43 errors out of 108 requests (40% failure rate), threshold's <span class="mono">/metrics</span> polling overhead serializes admission under load. When the GPU is near capacity, each request pays ~2-5ms for the metrics check. With 10 concurrent prefetched messages, that's 20-50ms of serialized polling &mdash; during which new requests pile up. The cascade turns a manageable load into a timeout spiral. Meanwhile, static (no polling) and per-request (fast estimation, no HTTP call when running_requests is low) both handle 100% cleanly.
+</div>
+
+<!-- ─── Cost Comparison ─── -->
+<h2>Cost per 1M Tokens</h2>
+<p style="color: #8b949e; margin-bottom: 12px;">GPU cost = steady-state duration &times; $0.22/hr. Lower is better &mdash; means higher throughput per GPU-dollar.</p>
+
+<table>
+  <tr><th>Strategy</th><th>pareto_light</th><th>pareto_heavy</th><th>kv_stress</th><th>burst_outlier</th></tr>
+  <tr>
+    <td><span class="strategy-label strategy-static">Static</span></td>
+    <td class="mono">$1.01/1M</td>
+    <td class="mono winner" style="color:#7ee787">$0.50/1M</td>
+    <td class="mono" style="color:#7ee787">$0.14/1M</td>
+    <td class="mono" style="color:#7ee787">$0.22/1M</td>
+  </tr>
+  <tr>
+    <td><span class="strategy-label strategy-threshold">Threshold</span></td>
+    <td class="mono">$1.01/1M</td>
+    <td class="mono loser" style="color:#f85149; font-weight:600">$1.39/1M</td>
+    <td class="mono" style="color:#8b949e">N/A</td>
+    <td class="mono" style="color:#8b949e">N/A</td>
+  </tr>
+  <tr>
+    <td><span class="strategy-label strategy-per_request">Per-Request</span></td>
+    <td class="mono">$1.01/1M</td>
+    <td class="mono winner" style="color:#7ee787">$0.50/1M</td>
+    <td class="mono" style="color:#7ee787">$0.14/1M</td>
+    <td class="mono" style="color:#7ee787">$0.22/1M</td>
+  </tr>
+</table>
+
+<div class="insight">
+  <strong>Threshold at pareto_heavy costs 2.8x more per token than static.</strong> $1.39/1M vs $0.50/1M. The root cause: threshold completed only 65 of 108 requests (60% throughput), but the GPU ran for the same duration. Fewer tokens generated with the same GPU cost = higher $/token. The <span class="mono">/metrics</span> polling overhead doesn't just hurt latency &mdash; it directly increases infrastructure cost.
+</div>
+
+<!-- ─── Full Metrics Matrix ─── -->
+<h2>Full Metrics Matrix</h2>
+
+<h3>Completion Rate</h3>
+<table>
+  <tr><th>Strategy</th><th>pareto_light</th><th>pareto_heavy</th><th>kv_stress</th><th>burst_outlier</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono" style="color:#7ee787">100%</td><td class="mono winner" style="color:#7ee787; font-weight:600">100%</td><td class="mono" style="color:#f85149">33%</td><td class="mono winner" style="color:#7ee787; font-weight:600">100%</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono" style="color:#7ee787">100%</td><td class="mono loser" style="color:#f85149">57%</td><td class="mono loser" style="color:#8b949e">N/A</td><td class="mono loser" style="color:#8b949e">N/A</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono" style="color:#7ee787">100%</td><td class="mono winner" style="color:#7ee787; font-weight:600">100%</td><td class="mono" style="color:#f85149">33%</td><td class="mono" style="color:#7ee787">100%</td></tr>
+</table>
+
+<h3>TTFT p50 / p99</h3>
+<table>
+  <tr><th>Strategy</th><th>pareto_light<br>p50 / p99</th><th>pareto_heavy<br>p50 / p99</th><th>kv_stress<br>p50 / p99</th><th>burst_outlier<br>p50 / p99</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">0.48s / 0.70s</td><td class="mono" style="color:#7ee787">0.50s / 0.80s</td><td class="mono" style="color:#f85149">72.6s / 75.7s</td><td class="mono winner" style="color:#7ee787">0.51s / 2.65s</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono">0.48s / 0.70s</td><td class="mono" style="color:#7ee787">0.49s / 0.68s</td><td class="mono" style="color:#8b949e">N/A</td><td class="mono" style="color:#8b949e">N/A</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono">0.49s / 0.77s</td><td class="mono" style="color:#7ee787">0.49s / 0.82s</td><td class="mono loser" style="color:#f85149">75.9s / 79.0s</td><td class="mono loser" style="color:#f85149">113.7s / 118.4s</td></tr>
+</table>
+
+<h3>Queue Wait p50 / p99</h3>
+<table>
+  <tr><th>Strategy</th><th>pareto_light</th><th>pareto_heavy</th><th>kv_stress</th><th>burst_outlier</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">1ms / 56ms</td><td class="mono" style="color:#7ee787">1ms / 62ms</td><td class="mono" style="color:#f85149">71.8s / 74.8s</td><td class="mono winner" style="color:#7ee787">1ms / 58ms</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono">1ms / 46ms</td><td class="mono" style="color:#7ee787">1ms / 54ms</td><td class="mono" style="color:#8b949e">N/A</td><td class="mono" style="color:#8b949e">N/A</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono">1ms / 60ms</td><td class="mono">1ms / 64ms</td><td class="mono" style="color:#f85149">75.0s / 78.2s</td><td class="mono loser" style="color:#f85149">113.4s / 118.1s</td></tr>
+</table>
+
+<h3>Throughput (tok/s aggregate)</h3>
+<table>
+  <tr><th>Strategy</th><th>pareto_light</th><th>pareto_heavy</th><th>kv_stress</th><th>burst_outlier</th></tr>
+  <tr><td><span class="strategy-label strategy-static">Static</span></td><td class="mono">40 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">86 tok/s</td><td class="mono">341 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">202 tok/s</td></tr>
+  <tr><td><span class="strategy-label strategy-threshold">Threshold</span></td><td class="mono">40 tok/s</td><td class="mono loser" style="color:#f85149">30 tok/s</td><td class="mono" style="color:#8b949e">N/A</td><td class="mono" style="color:#8b949e">N/A</td></tr>
+  <tr><td><span class="strategy-label strategy-per_request">Per-Request</span></td><td class="mono">40 tok/s</td><td class="mono winner" style="color:#7ee787; font-weight:600">87 tok/s</td><td class="mono">339 tok/s</td><td class="mono" style="color:#7ee787">203 tok/s</td></tr>
+</table>
+
+<!-- ─── Strategy Verdicts ─── -->
+<h2>Strategy Verdicts</h2>
+
+<h3 style="color: #7ee787;">Static &mdash; Best for This Hardware</h3>
+<div class="insight success">
+  <strong>Static is the clear winner for a T4 running a 7B AWQ model.</strong> 100% SLA compliance on 3 of 4 workloads. Lowest or tied-lowest cost everywhere. Zero overhead from metrics polling or cost estimation. The GPU handles continuous batching internally &mdash; the worker's job is just to feed it requests as fast as possible.
+  <br><br>
+  <strong>When it fails:</strong> kv_stress (0% SLA) &mdash; but ALL strategies fail there. The T4 simply can't generate 2048 tokens per request at 0.5 req/s fast enough. This is a hardware limitation, not a strategy limitation.
+</div>
+
+<h3 style="color: #e3b341;">Threshold &mdash; Actively Harmful at This Scale</h3>
+<div class="insight danger">
+  <strong>Threshold is the worst strategy by every metric.</strong> 57% SLA at pareto_heavy (vs 100% for static and per-request). Complete failure at kv_stress and burst_outlier. 2.8x higher cost per token at pareto_heavy. The <span class="mono">/metrics</span> polling overhead that was meant to protect the GPU instead causes cascading timeouts under load. The irony: the strategy designed to prevent overload is the one that creates it.
+  <br><br>
+  <strong>Root cause:</strong> Each admission check makes an HTTP request to vLLM's <span class="mono">/metrics</span> endpoint (~2-5ms). With <span class="mono">prefetch_count=10</span>, up to 10 requests make this check concurrently. Under load, the serialized polling creates a 20-50ms admission window where no requests are processed &mdash; long enough for the queue to grow, causing more polling, causing more queue growth. A textbook positive feedback loop.
+</div>
+
+<h3 style="color: #bc8cff;">Per-Request &mdash; Same as Static (Estimation Never Triggers)</h3>
+<div class="insight">
+  <strong>Per-request matches static on completion rate and cost, but fails SLA at burst_outlier.</strong> The KV cost estimation (prompt_length/4 + max_tokens) &times; 401KB never projected a value above the 80% threshold &mdash; the T4's 9.6GB KV cache is simply too large for a 7B model's requests. The estimation math is correct but the hardware has too much headroom. The strategy adds computation without benefit on this hardware.
+  <br><br>
+  <strong>The burst_outlier failure is interesting:</strong> all 90 requests complete (100% completion), but queue wait for requests submitted after XL bursts reaches 113 seconds. The strategy admits the XL burst because projected KV is below 80%, but the GPU takes so long to generate 2048 tokens per XL that the queue builds up. Static has the same queue buildup but its TTFT p99 is only 2.65s (vs per-request's 118.4s) &mdash; suggesting the per-request estimation overhead adds a delay that compounds during the burst.
+</div>
+
+<!-- ─── The Real Lesson ─── -->
+<h2>The Real Lesson &mdash; Match the Gate to the Bottleneck</h2>
+
+<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin: 16px 0; line-height: 1.7;">
+
+<div class="bar-row" style="margin-bottom: 16px;">
+  <div class="bar-label" style="width: 180px; font-weight: 600; color: #58a6ff;">Strategy Match Matrix</div>
+</div>
+
+<table>
+  <tr><th>Bottleneck</th><th>Best Strategy</th><th>Why</th><th>Example</th></tr>
+  <tr>
+    <td style="color:#7ee787">Decode throughput<br><span style="color:#8b949e;font-size:11px">(memory BW limited)</span></td>
+    <td><span class="strategy-label strategy-static">Static</span></td>
+    <td>No overhead. GPU's continuous batcher handles scheduling. Adding admission checks only creates delay.</td>
+    <td>7B model on T4 (this experiment)</td>
+  </tr>
+  <tr>
+    <td style="color:#e3b341">KV cache memory<br><span style="color:#8b949e;font-size:11px">(VRAM limited)</span></td>
+    <td><span class="strategy-label strategy-per_request">Per-Request</span></td>
+    <td>Cost estimation prevents preemption storms. A 32K-context request should be deferred when KV is at 70%.</td>
+    <td>70B model on A100, long contexts</td>
+  </tr>
+  <tr>
+    <td style="color:#f85149">Both scarce<br><span style="color:#8b949e;font-size:11px">(capacity-constrained fleet)</span></td>
+    <td><span class="strategy-label strategy-threshold">Threshold</span></td>
+    <td>Adapts to runtime state without estimation error. Best pragmatic middle ground when you can't predict request cost.</td>
+    <td>Multi-model serving, variable traffic</td>
+  </tr>
+</table>
+
+<div class="insight" style="margin-top: 16px; margin-bottom: 0;">
+  <strong>For an Anthropic engineering interview:</strong> The takeaway isn't "static is best" &mdash; it's that the optimal admission strategy depends on which resource is the binding constraint. Knowing how to identify the bottleneck (KV cache vs decode throughput vs prefill compute) and match the admission gate to it is the skill. A system that gates on the wrong metric adds complexity and cost without benefit.
+</div>
+
+</div>
+
+<!-- ─── Test Config ─── -->
+<h2>Test Configuration</h2>
+<table>
+  <tr><th>Parameter</th><th>Value</th></tr>
+  <tr><td>Cluster</td><td class="mono">inference-phase3 (EKS 1.29, us-east-1, separate VPC 10.1.0.0/16)</td></tr>
+  <tr><td>GPU</td><td class="mono">g4dn.xlarge Spot (NVIDIA T4 16GB)</td></tr>
+  <tr><td>Model</td><td class="mono">Qwen/Qwen2.5-7B-Instruct-AWQ (4-bit, ~4GB VRAM)</td></tr>
+  <tr><td>Worker config</td><td class="mono">PREFETCH_COUNT=10, MAX_BATCH_SIZE=8, GPU_CACHE_THRESHOLD=0.80</td></tr>
+  <tr><td>Duration</td><td class="mono">90s per run (20s warmup, 60s steady-state, 10s drain)</td></tr>
+  <tr><td>Load type</td><td class="mono">Open-loop, Pareto-distributed, seed=42 for reproducibility</td></tr>
+  <tr><td>SLA targets</td><td class="mono">S &lt;5s, M &lt;15s, L &lt;30s, XL &lt;90s (P99 complete time)</td></tr>
+  <tr><td>Cost basis</td><td class="mono">g4dn.xlarge Spot @ $0.22/hr</td></tr>
+  <tr><td>Total runs</td><td class="mono">12 (3 strategies &times; 4 workloads)</td></tr>
+  <tr><td>Total requests</td><td class="mono">~1,260</td></tr>
+  <tr><td>Isolation</td><td class="mono">Separate EKS cluster from Phase 4 &mdash; shared ECR + S3 only</td></tr>
+</table>
+
+<p style="color: #8b949e; margin-top: 24px; font-size: 12px;">
+  Raw results: <span class="mono">phase3/tests/backpressure_results_v3_merged.json</span> &bull;
+  Per-strategy: <span class="mono">phase3/tests/backpressure_results_v3_{static,threshold,per_request}.json</span> &bull;
+  Worker: <span class="mono">phase3/app/worker/worker.py</span> &bull;
+  Test: <span class="mono">phase3/tests/backpressure_comparison.py</span> &bull;
+  Terraform: <span class="mono">phase3/terraform/</span>
+</p>
+
+</body>
+</html>

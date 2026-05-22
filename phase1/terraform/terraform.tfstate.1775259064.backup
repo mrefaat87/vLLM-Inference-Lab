@@ -1,0 +1,122 @@
+{
+  "version": 4,
+  "terraform_version": "1.5.7",
+  "serial": 250,
+  "lineage": "038a39fe-454e-aa4d-8406-4e3d0253351b",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "data",
+      "type": "aws_caller_identity",
+      "name": "current",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "account_id": "019167255542",
+            "arn": "arn:aws:iam::019167255542:user/vLLM-spot-lab",
+            "id": "019167255542",
+            "user_id": "AIDAQI5TVDP3CB3VZXN7D"
+          },
+          "sensitive_attributes": []
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "model_cache",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "acceleration_status": "",
+            "acl": null,
+            "arn": "arn:aws:s3:::inference-lab-model-cache-019167255542",
+            "bucket": "inference-lab-model-cache-019167255542",
+            "bucket_domain_name": "inference-lab-model-cache-019167255542.s3.amazonaws.com",
+            "bucket_prefix": "",
+            "bucket_regional_domain_name": "inference-lab-model-cache-019167255542.s3.us-east-1.amazonaws.com",
+            "cors_rule": [],
+            "force_destroy": false,
+            "grant": [
+              {
+                "id": "2697b0a9ecd9dbd9ef3518e731943fa20852afdb23e60c294a965416344158e1",
+                "permissions": [
+                  "FULL_CONTROL"
+                ],
+                "type": "CanonicalUser",
+                "uri": ""
+              }
+            ],
+            "hosted_zone_id": "Z3AQBSTGFYJSTF",
+            "id": "inference-lab-model-cache-019167255542",
+            "lifecycle_rule": [],
+            "logging": [],
+            "object_lock_configuration": [],
+            "object_lock_enabled": false,
+            "policy": "",
+            "region": "us-east-1",
+            "replication_configuration": [],
+            "request_payer": "BucketOwner",
+            "server_side_encryption_configuration": [
+              {
+                "rule": [
+                  {
+                    "apply_server_side_encryption_by_default": [
+                      {
+                        "kms_master_key_id": "",
+                        "sse_algorithm": "AES256"
+                      }
+                    ],
+                    "bucket_key_enabled": false
+                  }
+                ]
+              }
+            ],
+            "tags": {
+              "Name": "inference-lab-model-cache"
+            },
+            "tags_all": {
+              "ManagedBy": "terraform",
+              "Name": "inference-lab-model-cache",
+              "Project": "inference-lab",
+              "Stage": "phase1"
+            },
+            "timeouts": null,
+            "versioning": [
+              {
+                "enabled": true,
+                "mfa_delete": false
+              }
+            ],
+            "website": [],
+            "website_domain": null,
+            "website_endpoint": null
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDAwLCJkZWxldGUiOjM2MDAwMDAwMDAwMDAsInJlYWQiOjEyMDAwMDAwMDAwMDAsInVwZGF0ZSI6MTIwMDAwMDAwMDAwMH19",
+          "dependencies": [
+            "data.aws_caller_identity.current"
+          ]
+        }
+      ]
+    }
+  ],
+  "check_results": [
+    {
+      "object_kind": "resource",
+      "config_addr": "module.eks.module.eks_managed_node_group.module.user_data.null_resource.validate_cluster_service_cidr",
+      "status": "unknown",
+      "objects": null
+    },
+    {
+      "object_kind": "resource",
+      "config_addr": "module.eks.module.self_managed_node_group.module.user_data.null_resource.validate_cluster_service_cidr",
+      "status": "unknown",
+      "objects": null
+    }
+  ]
+}

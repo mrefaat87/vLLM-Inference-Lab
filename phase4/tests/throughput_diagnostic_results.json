@@ -1,0 +1,1131 @@
+{
+  "experiment": "throughput_diagnostic",
+  "start_time": "2026-04-06T04:47:00.398236+00:00",
+  "end_time": "2026-04-06T04:48:10.936532+00:00",
+  "config": {
+    "concurrency": 60,
+    "max_tokens": 150,
+    "prompt_chars": 231,
+    "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+    "vllm_host": "http://127.0.0.1:9000",
+    "gateway_host": "http://127.0.0.1:8080"
+  },
+  "test_a_direct": {
+    "test_name": "Test A \u2014 Direct vLLM",
+    "concurrency": 60,
+    "total_requests": 60,
+    "successes": 60,
+    "errors": 0,
+    "error_details": [],
+    "total_tokens": 8986,
+    "wall_time_sec": 23.06,
+    "aggregate_tps": 389.8,
+    "ttft_p50_ms": 2045.5,
+    "ttft_p99_ms": 2129.9,
+    "per_request_tps_median": 7.2,
+    "per_request_results": [
+      {
+        "request_id": 0,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.4116,
+        "total_sec": 23.049,
+        "per_request_tps": 6.6,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 1,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.4106,
+        "total_sec": 23.048,
+        "per_request_tps": 6.6,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 2,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1299,
+        "total_sec": 23.048,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 3,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1296,
+        "total_sec": 23.048,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 4,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0606,
+        "total_sec": 23.041,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 5,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0609,
+        "total_sec": 23.046,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 6,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1148,
+        "total_sec": 23.042,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 7,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1264,
+        "total_sec": 23.046,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 8,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1238,
+        "total_sec": 23.034,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 9,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1099,
+        "total_sec": 23.034,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 10,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1218,
+        "total_sec": 23.033,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 11,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0514,
+        "total_sec": 23.032,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 12,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0498,
+        "total_sec": 23.031,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 13,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1131,
+        "total_sec": 23.032,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 14,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0479,
+        "total_sec": 23.03,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 15,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1136,
+        "total_sec": 23.024,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 16,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1134,
+        "total_sec": 23.022,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 17,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1109,
+        "total_sec": 23.025,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 18,
+        "error": null,
+        "tokens": 136,
+        "ttft_sec": 2.0387,
+        "total_sec": 21.147,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 19,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0969,
+        "total_sec": 23.017,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 20,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0895,
+        "total_sec": 23.013,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 21,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.1015,
+        "total_sec": 23.017,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 22,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0294,
+        "total_sec": 23.015,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 23,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0963,
+        "total_sec": 23.009,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 24,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0972,
+        "total_sec": 23.01,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 25,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.087,
+        "total_sec": 23.005,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 26,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0937,
+        "total_sec": 23.008,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 27,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0903,
+        "total_sec": 23.007,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 28,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0821,
+        "total_sec": 23.005,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 29,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9969,
+        "total_sec": 22.984,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 30,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0626,
+        "total_sec": 22.979,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 31,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9902,
+        "total_sec": 22.975,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 32,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0567,
+        "total_sec": 22.979,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 33,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9901,
+        "total_sec": 22.969,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 34,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0522,
+        "total_sec": 22.968,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 35,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0533,
+        "total_sec": 22.965,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 36,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0475,
+        "total_sec": 22.963,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 37,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0423,
+        "total_sec": 22.964,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 38,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0435,
+        "total_sec": 22.965,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 39,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9794,
+        "total_sec": 22.96,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 40,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0429,
+        "total_sec": 22.955,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 41,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9706,
+        "total_sec": 22.956,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 42,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9706,
+        "total_sec": 22.955,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 43,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.037,
+        "total_sec": 22.952,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 44,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0364,
+        "total_sec": 22.951,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 45,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0291,
+        "total_sec": 22.95,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 46,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0206,
+        "total_sec": 22.945,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 47,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0265,
+        "total_sec": 22.941,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 48,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0302,
+        "total_sec": 22.94,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 49,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0266,
+        "total_sec": 22.946,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 50,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0223,
+        "total_sec": 22.94,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 51,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9573,
+        "total_sec": 22.943,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 52,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0247,
+        "total_sec": 22.936,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 53,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0179,
+        "total_sec": 22.932,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.12
+      },
+      {
+        "request_id": 54,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0076,
+        "total_sec": 22.928,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.12
+      },
+      {
+        "request_id": 55,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9444,
+        "total_sec": 22.927,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.12
+      },
+      {
+        "request_id": 56,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 2.0138,
+        "total_sec": 22.924,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.12
+      },
+      {
+        "request_id": 57,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9991,
+        "total_sec": 22.927,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.12
+      },
+      {
+        "request_id": 58,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9295,
+        "total_sec": 22.909,
+        "per_request_tps": 7.1,
+        "submit_offset_sec": 0.14
+      },
+      {
+        "request_id": 59,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.9949,
+        "total_sec": 22.912,
+        "per_request_tps": 7.2,
+        "submit_offset_sec": 0.14
+      }
+    ]
+  },
+  "test_b_pipeline": {
+    "test_name": "Test B \u2014 Full Pipeline",
+    "concurrency": 60,
+    "total_requests": 60,
+    "successes": 60,
+    "errors": 0,
+    "error_details": [],
+    "total_tokens": 8999,
+    "wall_time_sec": 36.82,
+    "aggregate_tps": 244.4,
+    "ttft_p50_ms": 15997.4,
+    "ttft_p99_ms": 31186.7,
+    "per_request_tps_median": 27.1,
+    "per_request_results": [
+      {
+        "request_id": 0,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.7562,
+        "total_sec": 6.644,
+        "per_request_tps": 25.5,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 1,
+        "error": null,
+        "tokens": 149,
+        "ttft_sec": 1.1448,
+        "total_sec": 6.643,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.0
+      },
+      {
+        "request_id": 2,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.7494,
+        "total_sec": 6.638,
+        "per_request_tps": 25.5,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 3,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.1201,
+        "total_sec": 12.646,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 4,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 12.8291,
+        "total_sec": 18.751,
+        "per_request_tps": 25.3,
+        "submit_offset_sec": 0.01
+      },
+      {
+        "request_id": 5,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.7433,
+        "total_sec": 6.63,
+        "per_request_tps": 25.5,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 6,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.7368,
+        "total_sec": 6.629,
+        "per_request_tps": 25.5,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 7,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 0.7365,
+        "total_sec": 6.626,
+        "per_request_tps": 25.5,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 8,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.1074,
+        "total_sec": 12.623,
+        "per_request_tps": 27.2,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 9,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1908,
+        "total_sec": 18.742,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 10,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.081,
+        "total_sec": 6.627,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.02
+      },
+      {
+        "request_id": 11,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.1058,
+        "total_sec": 12.628,
+        "per_request_tps": 27.2,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 12,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.1032,
+        "total_sec": 12.629,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 13,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.0788,
+        "total_sec": 6.622,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 14,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.1006,
+        "total_sec": 12.629,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.03
+      },
+      {
+        "request_id": 15,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.0949,
+        "total_sec": 12.614,
+        "per_request_tps": 27.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 16,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.2089,
+        "total_sec": 24.747,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 17,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1773,
+        "total_sec": 18.727,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 18,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 6.7094,
+        "total_sec": 12.614,
+        "per_request_tps": 25.4,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 19,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.0888,
+        "total_sec": 12.618,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 20,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.0873,
+        "total_sec": 12.611,
+        "per_request_tps": 27.2,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 21,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1702,
+        "total_sec": 18.72,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.04
+      },
+      {
+        "request_id": 22,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 12.7963,
+        "total_sec": 18.719,
+        "per_request_tps": 25.3,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 23,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 18.804,
+        "total_sec": 24.738,
+        "per_request_tps": 25.3,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 24,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.0565,
+        "total_sec": 6.596,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 25,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 7.0801,
+        "total_sec": 12.606,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 26,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1913,
+        "total_sec": 24.732,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 27,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 1.0501,
+        "total_sec": 6.595,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.05
+      },
+      {
+        "request_id": 28,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.2106,
+        "total_sec": 30.749,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 29,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1862,
+        "total_sec": 24.724,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 30,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1872,
+        "total_sec": 24.724,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 31,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1554,
+        "total_sec": 18.706,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 32,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.2042,
+        "total_sec": 30.738,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 33,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1525,
+        "total_sec": 18.701,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 34,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 24.8192,
+        "total_sec": 30.74,
+        "per_request_tps": 25.3,
+        "submit_offset_sec": 0.06
+      },
+      {
+        "request_id": 35,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1773,
+        "total_sec": 24.719,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 36,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1795,
+        "total_sec": 24.719,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 37,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1776,
+        "total_sec": 24.715,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 38,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.171,
+        "total_sec": 24.713,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.07
+      },
+      {
+        "request_id": 39,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1376,
+        "total_sec": 18.69,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 40,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1891,
+        "total_sec": 30.726,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 41,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 19.1655,
+        "total_sec": 24.705,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 42,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1334,
+        "total_sec": 18.685,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 43,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1845,
+        "total_sec": 30.722,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.08
+      },
+      {
+        "request_id": 44,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1807,
+        "total_sec": 30.718,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 45,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 13.1278,
+        "total_sec": 18.679,
+        "per_request_tps": 27.0,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 46,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1778,
+        "total_sec": 30.716,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 47,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1772,
+        "total_sec": 30.717,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 48,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1867,
+        "total_sec": 36.726,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 49,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1725,
+        "total_sec": 30.712,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.09
+      },
+      {
+        "request_id": 50,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 30.7946,
+        "total_sec": 36.724,
+        "per_request_tps": 25.3,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 51,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1791,
+        "total_sec": 36.721,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 52,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 25.1676,
+        "total_sec": 30.706,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 53,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1778,
+        "total_sec": 36.719,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 54,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1781,
+        "total_sec": 36.719,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 55,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.176,
+        "total_sec": 36.716,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 56,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1749,
+        "total_sec": 36.715,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.1
+      },
+      {
+        "request_id": 57,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1725,
+        "total_sec": 36.714,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 58,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.17,
+        "total_sec": 36.71,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.11
+      },
+      {
+        "request_id": 59,
+        "error": null,
+        "tokens": 150,
+        "ttft_sec": 31.1695,
+        "total_sec": 36.711,
+        "per_request_tps": 27.1,
+        "submit_offset_sec": 0.11
+      }
+    ]
+  },
+  "comparison": {
+    "direct_tps": 389.8,
+    "pipeline_tps": 244.4,
+    "overhead_ratio": 1.59,
+    "hypothesis": "Moderate pipeline overhead (1.6x). Both vLLM config and queue worker batching efficiency need investigation."
+  }
+}
