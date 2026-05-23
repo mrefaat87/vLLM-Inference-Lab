@@ -923,16 +923,36 @@ function bCrit(hw, weight_prec, act_prec) {
   return (flops / bw_bytes_per_sec) * (weight_bytes / act_bytes);
 }
 
-// Time per decode step (seconds) as the max of memory and compute bound
-// (reference §4 general form). The two terms compete; max picks the bottleneck.
-// avgSeq is mean tokens-of-KV per active sequence during the step we're modelling.
+// Time per decode step (seconds), per-kernel form (reference §4 + Scaling Book
+// inference chapter, https://jax-ml.github.io/scaling-book/inference/):
+//
+//   Step_time = (B · KV_per_seq) / BW                       ← attention kernel
+//             + max( 2·B·N / FLOPs ,  W / BW )              ← MLP kernel
+//
+// Why additive, not a single max: attention and MLP run as *separate sequential
+// CUDA kernels* per layer, so per-step wall time sums across the two kernels.
+// The right-hand max picks the MLP kernel's bottleneck (compute roof vs weight
+// load). The book's justification for the asymmetry: "the attention component
+// (left) is never compute-bound, and thus doesn't need a FLOPs roofline" — so
+// attention is modelled as pure HBM-bandwidth on the KV stream only.
+//
+// Simplification (kept verbatim from the book): the right-hand side uses
+// *total* params N and *total* weight bytes W, not the MLP-only slice. This
+// over-attributes a small slice of memory/compute to the MLP kernel but keeps
+// the formula closed-form and matches the book's numerical worked examples.
+//
+// avgSeq is the mean tokens-of-KV per active sequence during the step we're
+// modelling (≈ ISL + OSL/2 for steady-state decode).
 function stepTime({ B, kv_per_token, avgSeq, weight_bytes_total, paramCount, totalBW, totalFLOPs }) {
-  // Memory: every step we stream the whole weight tensor once + the full KV of
-  // every active sequence. KV scales linearly with B and avgSeq.
-  const memTime = (weight_bytes_total + B * kv_per_token * avgSeq) / totalBW;
-  // Compute: B tokens produced per step, 2·N flops per token (reference §0.3).
+  // Attention kernel: stream the live KV of every sequence each step. No compute
+  // roof — attention's AI is ~1, always memory-bound at decode (reference §0.3).
+  const attnMemTime = (B * kv_per_token * avgSeq) / totalBW;
+  // MLP kernel: weight-load vs compute, whichever is slower. W/BW is constant
+  // in B (the per-step weight stream is the same regardless of how many
+  // tokens share it); 2BN/FLOPs grows linearly in B.
+  const mlpMemTime = weight_bytes_total / totalBW;
   const computeTime = (2 * B * paramCount) / totalFLOPs;
-  return Math.max(memTime, computeTime);
+  return attnMemTime + Math.max(mlpMemTime, computeTime);
 }
 
 // Throughput at a given batch (tokens/sec). Derived from stepTime since
@@ -945,21 +965,69 @@ function throughputAtB(args) {
 
 // ---------- batch-size bounds ----------
 
-// Largest B that keeps a decode step under TBT_SLO. Solves both branches of the
-// stepTime max and returns the binding minimum. Returns 0 + an unreachable flag
-// if weights alone blow the budget — caller can surface "raise TP / relax TBT".
+// Largest B that keeps a decode step under TBT_SLO. Solves the per-kernel
+// stepTime form (reference §4 + Scaling Book):
+//   T(B) = (B·K·S)/BW + max(W/BW, 2BN/FLOPs)
+//
+// The right-hand max is monotone in B only through the compute branch
+// (W/BW is constant in B). The MLP-ridge crossover is at:
+//   B_ridge = (W · FLOPs) / (2N · BW)
+//
+// Two regimes, both linear in B:
+//   (a) Below the ridge (W/BW dominates): T = (B·K·S)/BW + W/BW
+//       Solve: B ≤ (T_slo − W/BW) · BW / (K·S)
+//       Unreachable if T_slo·BW ≤ W (weight stream alone busts budget).
+//   (b) Above the ridge (compute dominates): T = (B·K·S)/BW + 2BN/FLOPs
+//       Solve: B ≤ T_slo / (K·S/BW + 2N/FLOPs)
+//
+// Strategy: compute both candidate bounds; the binding answer is the candidate
+// whose B *actually lands in its own regime* (i.e., on its own side of B_ridge).
+// At small B regime (a) is correct; at large B regime (b) is correct. The
+// boundary B_ridge is also a valid answer when both candidates straddle it.
 function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount, totalBW, totalFLOPs }) {
   const T = tbt_ms / 1000;
-  // Memory branch: (W + B·K·S)/BW ≤ T  →  B ≤ (T·BW − W)/(K·S)
-  const numerator = T * totalBW - weight_bytes_total;
-  if (numerator <= 0) {
+  const W = weight_bytes_total;
+  const N = paramCount;
+  const KS = kv_per_token * avgSeq;
+
+  const wOverBW = W / totalBW;
+  // Regime-(a) candidate: weight-load dominates the MLP kernel.
+  const numA = T - wOverBW;
+  if (numA <= 0) {
     return { value: 0, unreachable: true, reason: "weights stream time alone exceeds TBT budget" };
   }
-  const memBound = numerator / (kv_per_token * avgSeq);
-  // Compute branch: 2·B·N/FLOPs ≤ T  →  B ≤ T·FLOPs/(2·N)
-  const computeBound = (T * totalFLOPs) / (2 * paramCount);
-  const value = Math.floor(Math.min(memBound, computeBound));
-  return { value: Math.max(0, value), unreachable: false, binding: memBound < computeBound ? "memory" : "compute" };
+  const bA = (numA * totalBW) / KS;
+  // Regime-(b) candidate: MLP compute dominates.
+  const bB = T / (KS / totalBW + (2 * N) / totalFLOPs);
+  // Ridge: the B at which W/BW == 2BN/FLOPs (MLP kernel crossover).
+  const bRidge = (W * totalFLOPs) / (2 * N * totalBW);
+
+  // Pick the candidate that lands in its own regime. Below the ridge: (a)
+  // governs. Above: (b) governs. If they cross, the binding one is the smaller
+  // of the two valid pieces (the step time is piecewise-linear and continuous
+  // at the ridge).
+  let value, binding;
+  if (bA <= bRidge) {
+    // Candidate (a) is consistent (its solution sits in the W/BW-dominated regime).
+    value = bA;
+    binding = "mlp-weight-load";
+  } else if (bB >= bRidge) {
+    // Candidate (b) is consistent (its solution sits in the compute-dominated regime).
+    value = bB;
+    binding = "mlp-compute";
+  } else {
+    // Neither candidate is self-consistent → the SLO is met exactly at the
+    // ridge. Use B_ridge.
+    value = bRidge;
+    binding = "mlp-ridge";
+  }
+
+  // Attention term is the only remaining axis: if KS·B/BW alone already exceeds
+  // T (would only happen at absurd KV·seq), flag binding as attention.
+  if ((value * KS) / totalBW > T) {
+    binding = "attention";
+  }
+  return { value: Math.max(0, Math.floor(value)), unreachable: false, binding };
 }
 
 // Largest B that fits the KV cache in HBM after weights + activation headroom
@@ -1051,8 +1119,11 @@ function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
 // ---------- max_num_batched_tokens ----------
 
 // vLLM's max_num_batched_tokens. Combines DJL's α × batch × ISL hint with
-// Sarathi-Serve's strict/relaxed bands (reference §10). Snaps to a power of 2
-// ≥ 1024 so it lines up with kernel tile sizes.
+// Sarathi-Serve's strict/relaxed token-budget bands as reproduced in reference
+// §10 (Sarathi-Serve, OSDI '24: strict ≈ 512, relaxed ≈ 2048). Snaps to a
+// power of 2 ≥ 1024 so it lines up with kernel tile sizes.
+// Caveat: the α=0.15 midpoint is DJL guidance, not source-verified from a
+// primary benchmark — treat as a starting hint, not a tuned constant.
 function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
   const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
   const sarathiBand = tbt_ms <= 30 ? "strict (~512)" : "relaxed (~2048)";
@@ -1115,6 +1186,17 @@ function compute(input) {
   }
   if (model.attn_type === "MLA") {
     warnings.push({ level: "info", msg: `${model.label} uses MLA: KV modelled as (d_c + d_rope) × bytes × n_layers per token (reference §3).` });
+    // MoE caveat: params_b in the data table is *active* params, which is
+    // correct for the compute roof (2BN/FLOPs uses active params per token).
+    // But weight-memory math uses the same params_b, which under-reports total
+    // weight bytes (DeepSeek-V3: 37B active vs 671B total). Surface this so
+    // sizing decisions on weight HBM aren't silently optimistic.
+    if (/MoE/i.test(model.label) || /\(.*active.*\)/i.test(model.label)) {
+      warnings.push({
+        level: "warn",
+        msg: `${model.label}: weight-memory uses active params (${model.params_b}B) — total MoE weights are larger. Compute roofline is correct; HBM-fit estimate is optimistic.`,
+      });
+    }
   }
   if (weight_prec === "FP8" && !hw.fp8_tflops) {
     warnings.push({ level: "warn", msg: `${hw.label} has no hardware FP8 path; using FP16 roofline for compute (FP8 byte savings still apply to weights/KV memory).` });

@@ -343,6 +343,50 @@ test("property: every (hw, model, prec) combo produces finite metrics", () => {
   assert.ok(n >= 100, `expected coverage breadth, ran only ${n}`);
 });
 
+// ---------- Layer 9: large-B regression (per-kernel form vs old single-max) ----------
+
+// Regression for the §4 / Scaling Book per-kernel step-time form. Past B_crit,
+// the OLD code (single max((W+B·K·S)/BW, 2BN/FLOPs)) under-reports step time
+// because the attention KV stream and the MLP compute term were being max'd
+// against each other instead of summed across the two sequential kernels.
+//
+// Llama-3-70B INT8 on H100 (single GPU), seq=8k, B=800 (well past B_crit≈147
+// for INT8/INT8 weights+acts, deeper into the compute-bound regime).
+test("stepTime large-B: per-kernel sum differs from old single-max form", () => {
+  const m = MODEL["llama-3-70b"];
+  const hw = HW["H100-80GB"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const K = kvPerToken(m, DTYPE_BYTES.INT8);
+  const N = m.params_b * 1e9;
+  const BW = hw.hbm_bw_gbs * 1e9;
+  const F = hw.fp16_tflops * 1e12; // INT8 acts use FP16 compute path on H100
+  const B = 800;
+  const avgSeq = 8192;
+
+  const tNew = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount: N, totalBW: BW, totalFLOPs: F });
+
+  // Analytical: attn = B·K·S/BW; mlp = max(W/BW, 2BN/F)
+  const attn = (B * K * avgSeq) / BW;
+  const mlpMem = W / BW;
+  const compute = (2 * B * N) / F;
+  const tExpected = attn + Math.max(mlpMem, compute);
+  within(tNew, tExpected, 0.01);
+
+  // The OLD wrong form: single max((W + B·K·S)/BW, 2BN/F). At B=800 the KV
+  // stream dominates the inside-the-max term, so the old form would return
+  // (W + B·K·S)/BW alone — missing the additive MLP-compute kernel.
+  const tOldWrong = Math.max((W + B * K * avgSeq) / BW, compute);
+  // The new (correct) per-kernel sum must be strictly larger than the old
+  // single-max once compute is non-trivial — that's the whole bug fix.
+  assert.ok(tNew > tOldWrong,
+    `new per-kernel form (${tNew.toFixed(4)}s) should exceed old single-max (${tOldWrong.toFixed(4)}s) past B_crit`);
+  // And the gap should be on the order of the MLP compute kernel time
+  // (the term the old formula dropped).
+  const gap = tNew - tOldWrong;
+  assert.ok(gap > 0.5 * Math.min(mlpMem, compute),
+    `gap (${gap.toFixed(4)}s) should be on the order of the dropped MLP kernel time`);
+});
+
 test("property: bCrit is independent of model size", () => {
   const hw = HW["H100-80GB"];
   const v8 = bCrit(hw, "FP16", "FP16");
