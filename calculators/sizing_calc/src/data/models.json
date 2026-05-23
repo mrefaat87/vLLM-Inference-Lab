@@ -12,6 +12,8 @@
       "d_ff": "FFW intermediate (up-projection) dimension. Used in Y_max = d_ff/(B·β). For SwiGLU models there are 3 FFW matrices but the constant cancels in Y_max.",
       "max_context": "trained context length in tokens",
       "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
+      "kv_lora_rank": "MLA latent dim (d_c). Required when attn_type=MLA; omitted otherwise.",
+      "qk_rope_head_dim": "MLA rope key dim (d_rope). Required when attn_type=MLA; omitted otherwise.",
       "notes": "provenance / caveats"
     },
     "_sources": [
@@ -88,6 +90,22 @@
       "max_context": 32768,
       "attn_type": "GQA",
       "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336."
+    },
+    {
+      "key": "deepseek-v3",
+      "label": "DeepSeek-V3 (671B MoE, 37B active)",
+      "params_b": 37,
+      "n_layers": 61,
+      "d_model": 7168,
+      "n_heads": 128,
+      "n_kv_heads": 128,
+      "head_dim": 128,
+      "d_ff": 18432,
+      "max_context": 65536,
+      "attn_type": "MLA",
+      "kv_lora_rank": 512,
+      "qk_rope_head_dim": 64,
+      "notes": "MoE: params_b=37B (active) drives the compute roofline correctly; weight-memory line under-reports vs 671B total — known limitation, separate active/total fields are a follow-up. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
     }
   ]
 }

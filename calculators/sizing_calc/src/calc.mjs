@@ -42,11 +42,19 @@ export function weightsBytes(params_b, weight_bytes) {
 }
 
 // KV cache bytes per generated token, per sequence (reference §3).
-// Factor of 2 covers the K and V tensors. n_kv_heads (< n_heads for GQA, =1 for
-// MQA) is the dimension that GQA actually compresses, which is why GQA's KV is
-// so much smaller than MHA. MLA breaks this formula — caller must flag MLA
-// models because the real KV is ~10–20× smaller than this returns.
+// MHA/GQA/MQA share the generic formula:
+//   2 (K+V) × bytes × n_kv_heads × head_dim × n_layers
+// Factor of 2 covers K and V tensors; n_kv_heads (< n_heads for GQA, =1 for
+// MQA) is what GQA actually compresses — which is why GQA's KV is so much
+// smaller than MHA.
+// MLA is structurally different (reference §3 table): a single low-rank latent
+// of size d_c plus one rope key of size d_rope, shared across heads — so no
+// factor of 2 (one cached tensor, not K+V separately), no n_kv_heads, no
+// head_dim. Field names match DeepSeek HF config (kv_lora_rank, qk_rope_head_dim).
 export function kvPerToken(model, kv_bytes) {
+  if (model.attn_type === "MLA") {
+    return (model.kv_lora_rank + model.qk_rope_head_dim) * kv_bytes * model.n_layers;
+  }
   return 2 * kv_bytes * model.n_kv_heads * model.head_dim * model.n_layers;
 }
 
@@ -257,7 +265,7 @@ export function compute(input) {
     warnings.push({ level: "warn", msg: `ISL+OSL (${cleanIsl + cleanOsl}) exceeds model max_context (${model.max_context}).` });
   }
   if (model.attn_type === "MLA") {
-    warnings.push({ level: "warn", msg: `${model.label} uses MLA; b_kv is a GQA-equivalent upper bound (real MLA cache is ~10–20× smaller).` });
+    warnings.push({ level: "info", msg: `${model.label} uses MLA: KV modelled as (d_c + d_rope) × bytes × n_layers per token (reference §3).` });
   }
   if (weight_prec === "FP8" && !hw.fp8_tflops) {
     warnings.push({ level: "warn", msg: `${hw.label} has no hardware FP8 path; using FP16 roofline for compute (FP8 byte savings still apply to weights/KV memory).` });

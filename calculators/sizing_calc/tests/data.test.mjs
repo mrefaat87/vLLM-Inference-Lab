@@ -76,3 +76,21 @@ test("models: GQA models have n_kv_heads strictly < n_heads", () => {
       `${m.key} declared GQA but n_kv_heads (${m.n_kv_heads}) is not < n_heads (${m.n_heads})`);
   }
 });
+
+// MLA models need extra fields because kvPerToken() reads them. Non-MLA models
+// must NOT carry them — keeps the data table honest about which formula applies.
+test("models: MLA requires kv_lora_rank + qk_rope_head_dim; others must omit them", () => {
+  for (const m of models) {
+    if (m.attn_type === "MLA") {
+      assert.ok(isPosInt(m.kv_lora_rank) && m.kv_lora_rank <= 2048,
+        `${m.key} MLA missing/invalid kv_lora_rank: ${m.kv_lora_rank}`);
+      assert.ok(isPosInt(m.qk_rope_head_dim) && m.qk_rope_head_dim <= 512,
+        `${m.key} MLA missing/invalid qk_rope_head_dim: ${m.qk_rope_head_dim}`);
+    } else {
+      assert.equal(m.kv_lora_rank, undefined,
+        `${m.key} is ${m.attn_type} but carries kv_lora_rank — only MLA should`);
+      assert.equal(m.qk_rope_head_dim, undefined,
+        `${m.key} is ${m.attn_type} but carries qk_rope_head_dim — only MLA should`);
+    }
+  }
+});

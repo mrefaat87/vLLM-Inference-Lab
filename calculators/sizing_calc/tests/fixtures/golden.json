@@ -74,6 +74,23 @@
       "expected_gb": 42.9,
       "tolerance_pct": 5,
       "source": "§3 worked example '~42 GB just for KV'"
+    },
+    {
+      "name": "DeepSeek-V3 MLA BF16 KV per token (no factor of 2, no n_kv_heads)",
+      "model_key": "deepseek-v3",
+      "kv_prec": "BF16",
+      "expected_bytes": 70272,
+      "tolerance_pct": 0.1,
+      "source": "§3 MLA row: (d_c + d_rope) × bytes × n_layers = (512 + 64) × 2 × 61"
+    },
+    {
+      "name": "DeepSeek-V3 MLA BF16 KV per 32k sequence (matches §3 table ~2.18–2.30 GB band)",
+      "model_key": "deepseek-v3",
+      "kv_prec": "BF16",
+      "seq_len": 32768,
+      "expected_gb": 2.30,
+      "tolerance_pct": 6,
+      "source": "§3 MLA row '2.18 GB/seq' at 32K — analytical (576×2×61×32768) = 2.30 GB; reference figure within 6%"
     }
   ],
   "weights": [
