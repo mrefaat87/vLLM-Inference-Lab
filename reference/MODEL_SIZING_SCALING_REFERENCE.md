@@ -452,35 +452,109 @@ The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, p
 | **DP** | Whole replicas | Yes | No (replicates weights, doesn't help BW) | — |
 | **FSDP** | Weights gathered per layer | Marginal | **Unviable** for decode (param loading dominates) | — |
 
-**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book ([jax-ml.github.io/scaling-book/inference](https://jax-ml.github.io/scaling-book/inference/#distributing-inference-over-multiple-accelerators)) derives the ceiling from the FFW block's HBM-vs-ICI competition.
+**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book ([jax-ml.github.io/scaling-book/inference](https://jax-ml.github.io/scaling-book/inference/#distributing-inference-over-multiple-accelerators)) derives the ceiling from the FFW block's HBM-vs-ICI competition. The derivation is short but every byte-count term matters; here it is end-to-end.
 
-**Per FFW layer**, two byte movements compete:
-```
-T_HBM = 2DF / (Y · W_hbm)     ← weight slice each chip streams (Wup + Wdown = 2DF bytes)
-T_ICI = 2BD / W_ici           ← all-reduce of activations after Wdown (ring all-reduce ≈ 2 × msg)
-```
-where `D = d_model`, `F = d_ff` (FFW intermediate dim), `B = batch size`, `Y = TP degree`,
-`W_hbm` / `W_ici` = HBM / inter-chip bandwidth (bytes/sec).
+### Setup — the FFW block under TP
 
-Crossover where ICI catches up to the shrinking weight-stream time:
+A transformer block's FFW (a.k.a. MLP) takes the residual stream through two matmuls:
+
 ```
-T_ICI > T_HBM   ⇒   Y > F / (B · β)         with β = W_hbm / W_ici
+input  [B × D]  ──Wup──►  hidden [B × F]  ──Wdown──►  output [B × D]
+                weight                       weight
+              [D × F]                       [F × D]
 ```
+
+where `D = d_model` (residual width, e.g. 4,096 for Llama-3-8B), `F = d_ff` (FFW intermediate, e.g. 14,336), `B` = tokens in the current decode step.
+
+Megatron-LM TP shards the **`F` dimension** of both weights across `Y` chips, using the classic "column-then-row parallel" pattern:
+- **`Wup` (column-parallel):** weight sliced along F → each chip produces a slice of the hidden activations `[B × F/Y]`. **No comm needed** because each chip's slice is self-contained.
+- **`Wdown` (row-parallel):** weight sliced along F → each chip computes a *partial sum* of the output `[B × D]`. To get the final answer, the Y chips must **all-reduce** their partial `[B × D]` outputs.
+
+That column→row choice is what makes TP work without per-matmul comm; the only price is one all-reduce per FFW layer.
+
+### Where `2DF` comes from — the HBM weight-load term
+
+Per FFW layer there are two weight matrices: `Wup` (D×F params) + `Wdown` (F×D params) = **2DF params**. At 1 byte per parameter (a unit-less convention the book uses so byte conversions cancel cleanly later), that's `2DF` bytes the chip must stream out of HBM to do one forward pass through this layer's FFW.
+
+With TP=Y, both matrices are sliced along F, so each chip owns `2DF/Y` of those bytes. Streaming time per chip per layer:
+```
+T_HBM = (2DF / Y) / W_hbm
+```
+This term **falls as 1/Y** — slice the matrix across more chips, each chip's load shrinks linearly. *Auto Scaling analogy: like cold-loading half the routing rules onto each of Y instances; per-instance load time drops as you add instances.*
+
+### Where `2BD` comes from — the ICI all-reduce term
+
+The all-reduce after `Wdown` moves the partial output tensor `[B × D]` — `B × D` elements per chip. Ring all-reduce, the canonical efficient pattern, moves roughly `2 × (Y-1)/Y × message_size` of data through each link, which simplifies to **`2 × message_size`** for large `Y`. With `message_size = B × D`:
+```
+T_ICI ≈ (2BD) / W_ici
+```
+This term is **constant in Y** for large Y — the ring saturates. Adding more chips to the ring doesn't shrink the total traffic, it just rearranges it. *Auto Scaling analogy: every layer demands a cross-AZ state sync of fixed size `B × D`; the round-trip doesn't shrink as you add instances, because it's a fixed amount of data going around a ring regardless of fleet size.*
+
+### The crossover — why `D` and `n_layers` cancel
+
+Setting the all-reduce floor against the now-tiny weight-load time:
+```
+T_ICI > T_HBM
+   2BD / W_ici   >   2DF / (Y · W_hbm)
+              │ both sides have factor (2 · D) — cancel
+   B / W_ici     >   F / (Y · W_hbm)
+   B · Y · W_hbm  >  F · W_ici
+   Y > F · W_ici / (B · W_hbm)
+   Y > F / (B · β)                with β = W_hbm / W_ici
+```
+
 So:
 ```
 Y_max ≈ F / (B · β)
 ```
-- `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time.
-- **`F` is `d_ff`** — the FFW hidden dimension (e.g., 14,336 for Llama-3-8B; 28,672 for Llama-3-70B). Not "total FLOPs." A small dimensionless integer.
-- **`B`** = current batch size (decode-step concurrency). Smaller B → wider TP makes sense.
-- **`β`** = `W_hbm / W_ici`, dimensionless, **hardware-specific**: ≈8 for TPU v5e (the book's example), ≈3.7 for H100 SXM5 (3,350 / 900), ≈5.3 for H200, ≈3.4 for A100 SXM4. For PCIe-only cards (T4/L4/A10G) β jumps to 10+ and TP across PCIe is unviable for decode.
-- `D` (= `d_model`) and `n_layers` cancel out — both terms scale with them equally.
+- **`d_model` cancels** because it scales weight bytes *and* activation bytes equally (both terms have a `D` factor). The residual width is invisible to the crossover.
+- **`n_layers` cancels** if you sum both sides over layers — each layer adds the same multiplier.
+- The only model-shape number that survives is **`d_ff`** (= `F`), because that's the dimension the weights span but the activations don't.
 
-Book's worked example: F=16,384, B=32, β=8 → `Y_max = 16384 / (32 × 8) = 64`. So on TPU v5e with this workload you can in theory shard up to 64-way before ICI binds.
+### Reading the variables
 
-**Caveat — SwiGLU FFW:** modern open models (Llama, Mistral, Qwen) use SwiGLU FFW with **three** matrices (`Wgate`, `Wup`, `Wdown`), so weight bytes are `3DF` not `2DF`. The constant cancels in the ratio and `Y_max` is unchanged.
+- `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time (and the per-token throughput-per-chip starts dropping, because the chips spend more time syncing than computing).
+- **`F` is `d_ff`** — a small dimensionless integer (14,336 for Llama-3-8B; 28,672 for Llama-3-70B). **Not "total FLOPs."** This was a common transcription error worth flagging — earlier drafts of this doc had it wrong.
+- **`B`** = current batch size (decode-step concurrency). Y_max is *inversely* proportional to B: small batches let you spread the model thin, big batches force you to concentrate.
+- **`β = W_hbm / W_ici`**, dimensionless, **hardware-specific**:
 
-Plain-English read: you trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). **Decode wants TP wide; throughput-only prefill wants TP narrow.**
+| Hardware | HBM BW (GB/s) | ICI BW (GB/s, bidir) | β |
+|---|---|---|---|
+| H100 SXM5 | 3,350 | 900 (NVLink 4.0) | ~3.7 |
+| H200 SXM5 | 4,800 | 900 | ~5.3 |
+| A100 SXM4 | 2,039 | 600 (NVLink 3.0) | ~3.4 |
+| L4 / A10G / T4 | 300–600 | ~32–64 (PCIe Gen3/4) | ~10–20 |
+| TPU v5e | 820 | ~100 | ~8 ✓ (book's example) |
+
+For PCIe-only cards (T4/L4/A10G) β jumps into double digits and TP across PCIe is unviable for decode — the all-reduce floor sits above any reasonable per-step budget.
+
+### Worked example (book's, reproduced)
+
+`F = 16,384`, `B = 32`, `β = 8` (TPU v5e):
+```
+Y_max = 16,384 / (32 × 8) = 64
+```
+So on TPU v5e with this workload you can in theory shard up to 64-way before ICI binds.
+
+For Llama-3-8B (`d_ff = 14,336`) on H100 (`β ≈ 3.7`):
+
+| Regime | B | Y_max | What binds first? |
+|---|---|---|---|
+| Small-batch decode | 8 | ~485 | NVLink fanout (8) |
+| Typical decode | 32 | ~121 | NVLink fanout (8) |
+| Heavy decode | 128 | ~30 | NVLink fanout (8) |
+| Prefill burst | 512 | ~7.6 | **Y_max binds — don't go past TP=8** |
+| Big prefill | 2,048 | ~1.9 | **Y_max says TP=1; even 2-way is wasteful** |
+
+The takeaway: for *small-batch decode* on NVLink hardware, Y_max is huge and the physical NVLink fanout (~8) is what binds; the formula doesn't change the recommendation. For *large-batch prefill* or *PCIe-only* hardware, Y_max actually binds and stops you from over-sharding.
+
+### Caveat — SwiGLU FFW
+
+Modern open models (Llama, Mistral, Qwen) use SwiGLU FFW with **three** matrices (`Wgate`, `Wup`, `Wdown`), so the per-layer weight bytes are `3DF`, not `2DF`. The constant cancels on both sides of the inequality and `Y_max` is unchanged — but if you're plugging the formula into a memory budget rather than a Y_max calculation, use the correct constant for your architecture.
+
+### Plain-English summary
+
+You trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). **Decode wants TP wide; throughput-only prefill wants TP narrow.** Y_max tells you how wide is too wide before the cross-chip sync becomes the floor.
 
 **Sub-GPU partitioning (MIG)** — the dual to TP. When the model is small enough that a whole GPU is wasted (e.g., <3B params on H100), **Multi-Instance GPU** *splits* a single GPU into up to 7 isolated slices, each with its own SM and memory partition. Lets you serve several small replicas on one card with hard performance isolation. Pairs with horizontal autoscaling; irrelevant for large models that already use ≥1 GPU.
 
