@@ -1,0 +1,89 @@
+{
+  "_comment": "Numerical truth anchors. Every value cited verbatim from MODEL_SIZING_SCALING_REFERENCE.md so a reviewer can trace each assertion back to source. Tolerance noted per entry (memory math in this domain is approximate by design).",
+  "bcrit": [
+    {
+      "name": "H100 bf16/bf16",
+      "hw_key": "H100-80GB",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 295,
+      "tolerance_pct": 2,
+      "source": "MODEL_SIZING_SCALING_REFERENCE.md §1 Hardware Roofline Ratios table"
+    },
+    {
+      "name": "H100 fp8/fp8 (FP8 tensor core path)",
+      "hw_key": "H100-80GB",
+      "weight_prec": "FP8",
+      "act_prec": "FP8",
+      "expected": 590,
+      "tolerance_pct": 2,
+      "source": "§1 Hardware Roofline Ratios table — '~590 (fp8)'"
+    },
+    {
+      "name": "H100 int8 weights, bf16 acts (asymmetric drops B_crit ~2x)",
+      "hw_key": "H100-80GB",
+      "weight_prec": "INT8",
+      "act_prec": "BF16",
+      "expected": 147,
+      "tolerance_pct": 5,
+      "source": "§1 example 'int8 weights + bf16 activations → B_crit drops 2x'"
+    },
+    {
+      "name": "H100 int8/int8 (symmetric, ratio unchanged)",
+      "hw_key": "H100-80GB",
+      "weight_prec": "INT8",
+      "act_prec": "INT8",
+      "expected": 295,
+      "tolerance_pct": 2,
+      "source": "§1 example 'int8 weights + int8 activations → B_crit unchanged'"
+    },
+    {
+      "name": "H200 bf16/bf16",
+      "hw_key": "H200",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 205,
+      "tolerance_pct": 2,
+      "source": "§1 Hardware Roofline Ratios table"
+    }
+  ],
+  "kv": [
+    {
+      "name": "Llama-3-70B int8 KV per token",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "expected_bytes": 163840,
+      "tolerance_pct": 0.1,
+      "source": "§3, §5 worked example: 2 × 8 × 128 × 80 = 160 kB"
+    },
+    {
+      "name": "Llama-3-70B int8 KV per 8k sequence",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "seq_len": 8192,
+      "expected_gb": 1.342,
+      "tolerance_pct": 5,
+      "source": "§3 worked example '~1.3 GB' at 8k"
+    },
+    {
+      "name": "Llama-3-70B int8 batch=32 at 8k context",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "seq_len": 8192,
+      "batch": 32,
+      "expected_gb": 42.9,
+      "tolerance_pct": 5,
+      "source": "§3 worked example '~42 GB just for KV'"
+    }
+  ],
+  "weights": [
+    {
+      "name": "Llama-3-70B int8 weights",
+      "model_key": "llama-3-70b",
+      "weight_prec": "INT8",
+      "expected_gb": 70.6,
+      "tolerance_pct": 1,
+      "source": "§5: '70 B (int8 → 70 GB)'"
+    }
+  ]
+}

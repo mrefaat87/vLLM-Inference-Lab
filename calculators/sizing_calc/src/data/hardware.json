@@ -1,0 +1,90 @@
+{
+  "_schema": {
+    "fields": {
+      "key": "stable identifier used in URL hashes and tests",
+      "label": "human-readable display name",
+      "hbm_gb": "HBM capacity per GPU in GB",
+      "hbm_bw_gbs": "peak HBM bandwidth per GPU in GB/s",
+      "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
+      "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
+      "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
+      "notes": "free-form provenance / caveat string"
+    },
+    "_sources": [
+      "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
+      "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)"
+    ]
+  },
+  "hardware": [
+    {
+      "key": "T4",
+      "label": "T4 (g4dn)",
+      "hbm_gb": 16,
+      "hbm_bw_gbs": 320,
+      "fp16_tflops": 65,
+      "fp8_tflops": null,
+      "nvlink": false,
+      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work."
+    },
+    {
+      "key": "L4",
+      "label": "L4 (g6)",
+      "hbm_gb": 24,
+      "hbm_bw_gbs": 300,
+      "fp16_tflops": 121,
+      "fp8_tflops": 242,
+      "nvlink": false,
+      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs."
+    },
+    {
+      "key": "A10G",
+      "label": "A10G (g5)",
+      "hbm_gb": 24,
+      "hbm_bw_gbs": 600,
+      "fp16_tflops": 125,
+      "fp8_tflops": null,
+      "nvlink": false,
+      "notes": "Ampere consumer-class tensor cores; no FP8."
+    },
+    {
+      "key": "A100-40GB",
+      "label": "A100 40GB (SXM4)",
+      "hbm_gb": 40,
+      "hbm_bw_gbs": 1555,
+      "fp16_tflops": 312,
+      "fp8_tflops": null,
+      "nvlink": true,
+      "notes": "Ampere; NVLink within DGX/HGX. No FP8 — Hopper introduced FP8."
+    },
+    {
+      "key": "A100-80GB",
+      "label": "A100 80GB (SXM4)",
+      "hbm_gb": 80,
+      "hbm_bw_gbs": 2039,
+      "fp16_tflops": 312,
+      "fp8_tflops": null,
+      "nvlink": true,
+      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point."
+    },
+    {
+      "key": "H100-80GB",
+      "label": "H100 80GB (SXM5)",
+      "hbm_gb": 80,
+      "hbm_bw_gbs": 3350,
+      "fp16_tflops": 990,
+      "fp8_tflops": 1979,
+      "nvlink": true,
+      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts)."
+    },
+    {
+      "key": "H200",
+      "label": "H200 141GB (SXM5)",
+      "hbm_gb": 141,
+      "hbm_bw_gbs": 4800,
+      "fp16_tflops": 990,
+      "fp8_tflops": 1979,
+      "nvlink": true,
+      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16)."
+    }
+  ]
+}

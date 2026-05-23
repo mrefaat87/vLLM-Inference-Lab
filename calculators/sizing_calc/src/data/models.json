@@ -1,0 +1,87 @@
+{
+  "_schema": {
+    "fields": {
+      "key": "stable identifier used in URL hashes and tests",
+      "label": "human-readable display name",
+      "params_b": "total parameters in billions (used for weights memory math)",
+      "n_layers": "transformer layer count",
+      "d_model": "hidden dimension",
+      "n_heads": "query head count",
+      "n_kv_heads": "key/value head count (= n_heads for MHA, < for GQA, 1 for MQA)",
+      "head_dim": "per-head dimension",
+      "max_context": "trained context length in tokens",
+      "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
+      "notes": "provenance / caveats"
+    },
+    "_sources": [
+      "HuggingFace config.json values for each base model",
+      "MODEL_SIZING_SCALING_REFERENCE.md §3, §5 — Llama-3-70B worked example uses these dims"
+    ]
+  },
+  "models": [
+    {
+      "key": "llama-3-8b",
+      "label": "Llama-3-8B",
+      "params_b": 8.03,
+      "n_layers": 32,
+      "d_model": 4096,
+      "n_heads": 32,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "max_context": 8192,
+      "attn_type": "GQA",
+      "notes": "Meta Llama-3 base. GQA 4:1 grouping."
+    },
+    {
+      "key": "llama-3-70b",
+      "label": "Llama-3-70B",
+      "params_b": 70.6,
+      "n_layers": 80,
+      "d_model": 8192,
+      "n_heads": 64,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "max_context": 8192,
+      "attn_type": "GQA",
+      "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV."
+    },
+    {
+      "key": "qwen2.5-7b",
+      "label": "Qwen2.5-7B",
+      "params_b": 7.6,
+      "n_layers": 28,
+      "d_model": 3584,
+      "n_heads": 28,
+      "n_kv_heads": 4,
+      "head_dim": 128,
+      "max_context": 32768,
+      "attn_type": "GQA",
+      "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default)."
+    },
+    {
+      "key": "qwen2.5-14b",
+      "label": "Qwen2.5-14B",
+      "params_b": 14.8,
+      "n_layers": 48,
+      "d_model": 5120,
+      "n_heads": 40,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "max_context": 32768,
+      "attn_type": "GQA"
+    },
+    {
+      "key": "mistral-7b",
+      "label": "Mistral-7B",
+      "params_b": 7.2,
+      "n_layers": 32,
+      "d_model": 4096,
+      "n_heads": 32,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "max_context": 32768,
+      "attn_type": "GQA",
+      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound."
+    }
+  ]
+}

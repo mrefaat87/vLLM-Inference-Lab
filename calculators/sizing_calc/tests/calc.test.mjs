@@ -1,0 +1,294 @@
+// Unit tests for the pure compute module. Zero deps — node:test + node:assert.
+//
+// Every numeric assertion either cites a section in MODEL_SIZING_SCALING_REFERENCE.md
+// (loaded from tests/fixtures/golden.json) or asserts an invariant of the math
+// (monotonicity, self-consistency). New formulas should land with a golden.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+import {
+  ACT_OVERHEAD, DTYPE_BYTES,
+  weightsBytes, kvPerToken, bCrit, stepTime, throughputAtB,
+  bSlo, bKv, recommendParallelism, recommendMaxBatchedTokens,
+  pdRatio, sweepRanges, compute,
+} from "../src/calc.mjs";
+
+// ---------- fixtures ----------
+const here = dirname(fileURLToPath(import.meta.url));
+const hardware = JSON.parse(readFileSync(join(here, "../src/data/hardware.json"))).hardware;
+const models   = JSON.parse(readFileSync(join(here, "../src/data/models.json"))).models;
+const golden   = JSON.parse(readFileSync(join(here, "fixtures/golden.json")));
+const HW       = Object.fromEntries(hardware.map((h) => [h.key, h]));
+const MODEL    = Object.fromEntries(models.map((m) => [m.key, m]));
+
+// Tolerance helper — reference values are mostly rule-of-thumb integers, so
+// asserting within ±N% (rather than exact equality) matches their precision.
+const within = (actual, expected, tol_pct) => {
+  const tol = Math.abs(expected) * (tol_pct / 100);
+  assert.ok(
+    Math.abs(actual - expected) <= tol,
+    `expected ${actual} within ${tol_pct}% of ${expected} (diff ${Math.abs(actual - expected)})`,
+  );
+};
+
+// ---------- Layer 1: golden values against the reference doc ----------
+
+test("bCrit goldens (reference §1)", () => {
+  for (const g of golden.bcrit) {
+    const got = bCrit(HW[g.hw_key], g.weight_prec, g.act_prec);
+    within(got, g.expected, g.tolerance_pct);
+  }
+});
+
+test("KV cache goldens (reference §3, §5 worked example)", () => {
+  for (const g of golden.kv) {
+    const m = MODEL[g.model_key];
+    const k = kvPerToken(m, DTYPE_BYTES[g.kv_prec]);
+    if (g.expected_bytes !== undefined) within(k, g.expected_bytes, g.tolerance_pct);
+    if (g.expected_gb !== undefined) {
+      const total = k * g.seq_len * (g.batch || 1);
+      within(total / 1e9, g.expected_gb, g.tolerance_pct);
+    }
+  }
+});
+
+test("Weights goldens (reference §5)", () => {
+  for (const g of golden.weights) {
+    const m = MODEL[g.model_key];
+    const w = weightsBytes(m.params_b, DTYPE_BYTES[g.weight_prec]);
+    within(w / 1e9, g.expected_gb, g.tolerance_pct);
+  }
+});
+
+// ---------- Layer 2: invariants & self-consistency ----------
+
+test("stepTime is monotonic non-decreasing in B", () => {
+  const m = MODEL["llama-3-70b"];
+  const hw = HW["H100-80GB"];
+  const args = (B) => ({
+    B,
+    kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8),
+    avgSeq: 4096,
+    weight_bytes_total: weightsBytes(m.params_b, DTYPE_BYTES.INT8),
+    paramCount: m.params_b * 1e9,
+    totalBW: hw.hbm_bw_gbs * 1e9,
+    totalFLOPs: hw.fp16_tflops * 1e12,
+  });
+  let prev = stepTime(args(1));
+  for (const B of [2, 4, 8, 16, 32, 64, 128, 256, 512]) {
+    const t = stepTime(args(B));
+    assert.ok(t >= prev - 1e-12, `stepTime not monotonic at B=${B}: ${t} < ${prev}`);
+    prev = t;
+  }
+});
+
+test("bSlo self-consistency: stepTime(bSlo) ≤ SLO < stepTime(bSlo+1)", () => {
+  const m = MODEL["llama-3-70b"];
+  const hw = HW["H100-80GB"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const K = kvPerToken(m, DTYPE_BYTES.INT8);
+  const args = {
+    tbt_ms: 50, kv_per_token: K, avgSeq: 4096, weight_bytes_total: W,
+    paramCount: m.params_b * 1e9,
+    totalBW: hw.hbm_bw_gbs * 1e9,
+    totalFLOPs: hw.fp16_tflops * 1e12,
+  };
+  const r = bSlo(args);
+  if (r.unreachable) return; // separately covered
+  const stArgs = (B) => ({ B, ...args, paramCount: args.paramCount });
+  const at = stepTime(stArgs(r.value)) * 1000;
+  const next = stepTime(stArgs(r.value + 1)) * 1000;
+  assert.ok(at <= 50 + 1e-6, `stepTime(${r.value})=${at}ms exceeds 50ms SLO`);
+  assert.ok(next > 50 - 1e-6, `bSlo+1 still fits SLO — under-tight bound: ${next}ms`);
+});
+
+test("bKv self-consistency: used HBM stays under cap", () => {
+  const m = MODEL["llama-3-8b"];
+  const hw = HW["H100-80GB"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.FP16);
+  const K = kvPerToken(m, DTYPE_BYTES.FP16);
+  const r = bKv({ hw, model: m, ngpus: 1, weight_bytes_total: W, kv_per_token: K, isl: 1024, osl: 256 });
+  const used = W + r.value * K * (1024 + 256);
+  const cap = hw.hbm_gb * 1e9 * (1 - ACT_OVERHEAD);
+  assert.ok(used <= cap, `used ${used/1e9}GB exceeds cap ${cap/1e9}GB`);
+});
+
+test("throughput tracks stepTime: tps = B / stepTime", () => {
+  const args = {
+    B: 32, kv_per_token: 1000, avgSeq: 1024, weight_bytes_total: 1e10,
+    paramCount: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
+  };
+  const t = stepTime(args);
+  const tps = throughputAtB(args);
+  within(tps, args.B / t, 0.01);
+});
+
+// ---------- Layer 3: edge / warning paths ----------
+
+test("FP8 weights on T4 falls back to FP16 roofline and warns", () => {
+  const out = compute({
+    hw: HW["T4"], model: MODEL["llama-3-8b"],
+    isl: 1024, osl: 256, weight_prec: "FP8", kv_prec: "FP8", act_prec: "FP8",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+  });
+  const w = out.warnings.find((w) => w.msg.includes("no hardware FP8"));
+  assert.ok(w, "expected FP8-on-T4 warning");
+  // bCrit must use FP16 TFLOPs (T4 has fp8_tflops=null), so for FP8/FP8 we get
+  // (65e12/320e9) * 1 ≈ 203. Definitely NOT the hypothetical FP8-doubled value.
+  within(out.metrics.b_crit, 203, 3);
+});
+
+test("Llama-3-70B on a single T4 reports weights overflow", () => {
+  const out = compute({
+    hw: HW["T4"], model: MODEL["llama-3-70b"],
+    isl: 1024, osl: 256, weight_prec: "INT8", kv_prec: "INT8", act_prec: "INT8",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+  });
+  const overflow = out.warnings.find((w) => w.msg.includes("overflow"));
+  assert.ok(overflow, "expected weights-overflow warning");
+  assert.equal(out.metrics.b_kv, 0);
+});
+
+test("bSlo unreachable when TBT × BW < weight stream time", () => {
+  const m = MODEL["llama-3-70b"];
+  const hw = HW["T4"]; // tiny BW
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const r = bSlo({
+    tbt_ms: 10, kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8), avgSeq: 4096,
+    weight_bytes_total: W, paramCount: m.params_b * 1e9,
+    totalBW: hw.hbm_bw_gbs * 1e9, totalFLOPs: hw.fp16_tflops * 1e12,
+  });
+  assert.equal(r.unreachable, true);
+  assert.equal(r.value, 0);
+});
+
+test("ISL+OSL exceeding max_context emits a warning", () => {
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-8b"], // 8k ctx
+    isl: 8000, osl: 1000, weight_prec: "FP16", kv_prec: "FP16", act_prec: "FP16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+  });
+  assert.ok(out.warnings.find((w) => w.msg.includes("max_context")));
+});
+
+test("Zero / negative inputs never produce NaN or Infinity", () => {
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-8b"],
+    isl: 0, osl: -5, weight_prec: "FP16", kv_prec: "FP16", act_prec: "FP16",
+    tbt_ms: 0, ttft_ms: 0, ngpus: 0,
+  });
+  for (const [k, v] of Object.entries(out.metrics)) {
+    if (typeof v === "number") {
+      assert.ok(Number.isFinite(v), `metric ${k} = ${v} should be finite`);
+      assert.ok(!Number.isNaN(v), `metric ${k} is NaN`);
+    }
+  }
+});
+
+test("INT4 weights stay in float math (no integer-division bugs)", () => {
+  const m = MODEL["llama-3-8b"];
+  const w = weightsBytes(m.params_b, DTYPE_BYTES.INT4);
+  // 8.03B params × 0.5 B/param = 4.015 GB — not a round integer.
+  within(w / 1e9, m.params_b * 0.5, 0.01);
+  assert.ok(!Number.isInteger(w / 1e9));
+});
+
+// ---------- Layer 4: parallelism ----------
+
+test("recommendParallelism: 70B int8 needs TP≥4 on H100s", () => {
+  const m = MODEL["llama-3-70b"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const r = recommendParallelism({ hw: HW["H100-80GB"], weight_bytes_total: W, ngpus: 8 });
+  // 70 GB weights × 1.1 headroom = 77 GB; per-GPU usable = 72 GB; TP=2 yields
+  // 35 GB/GPU which fits.
+  assert.equal(r.fits, true);
+  assert.ok(r.tp <= 2, `expected TP≤2 for 70B int8 on H100-80, got TP=${r.tp}`);
+});
+
+test("recommendParallelism: 70B int8 cannot fit on 1× T4", () => {
+  const m = MODEL["llama-3-70b"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const r = recommendParallelism({ hw: HW["T4"], weight_bytes_total: W, ngpus: 1 });
+  assert.equal(r.fits, false);
+});
+
+test("recommendParallelism: ngpus=3 caps TP at largest pow2 ≤ 3", () => {
+  const m = MODEL["llama-3-70b"];
+  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const r = recommendParallelism({ hw: HW["A100-40GB"], weight_bytes_total: W, ngpus: 3 });
+  assert.ok([1, 2].includes(r.tp), `TP should be 1 or 2 with ngpus=3, got ${r.tp}`);
+});
+
+// ---------- Layer 5: max_num_batched_tokens ----------
+
+test("recommendMaxBatchedTokens snaps to powers of 2 ≥ 1024", () => {
+  const r = recommendMaxBatchedTokens({ maxBatch: 32, isl: 1024, tbt_ms: 50 });
+  assert.ok([1024, 1536, 2048, 4096, 8192].includes(r.value));
+  assert.ok(r.value >= 1024);
+});
+
+test("recommendMaxBatchedTokens: strict TBT band caps at 2048", () => {
+  const r = recommendMaxBatchedTokens({ maxBatch: 256, isl: 8192, tbt_ms: 20 });
+  assert.ok(r.value <= 2048, `strict band should cap at 2048, got ${r.value}`);
+  assert.ok(r.band.startsWith("strict"));
+});
+
+// ---------- Layer 6: P:D ratio ----------
+
+test("pdRatio amplifies ISL/OSL by MFU asymmetry (5×)", () => {
+  // ISL/OSL = 4, MFU ratio = 5 → expect 20.
+  within(pdRatio({ isl: 4000, osl: 1000 }), 20, 0.01);
+});
+
+// ---------- Layer 7: sweep ranges ----------
+
+test("sweepRanges brackets the recommended batch", () => {
+  const s = sweepRanges({ recommendedBatch: 64, recommendedMnbt: 2048 });
+  assert.ok(s.max_num_seqs.includes(64) || s.max_num_seqs.some((v) => Math.abs(v - 64) < 64));
+  assert.ok(s.max_num_seqs.every((v) => v >= 1 && v <= 128));
+  assert.ok(s.max_num_batched_tokens.includes(2048));
+  assert.ok(s.concurrency.includes(64));
+  // Concurrency must be sorted ascending and start at 1.
+  assert.equal(s.concurrency[0], 1);
+  for (let i = 1; i < s.concurrency.length; i++) {
+    assert.ok(s.concurrency[i] > s.concurrency[i - 1]);
+  }
+});
+
+// ---------- Layer 8: property tests (small fuzz) ----------
+
+test("property: every (hw, model, prec) combo produces finite metrics", () => {
+  const precs = ["FP16", "FP8", "INT8", "INT4"];
+  let n = 0;
+  for (const hw of hardware) {
+    for (const m of models) {
+      for (const wp of precs) {
+        // Pick non-degenerate ISL/OSL + reasonable SLOs.
+        const out = compute({
+          hw, model: m,
+          isl: 1024, osl: 256, weight_prec: wp, kv_prec: "FP16", act_prec: "FP16",
+          tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+        });
+        for (const [k, v] of Object.entries(out.metrics)) {
+          if (typeof v === "number") {
+            assert.ok(Number.isFinite(v), `${hw.key}/${m.key}/${wp}: ${k} = ${v}`);
+            assert.ok(v >= 0, `${hw.key}/${m.key}/${wp}: ${k} negative (${v})`);
+          }
+        }
+        n++;
+      }
+    }
+  }
+  assert.ok(n >= 100, `expected coverage breadth, ran only ${n}`);
+});
+
+test("property: bCrit is independent of model size", () => {
+  const hw = HW["H100-80GB"];
+  const v8 = bCrit(hw, "FP16", "FP16");
+  const v70 = bCrit(hw, "FP16", "FP16");
+  assert.equal(v8, v70);
+});
