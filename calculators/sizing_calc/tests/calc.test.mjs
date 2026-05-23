@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import {
   ACT_OVERHEAD, DTYPE_BYTES,
   weightsBytes, kvPerToken, bCrit, stepTime, throughputAtB,
-  bSlo, bKv, recommendParallelism, recommendMaxBatchedTokens,
+  bSlo, bKv, yMax, recommendParallelism, recommendMaxBatchedTokens,
   pdRatio, sweepRanges, compute,
 } from "../src/calc.mjs";
 
@@ -202,7 +202,7 @@ test("INT4 weights stay in float math (no integer-division bugs)", () => {
 test("recommendParallelism: 70B int8 needs TP≥4 on H100s", () => {
   const m = MODEL["llama-3-70b"];
   const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
-  const r = recommendParallelism({ hw: HW["H100-80GB"], weight_bytes_total: W, ngpus: 8 });
+  const r = recommendParallelism({ hw: HW["H100-80GB"], weight_bytes_total: W, ngpus: 8, d_ff: m.d_ff, batch: 32 });
   // 70 GB weights × 1.1 headroom = 77 GB; per-GPU usable = 72 GB; TP=2 yields
   // 35 GB/GPU which fits.
   assert.equal(r.fits, true);
@@ -212,15 +212,72 @@ test("recommendParallelism: 70B int8 needs TP≥4 on H100s", () => {
 test("recommendParallelism: 70B int8 cannot fit on 1× T4", () => {
   const m = MODEL["llama-3-70b"];
   const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
-  const r = recommendParallelism({ hw: HW["T4"], weight_bytes_total: W, ngpus: 1 });
+  const r = recommendParallelism({ hw: HW["T4"], weight_bytes_total: W, ngpus: 1, d_ff: m.d_ff, batch: 1 });
   assert.equal(r.fits, false);
 });
 
 test("recommendParallelism: ngpus=3 caps TP at largest pow2 ≤ 3", () => {
   const m = MODEL["llama-3-70b"];
   const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
-  const r = recommendParallelism({ hw: HW["A100-40GB"], weight_bytes_total: W, ngpus: 3 });
+  const r = recommendParallelism({ hw: HW["A100-40GB"], weight_bytes_total: W, ngpus: 3, d_ff: m.d_ff, batch: 32 });
   assert.ok([1, 2].includes(r.tp), `TP should be 1 or 2 with ngpus=3, got ${r.tp}`);
+});
+
+// ---------- Y_max (Scaling Book) ----------
+
+test("yMax goldens (Scaling Book worked examples)", () => {
+  for (const g of golden.y_max) {
+    const y = yMax(g.d_ff, g.batch, g.hw);
+    within(y, g.expected, g.tolerance_pct);
+  }
+});
+
+test("yMax: H100 (β≈3.7) gives larger Y_max than book's TPU example", () => {
+  const y_h100 = yMax(MODEL["llama-3-8b"].d_ff, 32, HW["H100-80GB"]);
+  // d_ff=14336, β=3350/900≈3.72 → Y_max ≈ 120
+  within(y_h100, 14336 / (32 * 3350 / 900), 0.1);
+  assert.ok(y_h100 > 64);
+});
+
+test("yMax: large batch shrinks Y_max (decode→prefill transition)", () => {
+  const small = yMax(MODEL["llama-3-8b"].d_ff, 8, HW["H100-80GB"]);
+  const large = yMax(MODEL["llama-3-8b"].d_ff, 512, HW["H100-80GB"]);
+  assert.ok(large < small);
+  // Inversely proportional to B.
+  within(large * 512, small * 8, 0.01);
+});
+
+test("yMax: PCIe-only hardware (no NVLink) returns small Y_max", () => {
+  // β for L4 = 300/64 ≈ 4.7. d_ff=14336, B=32 → Y_max ≈ 95. Big batch tightens.
+  const y_pcie = yMax(MODEL["llama-3-8b"].d_ff, 256, HW["L4"]);
+  assert.ok(y_pcie < 16, `expected PCIe Y_max <16 at B=256, got ${y_pcie}`);
+});
+
+test("yMax: missing ici_bw_gbs returns Infinity (no constraint)", () => {
+  const y = yMax(14336, 32, { hbm_bw_gbs: 3000, ici_bw_gbs: null });
+  assert.equal(y, Infinity);
+});
+
+test("compute: emits ICI-binding diagnostic when Y_max < TP_CAP", () => {
+  // Synthetic micro-model with tiny d_ff so Y_max drops below TP_CAP at any
+  // realistic batch on H100. Real-world: this regime fires for big batches
+  // on slow-ICI hardware, or for tiny models that don't need much sharding.
+  const micro = {
+    key: "micro", label: "Micro-1B", params_b: 1.0, n_layers: 16, d_model: 1024,
+    n_heads: 16, n_kv_heads: 4, head_dim: 64, d_ff: 1024, max_context: 4096, attn_type: "GQA",
+  };
+  const out = compute({
+    hw: HW["H100-80GB"], model: micro,
+    isl: 4096, osl: 1024, weight_prec: "FP16", kv_prec: "FP16", act_prec: "FP16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 8,
+  });
+  // Y_max should appear in the parallelism object and be finite.
+  assert.ok(Number.isFinite(out.metrics.parallelism.y_max),
+    `y_max should be finite, got ${out.metrics.parallelism.y_max}`);
+  assert.ok(out.metrics.parallelism.y_max < 8,
+    `Y_max should bind (< TP_CAP=8) for tiny d_ff + big batch, got ${out.metrics.parallelism.y_max}`);
+  const ici = out.warnings.find((w) => w.msg.includes("ICI binds"));
+  assert.ok(ici, "expected ICI-binding warning when Y_max < TP_CAP");
 });
 
 // ---------- Layer 5: max_num_batched_tokens ----------

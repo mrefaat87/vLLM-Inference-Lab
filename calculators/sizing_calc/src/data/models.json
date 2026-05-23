@@ -9,6 +9,7 @@
       "n_heads": "query head count",
       "n_kv_heads": "key/value head count (= n_heads for MHA, < for GQA, 1 for MQA)",
       "head_dim": "per-head dimension",
+      "d_ff": "FFW intermediate (up-projection) dimension. Used in Y_max = d_ff/(B·β). For SwiGLU models there are 3 FFW matrices but the constant cancels in Y_max.",
       "max_context": "trained context length in tokens",
       "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
       "notes": "provenance / caveats"
@@ -28,9 +29,10 @@
       "n_heads": 32,
       "n_kv_heads": 8,
       "head_dim": 128,
+      "d_ff": 14336,
       "max_context": 8192,
       "attn_type": "GQA",
-      "notes": "Meta Llama-3 base. GQA 4:1 grouping."
+      "notes": "Meta Llama-3 base. GQA 4:1 grouping. SwiGLU FFW with d_ff=14336 (HF config intermediate_size)."
     },
     {
       "key": "llama-3-70b",
@@ -41,9 +43,10 @@
       "n_heads": 64,
       "n_kv_heads": 8,
       "head_dim": 128,
+      "d_ff": 28672,
       "max_context": 8192,
       "attn_type": "GQA",
-      "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV."
+      "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV. SwiGLU FFW d_ff=28672."
     },
     {
       "key": "qwen2.5-7b",
@@ -54,9 +57,10 @@
       "n_heads": 28,
       "n_kv_heads": 4,
       "head_dim": 128,
+      "d_ff": 18944,
       "max_context": 32768,
       "attn_type": "GQA",
-      "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default)."
+      "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default). SwiGLU FFW d_ff=18944."
     },
     {
       "key": "qwen2.5-14b",
@@ -67,6 +71,7 @@
       "n_heads": 40,
       "n_kv_heads": 8,
       "head_dim": 128,
+      "d_ff": 13824,
       "max_context": 32768,
       "attn_type": "GQA"
     },
@@ -79,9 +84,10 @@
       "n_heads": 32,
       "n_kv_heads": 8,
       "head_dim": 128,
+      "d_ff": 14336,
       "max_context": 32768,
       "attn_type": "GQA",
-      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound."
+      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336."
     }
   ]
 }

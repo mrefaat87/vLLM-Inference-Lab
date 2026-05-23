@@ -5,6 +5,7 @@
       "label": "human-readable display name",
       "hbm_gb": "HBM capacity per GPU in GB",
       "hbm_bw_gbs": "peak HBM bandwidth per GPU in GB/s",
+      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s (NVLink bidir, or PCIe for no-NVLink cards). Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
@@ -12,7 +13,8 @@
     },
     "_sources": [
       "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
-      "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)"
+      "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
+      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — β values: H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8 (book's example)"
     ]
   },
   "hardware": [
@@ -21,6 +23,7 @@
       "label": "T4 (g4dn)",
       "hbm_gb": 16,
       "hbm_bw_gbs": 320,
+      "ici_bw_gbs": 32,
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
@@ -31,6 +34,7 @@
       "label": "L4 (g6)",
       "hbm_gb": 24,
       "hbm_bw_gbs": 300,
+      "ici_bw_gbs": 64,
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
@@ -41,6 +45,7 @@
       "label": "A10G (g5)",
       "hbm_gb": 24,
       "hbm_bw_gbs": 600,
+      "ici_bw_gbs": 64,
       "fp16_tflops": 125,
       "fp8_tflops": null,
       "nvlink": false,
@@ -51,40 +56,44 @@
       "label": "A100 40GB (SXM4)",
       "hbm_gb": 40,
       "hbm_bw_gbs": 1555,
+      "ici_bw_gbs": 600,
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
-      "notes": "Ampere; NVLink within DGX/HGX. No FP8 — Hopper introduced FP8."
+      "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8."
     },
     {
       "key": "A100-80GB",
       "label": "A100 80GB (SXM4)",
       "hbm_gb": 80,
       "hbm_bw_gbs": 2039,
+      "ici_bw_gbs": 600,
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
-      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point."
+      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir."
     },
     {
       "key": "H100-80GB",
       "label": "H100 80GB (SXM5)",
       "hbm_gb": 80,
       "hbm_bw_gbs": 3350,
+      "ici_bw_gbs": 900,
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
-      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts)."
+      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7."
     },
     {
       "key": "H200",
       "label": "H200 141GB (SXM5)",
       "hbm_gb": 141,
       "hbm_bw_gbs": 4800,
+      "ici_bw_gbs": 900,
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
-      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16)."
+      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3."
     }
   ]
 }

@@ -26,6 +26,12 @@ test("hardware: required fields present + plausibility ranges", () => {
     assert.ok(h.fp8_tflops === null || isPosNum(h.fp8_tflops),
       `${h.key} fp8_tflops must be null or positive number`);
     assert.equal(typeof h.nvlink, "boolean", `${h.key} nvlink must be boolean`);
+    // ICI bandwidth: required for Y_max. Range covers PCIe Gen3 (~32) up to
+    // NVLink 5 (~1800). β = HBM/ICI should land in [1, 25] for any real card.
+    assert.ok(isPosNum(h.ici_bw_gbs) && h.ici_bw_gbs >= 8 && h.ici_bw_gbs <= 2000,
+      `${h.key} ici_bw_gbs out of [8,2000]: ${h.ici_bw_gbs}`);
+    const beta = h.hbm_bw_gbs / h.ici_bw_gbs;
+    assert.ok(beta >= 1 && beta <= 25, `${h.key} β = ${beta.toFixed(1)} out of plausible [1,25]`);
     // FP8 should be ≥ FP16 (the whole point) when present.
     if (h.fp8_tflops) {
       assert.ok(h.fp8_tflops >= h.fp16_tflops,
@@ -50,6 +56,9 @@ test("models: required fields present + plausibility ranges", () => {
     assert.ok(isPosInt(m.n_kv_heads), `${m.key} n_kv_heads must be positive integer`);
     assert.ok(m.n_kv_heads <= m.n_heads, `${m.key} n_kv_heads > n_heads (invalid GQA)`);
     assert.ok(isPosInt(m.head_dim) && m.head_dim <= 512, `${m.key} head_dim out of range`);
+    // d_ff: required for Y_max. Typically 2–8× d_model.
+    assert.ok(isPosInt(m.d_ff) && m.d_ff >= m.d_model && m.d_ff <= 16 * m.d_model,
+      `${m.key} d_ff (${m.d_ff}) out of plausible range relative to d_model (${m.d_model})`);
     assert.ok(isPosInt(m.max_context) && m.max_context <= 2_000_000, `${m.key} max_context out of range`);
     assert.ok(["MHA", "GQA", "MQA", "MLA"].includes(m.attn_type),
       `${m.key} attn_type must be MHA|GQA|MQA|MLA, got ${m.attn_type}`);

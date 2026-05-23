@@ -452,13 +452,33 @@ The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, p
 | **DP** | Whole replicas | Yes | No (replicates weights, doesn't help BW) | — |
 | **FSDP** | Weights gathered per layer | Marginal | **Unviable** for decode (param loading dominates) | — |
 
-**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book formalizes this as:
+**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book ([jax-ml.github.io/scaling-book/inference](https://jax-ml.github.io/scaling-book/inference/#distributing-inference-over-multiple-accelerators)) derives the ceiling from the FFW block's HBM-vs-ICI competition.
+
+**Per FFW layer**, two byte movements compete:
 ```
-Y_max = F / (B_crit × β)
+T_HBM = 2DF / (Y · W_hbm)     ← weight slice each chip streams (Wup + Wdown = 2DF bytes)
+T_ICI = 2BD / W_ici           ← all-reduce of activations after Wdown (ring all-reduce ≈ 2 × msg)
+```
+where `D = d_model`, `F = d_ff` (FFW intermediate dim), `B = batch size`, `Y = TP degree`,
+`W_hbm` / `W_ici` = HBM / inter-chip bandwidth (bytes/sec).
+
+Crossover where ICI catches up to the shrinking weight-stream time:
+```
+T_ICI > T_HBM   ⇒   Y > F / (B · β)         with β = W_hbm / W_ici
+```
+So:
+```
+Y_max ≈ F / (B · β)
 ```
 - `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time.
-- `F` = total FLOPs available across the chips in the replica.
-- `β = W_hbm / W_ici` ≈ **8** for typical NVLink / TPU ICI setups — the ratio of HBM bandwidth to inter-chip bandwidth. (HBM is ~8× faster than ICI; below `Y_max` chips you're bottlenecked on HBM, above it on ICI.)
+- **`F` is `d_ff`** — the FFW hidden dimension (e.g., 14,336 for Llama-3-8B; 28,672 for Llama-3-70B). Not "total FLOPs." A small dimensionless integer.
+- **`B`** = current batch size (decode-step concurrency). Smaller B → wider TP makes sense.
+- **`β`** = `W_hbm / W_ici`, dimensionless, **hardware-specific**: ≈8 for TPU v5e (the book's example), ≈3.7 for H100 SXM5 (3,350 / 900), ≈5.3 for H200, ≈3.4 for A100 SXM4. For PCIe-only cards (T4/L4/A10G) β jumps to 10+ and TP across PCIe is unviable for decode.
+- `D` (= `d_model`) and `n_layers` cancel out — both terms scale with them equally.
+
+Book's worked example: F=16,384, B=32, β=8 → `Y_max = 16384 / (32 × 8) = 64`. So on TPU v5e with this workload you can in theory shard up to 64-way before ICI binds.
+
+**Caveat — SwiGLU FFW:** modern open models (Llama, Mistral, Qwen) use SwiGLU FFW with **three** matrices (`Wgate`, `Wup`, `Wdown`), so weight bytes are `3DF` not `2DF`. The constant cancels in the ratio and `Y_max` is unchanged.
 
 Plain-English read: you trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). **Decode wants TP wide; throughput-only prefill wants TP narrow.**
 

@@ -10,12 +10,10 @@
 // reference doesn't pin this; it's a vLLM-style headroom (gpu_memory_utilization
 // defaults to 0.90). Tunable from the UI later if needed.
 export const ACT_OVERHEAD = 0.10;
-// Within-node TP is hard-capped by NVLink fan-out; beyond 8 the ICI cost
-// dominates (reference §6, β ≈ 8).
+// Practical within-node TP fan-out. 8 is the standard NVLink island (HGX/DGX).
+// The hardware ceiling. The *useful* TP ceiling is min(TP_CAP, Y_max) — see
+// yMax() below.
 export const TP_CAP = 8;
-// HBM-to-ICI bandwidth ratio used by reference §6's Y_max formula. Surfaced as
-// an exported constant so tests can assert specific roofline-vs-comm scenarios.
-export const BETA = 8;
 // max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
 // We use the midpoint as the centerpoint; the sweep widens around it.
 export const ALPHA = 0.15;
@@ -121,26 +119,59 @@ export function bKv({ hw, model, ngpus, weight_bytes_total, kv_per_token, isl, o
   return { value: Math.floor(usable / (kv_per_token * peakSeq)), weights_overflow: false };
 }
 
+// ---------- TP usefulness ceiling (Scaling Book Y_max) ----------
+
+// Max useful TP degree per replica before ICI all-reduce dominates per-step
+// decode latency. Past this many chips, adding more TP doesn't cut step time
+// (and may make it worse). Reference §6 (Scaling Book derivation):
+//
+//   T_HBM = 2DF/(Y·W_hbm)   weight-stream per layer (Wup + Wdown = 2DF bytes)
+//   T_ICI = 2BD/W_ici       all-reduce of activations per layer
+//   T_ICI > T_HBM  ⇒  Y > F / (B · β)   with β = W_hbm/W_ici
+//
+// d_model and n_layers cancel out (they scale both terms equally) — only d_ff
+// survives. β is hardware-specific: H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8.
+// Returns +Infinity when ici_bw_gbs is missing (treat as "no constraint
+// modelled" — caller still applies the TP_CAP and memory-fit ceilings).
+export function yMax(d_ff, batch, hw) {
+  if (!hw.ici_bw_gbs || !d_ff || batch <= 0) return Infinity;
+  const beta = hw.hbm_bw_gbs / hw.ici_bw_gbs;
+  return d_ff / (batch * beta);
+}
+
 // ---------- parallelism ----------
 
-// Recommend TP × PP × replicas. Strategy: smallest TP (≤8, dividing ngpus)
-// such that weight slice + 10% headroom fits per GPU; if even TP=8 can't fit
-// the weights, escalate to PP. ngpus is total GPUs across the deployment;
-// replicas = how many independent serving units fit.
-export function recommendParallelism({ hw, weight_bytes_total, ngpus }) {
+// Recommend TP × PP × replicas. Two ceilings interact:
+//   1. Memory fit: smallest TP ∈ {1,2,4,8} where the weight slice fits per GPU.
+//   2. Latency usefulness (Y_max): adding TP past Y_max stops cutting decode
+//      latency because ICI is now the floor. We don't *force* TP down to
+//      Y_max (if memory needs TP=4 we use TP=4 even if Y_max=2), but we surface
+//      a diagnostic so the user knows TP=4 was a memory-fit choice, not a
+//      latency choice.
+// ngpus is total GPUs across the deployment; replicas = serving units that fit.
+export function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
   const hbm_per_gpu = hw.hbm_gb * 1e9 * (1 - ACT_OVERHEAD);
+  const ymax = yMax(d_ff, batch, hw);
+  // Useful TP ceiling: NVLink fan-out (8), GPU count, and Y_max combined.
+  const usefulCap = Math.min(TP_CAP, ngpus, Math.max(1, Math.floor(ymax)));
   const tpCandidates = [1, 2, 4, 8].filter((t) => t <= ngpus);
   let tp = null;
   for (const t of tpCandidates) {
     if (weight_bytes_total / t <= hbm_per_gpu) { tp = t; break; }
   }
+  // Build a structured diagnostic about ICI-binding so the UI can surface it.
+  const ici_binds = Number.isFinite(ymax) && ymax < TP_CAP;
   if (tp !== null) {
-    // PP not needed for weight fit; use remaining GPUs as additional replicas.
     const replicas = Math.floor(ngpus / tp);
-    const reason = tp === 1
+    let reason = tp === 1
       ? "weights fit on a single GPU; TP=1 maximizes replica count"
       : `weights need TP=${tp} to fit per-GPU HBM with ${Math.round(ACT_OVERHEAD * 100)}% headroom`;
-    return { tp, pp: 1, replicas, fits: true, reason };
+    if (ici_binds && tp > usefulCap) {
+      reason += ` (memory needs TP=${tp}, but Y_max=${ymax.toFixed(1)} — beyond ICI usefulness ceiling)`;
+    } else if (ici_binds) {
+      reason += ` (Y_max=${ymax.toFixed(1)} caps useful TP regardless of memory)`;
+    }
+    return { tp, pp: 1, replicas, fits: true, reason, y_max: ymax, useful_cap: usefulCap };
   }
   // No TP value in {1,2,4,8} fits — need pipeline parallelism. Use TP=8 per
   // stage (NVLink ceiling) and split layers across PP stages.
@@ -149,12 +180,13 @@ export function recommendParallelism({ hw, weight_bytes_total, ngpus }) {
   const replicaGpus = tpUsed * pp;
   if (replicaGpus > ngpus) {
     return {
-      tp: tpUsed, pp, replicas: 0, fits: false,
+      tp: tpUsed, pp, replicas: 0, fits: false, y_max: ymax, useful_cap: usefulCap,
       reason: `needs TP=${tpUsed}×PP=${pp}=${replicaGpus} GPUs per replica; only ${ngpus} available`,
     };
   }
   return {
     tp: tpUsed, pp, replicas: Math.floor(ngpus / replicaGpus), fits: true,
+    y_max: ymax, useful_cap: usefulCap,
     reason: `weights too large for TP-only; need PP=${pp} stages (TP=${tpUsed} per stage)`,
   };
 }
@@ -262,11 +294,6 @@ export function compute(input) {
     warnings.push({ level: "error", msg: `Weights overflow available HBM (${(W / 1e9).toFixed(1)} GB > ${hw.hbm_gb * cleanNgpus} GB). Increase ngpus.` });
   }
 
-  const parallelism = recommendParallelism({ hw, weight_bytes_total: W, ngpus: cleanNgpus });
-  if (!parallelism.fits) {
-    warnings.push({ level: "error", msg: parallelism.reason });
-  }
-
   // The "recommended batch" = the binding analytical bound. max_num_seqs in
   // vLLM should be set to this so empirical sweeps start at the right scale.
   // If both bounds are zero/unreachable, fall back to 1 (we still want the
@@ -275,6 +302,23 @@ export function compute(input) {
   const bkvEff = bkv.value > 0 ? bkv.value : Infinity;
   const rawBatch = Math.min(bsloEff, bkvEff);
   const recommendedBatch = Number.isFinite(rawBatch) ? Math.max(1, rawBatch) : 1;
+
+  // Parallelism depends on batch (for Y_max), so compute it after recommendedBatch.
+  const parallelism = recommendParallelism({
+    hw, weight_bytes_total: W, ngpus: cleanNgpus,
+    d_ff: model.d_ff, batch: recommendedBatch,
+  });
+  if (!parallelism.fits) {
+    warnings.push({ level: "error", msg: parallelism.reason });
+  }
+  if (Number.isFinite(parallelism.y_max) && parallelism.y_max < TP_CAP && cleanNgpus > 1) {
+    warnings.push({
+      level: "warn",
+      msg: `ICI binds TP usefulness at Y_max=${parallelism.y_max.toFixed(1)} chips ` +
+           `(β=${(hw.hbm_bw_gbs / hw.ici_bw_gbs).toFixed(1)}, B=${recommendedBatch}, d_ff=${model.d_ff}). ` +
+           `TP beyond this stops cutting decode latency.`,
+    });
+  }
   const mnbt = recommendMaxBatchedTokens({ maxBatch: recommendedBatch, isl: cleanIsl, tbt_ms: cleanTbt });
   const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl });
   const sweep = sweepRanges({ recommendedBatch, recommendedMnbt: mnbt.value });

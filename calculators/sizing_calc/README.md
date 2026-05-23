@@ -22,6 +22,7 @@ Companion to [`MODEL_SIZING_SCALING_REFERENCE.md`](../../MODEL_SIZING_SCALING_RE
 | `b_kv` | `(HBM_total − weights − 10% overhead) / (KV_per_token × (ISL+OSL))` | §3 |
 | `b_slo` | largest `B` with `step_time(B) ≤ TBT_SLO` (both mem and compute bounds) | §4 |
 | `parallelism` | smallest `TP ∈ {1,2,4,8}` where `weights/TP + headroom ≤ HBM_per_GPU`; else PP | §6 |
+| `Y_max` (TP usefulness ceiling) | `d_ff / (B × β)` where `β = HBM_BW / ICI_BW` — sharding beyond this stops cutting decode latency because the ICI all-reduce becomes the floor | §6, Scaling Book |
 | `max_num_batched_tokens` | `α × max_batch × ISL`, snapped to ≥ 1024 pow-2, Sarathi band | §10 |
 | `throughput` | `B / step_time(B)` at the recommended batch | §4 |
 | `P:D ratio` | `(ISL/OSL) × (MFU_prefill / MFU_decode)` for disaggregation sizing | §5.2 |

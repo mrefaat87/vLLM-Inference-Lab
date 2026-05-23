@@ -85,5 +85,16 @@
       "tolerance_pct": 1,
       "source": "§5: '70 B (int8 → 70 GB)'"
     }
+  ],
+  "y_max": [
+    {
+      "name": "Scaling Book worked example (TPU v5e ish)",
+      "d_ff": 16384,
+      "batch": 32,
+      "hw": {"hbm_bw_gbs": 800, "ici_bw_gbs": 100},
+      "expected": 64,
+      "tolerance_pct": 0.1,
+      "source": "Scaling Book inference chapter: 'if F is 16,384 and B is 32, we can in theory do model parallelism up to 16384/(32*8) = 64 ways'"
+    }
   ]
 }
