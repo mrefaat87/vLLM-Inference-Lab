@@ -443,17 +443,61 @@ export function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
 
 // ---------- P:D ratio (disaggregation hint) ----------
 
-// Per-chip prefill throughput at the SLO-feasible operating MFU. Prefill is
-// compute-bound (large square matmuls on ISL tokens of input), so its per-chip
-// token rate is just peak FLOPs × MFU / FLOPs-per-token. The 2N factor is the
-// per-token forward cost (1 mul + 1 add per active param). FP8 tensor-core
-// path mirrors bCrit's selection rule (both operands FP8 + hardware support).
-// Returns tokens/sec/chip. Used by pdRatio.
-export function prefillThroughputPerChip({ hw, model, weight_prec, act_prec }) {
+// Per-token forward FLOPs for prefill. Two components:
+//   - Matmul (QKVO projections + FFW): 2 × N_active per token. This is the
+//     standard MFU accounting convention used by Scaling Book §6, DeepSeek-V3
+//     production report (Feb 2025), MosaicML training MFU, etc.
+//   - Self-attention (Q·Kᵀ + attn·V, causal-averaged): 2 × ISL × d_model ×
+//     n_layers per token. Token i sees i preceding tokens; averaged over the
+//     prefill, per-token attention cost is 2 × (ISL/2) × d_model × n_layers ×
+//     2 (Q·Kᵀ and attn·V) = 2 × ISL × d_model × n_layers.
+//
+// Attention as % of total at Llama-3-70B scale (d_model=8192, n_layers=80):
+//   ISL=2k:   ~1%     — negligible
+//   ISL=8k:   ~8%     — Scaling Book's worked example assumption holds
+//   ISL=32k:  ~30%    — significant; not counting it overstates prefill tput
+//   ISL=128k: >70%    — attention dominates; the MFU convention itself breaks
+//                       down for long context (production reports MBU instead)
+//
+// MLA caveat: attention compute is approximately this same formula (the latent
+// compression in MLA reduces KV cache footprint, not attention FLOPs at infer).
+function prefillFlopsPerToken(model, isl) {
+  const matmul = 2 * model.params_b_active * 1e9;
+  const attention = 2 * isl * model.d_model * model.n_layers;
+  return matmul + attention;
+}
+
+// Per-chip prefill throughput at the SLO-feasible operating MFU. Returns
+// tokens/sec/chip. Used by pdRatio.
+//
+// Why batch size (B) doesn't appear in this formula:
+//   For B concurrent prefill requests, per-step work scales linearly with B
+//   (each request has its own attention; requests don't cross-attend), and
+//   total tokens generated also scales with B, so B cancels in tokens/sec/chip.
+//   Same algebra as decode (where tokens_per_sec_per_chip = peak × MFU / 2N).
+//   What varies with B is *achieved MFU*, not per-token throughput — which is
+//   exactly what the MFU constant is hiding (see next paragraph).
+//
+// What PREFILL_MFU=0.40 assumes:
+//   "Decently-batched chunked prefill" — i.e., max_num_batched_tokens in the
+//   ~2048 range (Sarathi-Serve relaxed band). Real achieved MFU swings with
+//   the chunk size:
+//     ~30% at 512-token chunks (Sarathi strict TBT band — small tiles
+//        under-occupy SMs, so kernel MFU drops)
+//     ~40–45% at 2048 (this constant's anchor — MosaicML H100 training MFU,
+//        DSv3 back-calculated ~34% on FP8)
+//     ~50–60% at 8192+ (Investigation of FP8 Across Accelerators paper —
+//        square GEMMs at 8k+ shapes hit ~59% of FP8 peak on H100)
+//   So pdRatio is ~30% too LOW under strict-TBT SLOs (real prefill_tput is
+//   smaller → real P:D is higher) and ~25% too HIGH under aggressive batching.
+//   This is the dominant source of pdRatio's order-of-magnitude band.
+//
+// FP8 tensor-core path mirrors bCrit's selection rule (both operands FP8 +
+// hardware support); asymmetric precision rides the FP16 compute path.
+export function prefillThroughputPerChip({ hw, model, weight_prec, act_prec, isl }) {
   const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
   const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
-  const N_active = model.params_b_active * 1e9;
-  return (flops * PREFILL_MFU) / (2 * N_active);
+  return (flops * PREFILL_MFU) / prefillFlopsPerToken(model, isl);
 }
 
 // Prefill:Decode replica ratio for sizing a disaggregated deployment
@@ -766,7 +810,7 @@ export function compute(input) {
   // closed-form prefill throughput (compute-bound, MFU-based). See pdRatio()
   // comment for the DistServe-grounded derivation + empirical anchors.
   const decode_tput_per_chip = cleanNgpus > 0 ? throughput / cleanNgpus : 0;
-  const prefill_tput_per_chip = prefillThroughputPerChip({ hw, model, weight_prec, act_prec });
+  const prefill_tput_per_chip = prefillThroughputPerChip({ hw, model, weight_prec, act_prec, isl: cleanIsl });
   const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl, decode_tput_per_chip, prefill_tput_per_chip });
   // $/Mtok at the recommended batch — headline tile number. null if price
   // unset; the UI renders that as "—".

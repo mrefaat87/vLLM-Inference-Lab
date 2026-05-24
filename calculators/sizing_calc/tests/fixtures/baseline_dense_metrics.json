@@ -27,7 +27,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.09754443284999999,
+        "pd_ratio": 0.10080525280000001,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -105,7 +105,7 @@
           "y_max": 2.578417266,
           "useful_cap": 2
         },
-        "pd_ratio": 6.873404052000001,
+        "pd_ratio": 7.103175578,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -175,7 +175,7 @@
           "y_max": 34.13333333,
           "useful_cap": 1
         },
-        "pd_ratio": 4.621156292,
+        "pd_ratio": 4.775637263,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -245,7 +245,7 @@
           "y_max": 2.578417266,
           "useful_cap": 2
         },
-        "pd_ratio": 6.873404052000001,
+        "pd_ratio": 7.103175578,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -319,7 +319,7 @@
           "y_max": 34.13333333,
           "useful_cap": 1
         },
-        "pd_ratio": 4.621156292,
+        "pd_ratio": 4.775637263,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -385,7 +385,7 @@
           "y_max": 2.578417266,
           "useful_cap": 2
         },
-        "pd_ratio": 6.873404052000001,
+        "pd_ratio": 7.103175578,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -455,7 +455,7 @@
           "y_max": 21.08235294,
           "useful_cap": 1
         },
-        "pd_ratio": 6.873404052000001,
+        "pd_ratio": 7.103175578,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -516,7 +516,7 @@
           "y_max": 2.578417266,
           "useful_cap": 2
         },
-        "pd_ratio": 6.873404052000001,
+        "pd_ratio": 7.103175578,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -586,7 +586,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=10=10 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.09819901094,
+        "pd_ratio": 0.10006587330000001,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -664,7 +664,7 @@
           "useful_cap": 8,
           "reason": "needs TP=8×PP=2=16 GPUs per replica; only 8 available"
         },
-        "pd_ratio": 0.09819901094,
+        "pd_ratio": 0.10006587330000001,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -742,7 +742,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=5=5 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1958757593,
+        "pd_ratio": 0.1995995553,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -824,7 +824,7 @@
           "y_max": 24.298305080000002,
           "useful_cap": 8
         },
-        "pd_ratio": 12.96143441,
+        "pd_ratio": 13.207844360000001,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -894,7 +894,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=5=5 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1958757593,
+        "pd_ratio": 0.1995995553,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -972,7 +972,7 @@
           "y_max": 24.298305080000002,
           "useful_cap": 8
         },
-        "pd_ratio": 12.96143441,
+        "pd_ratio": 13.207844360000001,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -1038,7 +1038,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=3=3 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.3896790458,
+        "pd_ratio": 0.3970872379,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -1111,7 +1111,7 @@
           "y_max": 24.09411765,
           "useful_cap": 8
         },
-        "pd_ratio": 12.96143441,
+        "pd_ratio": 13.207844360000001,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -1177,7 +1177,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 1.1229722480000002,
+        "pd_ratio": 1.153339914,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1251,7 +1251,7 @@
           "y_max": 2.0863436120000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1321,7 +1321,7 @@
           "y_max": 18.57254902,
           "useful_cap": 1
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1391,7 +1391,7 @@
           "y_max": 2.0863436120000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1465,7 +1465,7 @@
           "y_max": 18.57254902,
           "useful_cap": 1
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1531,7 +1531,7 @@
           "y_max": 2.0863436120000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1601,7 +1601,7 @@
           "y_max": 16.76460177,
           "useful_cap": 1
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1667,7 +1667,7 @@
           "y_max": 2.0863436120000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.62250092,
+        "pd_ratio": 10.909756960000001,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -1737,7 +1737,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=3=3 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.09771385444,
+        "pd_ratio": 0.1010368945,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -1815,7 +1815,7 @@
           "y_max": 4.0303207,
           "useful_cap": 4
         },
-        "pd_ratio": 7.830038228,
+        "pd_ratio": 8.096321152,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -1885,7 +1885,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.9146299937000001,
+        "pd_ratio": 0.9457346119000001,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -1963,7 +1963,7 @@
           "y_max": 4.0303207,
           "useful_cap": 4
         },
-        "pd_ratio": 7.830038228,
+        "pd_ratio": 8.096321152,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -2037,7 +2037,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.9146299937000001,
+        "pd_ratio": 0.9457346119000001,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -2111,7 +2111,7 @@
           "y_max": 4.0303207,
           "useful_cap": 4
         },
-        "pd_ratio": 7.830038228,
+        "pd_ratio": 8.096321152,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -2181,7 +2181,7 @@
           "y_max": 46.08,
           "useful_cap": 1
         },
-        "pd_ratio": 6.159580668,
+        "pd_ratio": 6.369054888,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -2242,7 +2242,7 @@
           "y_max": 4.0303207,
           "useful_cap": 4
         },
-        "pd_ratio": 7.830038228,
+        "pd_ratio": 8.096321152,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -2312,7 +2312,7 @@
           "y_max": 143.35999999999999,
           "useful_cap": 1
         },
-        "pd_ratio": 0.8911694906000001,
+        "pd_ratio": 0.9243946974,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2382,7 +2382,7 @@
           "y_max": 2.488888889,
           "useful_cap": 2
         },
-        "pd_ratio": 6.389939679,
+        "pd_ratio": 6.628173897000001,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2452,7 +2452,7 @@
           "y_max": 30.50212766,
           "useful_cap": 1
         },
-        "pd_ratio": 4.661109104,
+        "pd_ratio": 4.834887847,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2522,7 +2522,7 @@
           "y_max": 2.488888889,
           "useful_cap": 2
         },
-        "pd_ratio": 6.389939679,
+        "pd_ratio": 6.628173897000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2596,7 +2596,7 @@
           "y_max": 30.50212766,
           "useful_cap": 1
         },
-        "pd_ratio": 4.661109104,
+        "pd_ratio": 4.834887847,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2662,7 +2662,7 @@
           "y_max": 2.488888889,
           "useful_cap": 2
         },
-        "pd_ratio": 6.389939679,
+        "pd_ratio": 6.628173897000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2732,7 +2732,7 @@
           "y_max": 20.191549300000002,
           "useful_cap": 1
         },
-        "pd_ratio": 6.389939679,
+        "pd_ratio": 6.628173897000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2793,7 +2793,7 @@
           "y_max": 2.488888889,
           "useful_cap": 2
         },
-        "pd_ratio": 6.389939679,
+        "pd_ratio": 6.628173897000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2863,7 +2863,7 @@
           "y_max": 84.95407407,
           "useful_cap": 1
         },
-        "pd_ratio": 1.333705511,
+        "pd_ratio": 1.3782900500000002,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -2933,7 +2933,7 @@
           "y_max": 4.869978769,
           "useful_cap": 4
         },
-        "pd_ratio": 4.173526496,
+        "pd_ratio": 4.313043618,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3003,7 +3003,7 @@
           "y_max": 66.4857971,
           "useful_cap": 1
         },
-        "pd_ratio": 1.2230667800000001,
+        "pd_ratio": 1.263952768,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3069,7 +3069,7 @@
           "y_max": 4.356619183,
           "useful_cap": 4
         },
-        "pd_ratio": 2.329856158,
+        "pd_ratio": 2.40774109,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3139,7 +3139,7 @@
           "y_max": 66.4857971,
           "useful_cap": 1
         },
-        "pd_ratio": 2.446133559,
+        "pd_ratio": 2.527905537,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3205,7 +3205,7 @@
           "y_max": 4.869978769,
           "useful_cap": 4
         },
-        "pd_ratio": 4.173526496,
+        "pd_ratio": 4.313043618,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3275,7 +3275,7 @@
           "y_max": 42.47703704,
           "useful_cap": 1
         },
-        "pd_ratio": 3.8516547290000003,
+        "pd_ratio": 3.980411976,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3341,7 +3341,7 @@
           "y_max": 4.869978769,
           "useful_cap": 4
         },
-        "pd_ratio": 4.173526496,
+        "pd_ratio": 4.313043618,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -3411,7 +3411,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=7=7 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.049454563879999996,
+        "pd_ratio": 0.05039474507,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3489,7 +3489,7 @@
           "y_max": 73.6951004,
           "useful_cap": 8
         },
-        "pd_ratio": 3.3682971260000003,
+        "pd_ratio": 3.432331855,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3559,7 +3559,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=4=4 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.049323054059999996,
+        "pd_ratio": 0.05026073512,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3637,7 +3637,7 @@
           "y_max": 47.05148718,
           "useful_cap": 8
         },
-        "pd_ratio": 3.802913616,
+        "pd_ratio": 3.875210843,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3703,7 +3703,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=4=4 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.09864610813,
+        "pd_ratio": 0.1005214702,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3781,7 +3781,7 @@
           "y_max": 47.05148718,
           "useful_cap": 8
         },
-        "pd_ratio": 7.605827231,
+        "pd_ratio": 7.750421686,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3847,7 +3847,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1962484864,
+        "pd_ratio": 0.19997936830000002,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3925,7 +3925,7 @@
           "y_max": 37.29691057,
           "useful_cap": 8
         },
-        "pd_ratio": 9.623339126000001,
+        "pd_ratio": 9.806288519,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -3991,7 +3991,7 @@
           "y_max": 42.09777778,
           "useful_cap": 1
         },
-        "pd_ratio": 3.3589145890000003,
+        "pd_ratio": 3.4497471060000002,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4061,7 +4061,7 @@
           "y_max": 3.496009227,
           "useful_cap": 3
         },
-        "pd_ratio": 7.265024928000001,
+        "pd_ratio": 7.461487353000001,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4131,7 +4131,7 @@
           "y_max": 36.08380952,
           "useful_cap": 1
         },
-        "pd_ratio": 2.8141183840000004,
+        "pd_ratio": 2.8902184010000003,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4197,7 +4197,7 @@
           "y_max": 2.860146261,
           "useful_cap": 2
         },
-        "pd_ratio": 4.438692812,
+        "pd_ratio": 4.558724934000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4267,7 +4267,7 @@
           "y_max": 36.08380952,
           "useful_cap": 1
         },
-        "pd_ratio": 5.628236768000001,
+        "pd_ratio": 5.780436803000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4333,7 +4333,7 @@
           "y_max": 3.496009227,
           "useful_cap": 3
         },
-        "pd_ratio": 7.265024928000001,
+        "pd_ratio": 7.461487353000001,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4403,7 +4403,7 @@
           "y_max": 28.06518519,
           "useful_cap": 1
         },
-        "pd_ratio": 7.265024928000001,
+        "pd_ratio": 7.461487353000001,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4469,7 +4469,7 @@
           "y_max": 3.496009227,
           "useful_cap": 3
         },
-        "pd_ratio": 7.265024928000001,
+        "pd_ratio": 7.461487353000001,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -4539,7 +4539,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.049210231449999996,
+        "pd_ratio": 0.05088376661,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4617,7 +4617,7 @@
           "y_max": 7.391278195000001,
           "useful_cap": 7
         },
-        "pd_ratio": 4.88153168,
+        "pd_ratio": 5.047542176,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4687,7 +4687,7 @@
           "y_max": 98.304,
           "useful_cap": 1
         },
-        "pd_ratio": 1.019530488,
+        "pd_ratio": 1.054202549,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4753,7 +4753,7 @@
           "y_max": 6.481582418,
           "useful_cap": 6
         },
-        "pd_ratio": 2.788455839,
+        "pd_ratio": 2.883285283,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4823,7 +4823,7 @@
           "y_max": 98.304,
           "useful_cap": 1
         },
-        "pd_ratio": 2.039060976,
+        "pd_ratio": 2.1084050970000003,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4889,7 +4889,7 @@
           "y_max": 7.372800000000001,
           "useful_cap": 7
         },
-        "pd_ratio": 4.8945059870000005,
+        "pd_ratio": 5.060957712,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -4959,7 +4959,7 @@
           "y_max": 89.36727273,
           "useful_cap": 1
         },
-        "pd_ratio": 3.2563903740000004,
+        "pd_ratio": 3.367133276,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -5025,7 +5025,7 @@
           "y_max": 7.372800000000001,
           "useful_cap": 7
         },
-        "pd_ratio": 4.8945059870000005,
+        "pd_ratio": 5.060957712,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -5095,7 +5095,7 @@
           "y_max": 1019.448889,
           "useful_cap": 1
         },
-        "pd_ratio": 0.144223453,
+        "pd_ratio": 0.1496004931,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5161,7 +5161,7 @@
           "y_max": 4.763779855,
           "useful_cap": 4
         },
-        "pd_ratio": 3.824635466,
+        "pd_ratio": 3.967228212,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5231,7 +5231,7 @@
           "y_max": 59.967581700000004,
           "useful_cap": 1
         },
-        "pd_ratio": 1.2219703080000002,
+        "pd_ratio": 1.267528663,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5297,7 +5297,7 @@
           "y_max": 4.307530516,
           "useful_cap": 4
         },
-        "pd_ratio": 2.114497264,
+        "pd_ratio": 2.1933314360000002,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5367,7 +5367,7 @@
           "y_max": 59.967581700000004,
           "useful_cap": 1
         },
-        "pd_ratio": 2.4439406150000003,
+        "pd_ratio": 2.535057326,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5433,7 +5433,7 @@
           "y_max": 4.763779855,
           "useful_cap": 4
         },
-        "pd_ratio": 3.824635466,
+        "pd_ratio": 3.967228212,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5503,7 +5503,7 @@
           "y_max": 40.77795556,
           "useful_cap": 1
         },
-        "pd_ratio": 3.5882800460000004,
+        "pd_ratio": 3.7220608220000004,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5569,7 +5569,7 @@
           "y_max": 4.763779855,
           "useful_cap": 4
         },
-        "pd_ratio": 3.824635466,
+        "pd_ratio": 3.967228212,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5639,7 +5639,7 @@
           "y_max": 42.47703704,
           "useful_cap": 1
         },
-        "pd_ratio": 4.610810481000001,
+        "pd_ratio": 4.764945601,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5705,7 +5705,7 @@
           "y_max": 1.840160449,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5775,7 +5775,7 @@
           "y_max": 17.18172285,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5845,7 +5845,7 @@
           "y_max": 1.840160449,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5919,7 +5919,7 @@
           "y_max": 17.18172285,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -5980,7 +5980,7 @@
           "y_max": 1.840160449,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -6050,7 +6050,7 @@
           "y_max": 14.84634304,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -6111,7 +6111,7 @@
           "y_max": 1.840160449,
           "useful_cap": 1
         },
-        "pd_ratio": 9.537928124,
+        "pd_ratio": 9.856772219,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -6181,7 +6181,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=7=7 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1709714923,
+        "pd_ratio": 0.174221833,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6259,7 +6259,7 @@
           "y_max": 36.8475502,
           "useful_cap": 8
         },
-        "pd_ratio": 11.64468435,
+        "pd_ratio": 11.86606155,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6325,7 +6325,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=4=4 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.3410336881,
+        "pd_ratio": 0.3475170828,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6407,7 +6407,7 @@
           "y_max": 20.25395143,
           "useful_cap": 8
         },
-        "pd_ratio": 15.24507165,
+        "pd_ratio": 15.53489586,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6477,7 +6477,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=4=4 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.3410336881,
+        "pd_ratio": 0.3475170828,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6550,7 +6550,7 @@
           "y_max": 20.25395143,
           "useful_cap": 8
         },
-        "pd_ratio": 15.24507165,
+        "pd_ratio": 15.53489586,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6616,7 +6616,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.6784590529,
+        "pd_ratio": 0.6913572445,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6689,7 +6689,7 @@
           "y_max": 20.25395143,
           "useful_cap": 8
         },
-        "pd_ratio": 15.24507165,
+        "pd_ratio": 15.53489586,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -6755,7 +6755,7 @@
           "y_max": 21.04888889,
           "useful_cap": 1
         },
-        "pd_ratio": 11.61224758,
+        "pd_ratio": 11.92626857,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -6821,7 +6821,7 @@
           "y_max": 1.6535951990000002,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -6891,7 +6891,7 @@
           "y_max": 13.29403509,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -6961,7 +6961,7 @@
           "y_max": 1.6535951990000002,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -7035,7 +7035,7 @@
           "y_max": 13.29403509,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -7101,7 +7101,7 @@
           "y_max": 1.6535951990000002,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -7171,7 +7171,7 @@
           "y_max": 13.29403509,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -7237,7 +7237,7 @@
           "y_max": 1.6535951990000002,
           "useful_cap": 1
         },
-        "pd_ratio": 13.27103305,
+        "pd_ratio": 13.62991129,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -7307,7 +7307,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1701268001,
+        "pd_ratio": 0.1759124503,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7381,7 +7381,7 @@
           "y_max": 2.9550300600000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.56687817,
+        "pd_ratio": 10.92623519,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7451,7 +7451,7 @@
           "y_max": 49.152,
           "useful_cap": 1
         },
-        "pd_ratio": 7.049325089000001,
+        "pd_ratio": 7.2890576220000005,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7521,7 +7521,7 @@
           "y_max": 2.9550300600000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.56687817,
+        "pd_ratio": 10.92623519,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7595,7 +7595,7 @@
           "y_max": 49.152,
           "useful_cap": 1
         },
-        "pd_ratio": 7.049325089000001,
+        "pd_ratio": 7.2890576220000005,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7656,7 +7656,7 @@
           "y_max": 2.9550300600000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.56687817,
+        "pd_ratio": 10.92623519,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7726,7 +7726,7 @@
           "y_max": 23.78322581,
           "useful_cap": 1
         },
-        "pd_ratio": 10.56687817,
+        "pd_ratio": 10.92623519,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7787,7 +7787,7 @@
           "y_max": 2.9550300600000003,
           "useful_cap": 2
         },
-        "pd_ratio": 10.56687817,
+        "pd_ratio": 10.92623519,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -7857,7 +7857,7 @@
           "y_max": 32.53560284,
           "useful_cap": 1
         },
-        "pd_ratio": 5.397224715,
+        "pd_ratio": 5.598447837,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -7923,7 +7923,7 @@
           "y_max": 1.74962624,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -7993,7 +7993,7 @@
           "y_max": 16.0965614,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8063,7 +8063,7 @@
           "y_max": 1.74962624,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8137,7 +8137,7 @@
           "y_max": 16.0965614,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8198,7 +8198,7 @@
           "y_max": 1.74962624,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8268,7 +8268,7 @@
           "y_max": 14.02911315,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8329,7 +8329,7 @@
           "y_max": 1.74962624,
           "useful_cap": 1
         },
-        "pd_ratio": 8.995480671000001,
+        "pd_ratio": 9.330856498000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8399,7 +8399,7 @@
           "y_max": 41.90587548,
           "useful_cap": 1
         },
-        "pd_ratio": 5.871206292,
+        "pd_ratio": 6.0674752750000005,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8465,7 +8465,7 @@
           "y_max": 3.073097535,
           "useful_cap": 3
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8535,7 +8535,7 @@
           "y_max": 29.90040845,
           "useful_cap": 1
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8605,7 +8605,7 @@
           "y_max": 2.98358984,
           "useful_cap": 2
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8679,7 +8679,7 @@
           "y_max": 29.90040845,
           "useful_cap": 1
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8745,7 +8745,7 @@
           "y_max": 2.98358984,
           "useful_cap": 2
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8815,7 +8815,7 @@
           "y_max": 26.21599793,
           "useful_cap": 1
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8881,7 +8881,7 @@
           "y_max": 2.9423274270000004,
           "useful_cap": 2
         },
-        "pd_ratio": 6.928970681,
+        "pd_ratio": 7.160599748,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -8951,7 +8951,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=4=4 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.09941371225,
+        "pd_ratio": 0.1013036673,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9029,7 +9029,7 @@
           "y_max": 28.513276100000002,
           "useful_cap": 8
         },
-        "pd_ratio": 13.017410420000001,
+        "pd_ratio": 13.26488454,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9095,7 +9095,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 3.273417267,
+        "pd_ratio": 3.335648234,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9173,7 +9173,7 @@
           "y_max": 19.24026283,
           "useful_cap": 8
         },
-        "pd_ratio": 13.017410420000001,
+        "pd_ratio": 13.26488454,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9243,7 +9243,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 3.273417267,
+        "pd_ratio": 3.335648234,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9317,7 +9317,7 @@
           "y_max": 19.24026283,
           "useful_cap": 8
         },
-        "pd_ratio": 13.017410420000001,
+        "pd_ratio": 13.26488454,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9383,7 +9383,7 @@
           "y_max": 11063.15113,
           "useful_cap": 1
         },
-        "pd_ratio": 0.39449929440000003,
+        "pd_ratio": 0.4019991243,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9444,7 +9444,7 @@
           "y_max": 19.24026283,
           "useful_cap": 8
         },
-        "pd_ratio": 13.017410420000001,
+        "pd_ratio": 13.26488454,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -9510,7 +9510,7 @@
           "y_max": 23.278923550000002,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9576,7 +9576,7 @@
           "y_max": 1.7703032200000002,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9646,7 +9646,7 @@
           "y_max": 17.03865267,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9716,7 +9716,7 @@
           "y_max": 1.7223331750000002,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9790,7 +9790,7 @@
           "y_max": 17.03865267,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9856,7 +9856,7 @@
           "y_max": 1.7223331750000002,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9926,7 +9926,7 @@
           "y_max": 15.00940861,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -9992,7 +9992,7 @@
           "y_max": 1.6991125040000001,
           "useful_cap": 1
         },
-        "pd_ratio": 10.68370808,
+        "pd_ratio": 10.9726193,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -10062,7 +10062,7 @@
           "y_max": 190.500689,
           "useful_cap": 1
         },
-        "pd_ratio": 2.2985600990000004,
+        "pd_ratio": 2.3767292330000003,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10128,7 +10128,7 @@
           "y_max": 4.678964292,
           "useful_cap": 4
         },
-        "pd_ratio": 7.888690840000001,
+        "pd_ratio": 8.156968415,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10198,7 +10198,7 @@
           "y_max": 57.35504616,
           "useful_cap": 1
         },
-        "pd_ratio": 7.651105933,
+        "pd_ratio": 7.911303751,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10268,7 +10268,7 @@
           "y_max": 4.422901569,
           "useful_cap": 4
         },
-        "pd_ratio": 7.888690840000001,
+        "pd_ratio": 8.156968415,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10342,7 +10342,7 @@
           "y_max": 57.35504616,
           "useful_cap": 1
         },
-        "pd_ratio": 7.651105933,
+        "pd_ratio": 7.911303751,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10408,7 +10408,7 @@
           "y_max": 4.422901569,
           "useful_cap": 4
         },
-        "pd_ratio": 7.888690840000001,
+        "pd_ratio": 8.156968415,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10478,7 +10478,7 @@
           "y_max": 42.33348645,
           "useful_cap": 1
         },
-        "pd_ratio": 7.888690840000001,
+        "pd_ratio": 8.156968415,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10539,7 +10539,7 @@
           "y_max": 4.308577781,
           "useful_cap": 4
         },
-        "pd_ratio": 7.888690840000001,
+        "pd_ratio": 8.156968415,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -10609,7 +10609,7 @@
           "y_max": 38.68234659,
           "useful_cap": 1
         },
-        "pd_ratio": 5.702890096,
+        "pd_ratio": 5.91550925,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -10675,7 +10675,7 @@
           "y_max": 3.054431564,
           "useful_cap": 3
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -10745,7 +10745,7 @@
           "y_max": 29.11355559,
           "useful_cap": 1
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -10815,7 +10815,7 @@
           "y_max": 2.9755651220000003,
           "useful_cap": 2
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -10889,7 +10889,7 @@
           "y_max": 29.11355559,
           "useful_cap": 1
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -10955,7 +10955,7 @@
           "y_max": 2.9755651220000003,
           "useful_cap": 2
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11025,7 +11025,7 @@
           "y_max": 25.84848394,
           "useful_cap": 1
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11091,7 +11091,7 @@
           "y_max": 2.937639704,
           "useful_cap": 2
         },
-        "pd_ratio": 6.443516409000001,
+        "pd_ratio": 6.683748112000001,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11161,7 +11161,7 @@
           "y_max": 11.4014554,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11227,7 +11227,7 @@
           "y_max": 1.324086158,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11297,7 +11297,7 @@
           "y_max": 10.59934296,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11367,7 +11367,7 @@
           "y_max": 1.324086158,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11441,7 +11441,7 @@
           "y_max": 10.59934296,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11507,7 +11507,7 @@
           "y_max": 1.324086158,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11577,7 +11577,7 @@
           "y_max": 10.59934296,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11643,7 +11643,7 @@
           "y_max": 1.324086158,
           "useful_cap": 1
         },
-        "pd_ratio": 8.201269113,
+        "pd_ratio": 8.475429937000001,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -11713,7 +11713,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 0.1303566298,
+        "pd_ratio": 0.1328348409,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -11791,7 +11791,7 @@
           "y_max": 13.45626316,
           "useful_cap": 8
         },
-        "pd_ratio": 14.19368827,
+        "pd_ratio": 14.463524620000001,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -11857,7 +11857,7 @@
           "y_max": 2812.359,
           "useful_cap": 1
         },
-        "pd_ratio": 0.7718498808,
+        "pd_ratio": 0.7865235263,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -11927,7 +11927,7 @@
           "y_max": 13.45626316,
           "useful_cap": 8
         },
-        "pd_ratio": 14.19368827,
+        "pd_ratio": 14.463524620000001,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -11997,7 +11997,7 @@
           "y_max": 2812.359,
           "useful_cap": 1
         },
-        "pd_ratio": 0.7718498808,
+        "pd_ratio": 0.7865235263,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -12063,7 +12063,7 @@
           "y_max": 13.45626316,
           "useful_cap": 8
         },
-        "pd_ratio": 14.19368827,
+        "pd_ratio": 14.463524620000001,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -12129,7 +12129,7 @@
           "y_max": 108.1676538,
           "useful_cap": 1
         },
-        "pd_ratio": 14.19368827,
+        "pd_ratio": 14.463524620000001,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -12190,7 +12190,7 @@
           "y_max": 13.45626316,
           "useful_cap": 8
         },
-        "pd_ratio": 14.19368827,
+        "pd_ratio": 14.463524620000001,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -12256,7 +12256,7 @@
           "y_max": 9.049508608,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12322,7 +12322,7 @@
           "y_max": 1.1305003660000001,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12392,7 +12392,7 @@
           "y_max": 9.049508608,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12462,7 +12462,7 @@
           "y_max": 1.1305003660000001,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12536,7 +12536,7 @@
           "y_max": 9.049508608,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12602,7 +12602,7 @@
           "y_max": 1.1305003660000001,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12672,7 +12672,7 @@
           "y_max": 9.049508608,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12738,7 +12738,7 @@
           "y_max": 1.1305003660000001,
           "useful_cap": 1
         },
-        "pd_ratio": 12.01187285,
+        "pd_ratio": 12.33670059,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -12808,7 +12808,7 @@
           "y_max": 21.75334979,
           "useful_cap": 1
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -12874,7 +12874,7 @@
           "y_max": 2.094684042,
           "useful_cap": 2
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -12944,7 +12944,7 @@
           "y_max": 16.80940665,
           "useful_cap": 1
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13014,7 +13014,7 @@
           "y_max": 2.094684042,
           "useful_cap": 2
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13088,7 +13088,7 @@
           "y_max": 16.80940665,
           "useful_cap": 1
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13154,7 +13154,7 @@
           "y_max": 2.094684042,
           "useful_cap": 2
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13224,7 +13224,7 @@
           "y_max": 16.80940665,
           "useful_cap": 1
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13290,7 +13290,7 @@
           "y_max": 2.094684042,
           "useful_cap": 2
         },
-        "pd_ratio": 9.213003272,
+        "pd_ratio": 9.526317892,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -13360,7 +13360,7 @@
           "y_max": 11.07227953,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13426,7 +13426,7 @@
           "y_max": 1.2679706940000002,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13496,7 +13496,7 @@
           "y_max": 10.165153010000001,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13566,7 +13566,7 @@
           "y_max": 1.2679706940000002,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13640,7 +13640,7 @@
           "y_max": 10.165153010000001,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13706,7 +13706,7 @@
           "y_max": 1.2679706940000002,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13776,7 +13776,7 @@
           "y_max": 10.165153010000001,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13842,7 +13842,7 @@
           "y_max": 1.2679706940000002,
           "useful_cap": 1
         },
-        "pd_ratio": 7.679043663000001,
+        "pd_ratio": 7.965339161,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13912,7 +13912,7 @@
           "y_max": 10.40935861,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -13978,7 +13978,7 @@
           "y_max": 1.038690045,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14048,7 +14048,7 @@
           "y_max": 9.105112734,
           "useful_cap": 1
         },
-        "pd_ratio": 3.051500249,
+        "pd_ratio": 3.1535090730000004,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14114,7 +14114,7 @@
           "y_max": 1.024052828,
           "useful_cap": 1
         },
-        "pd_ratio": 3.051500249,
+        "pd_ratio": 3.1535090730000004,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14184,7 +14184,7 @@
           "y_max": 9.105112734,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14250,7 +14250,7 @@
           "y_max": 1.024052828,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14320,7 +14320,7 @@
           "y_max": 8.55880597,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14386,7 +14386,7 @@
           "y_max": 1.0167536130000001,
           "useful_cap": 1
         },
-        "pd_ratio": 5.293133953,
+        "pd_ratio": 5.470078514000001,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -14456,7 +14456,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 3.9424484700000004,
+        "pd_ratio": 4.017398396,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14530,7 +14530,7 @@
           "y_max": 6.692376519000001,
           "useful_cap": 6
         },
-        "pd_ratio": 11.172832210000001,
+        "pd_ratio": 11.385239030000001,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14600,7 +14600,7 @@
           "y_max": 2567.641791,
           "useful_cap": 1
         },
-        "pd_ratio": 0.1999259749,
+        "pd_ratio": 0.2037267696,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14666,7 +14666,7 @@
           "y_max": 5.757044375,
           "useful_cap": 5
         },
-        "pd_ratio": 7.753997310000001,
+        "pd_ratio": 7.901408627,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14736,7 +14736,7 @@
           "y_max": 2567.641791,
           "useful_cap": 1
         },
-        "pd_ratio": 0.39965000440000004,
+        "pd_ratio": 0.4072477545,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14802,7 +14802,7 @@
           "y_max": 5.757044375,
           "useful_cap": 5
         },
-        "pd_ratio": 11.172832210000001,
+        "pd_ratio": 11.385239030000001,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14872,7 +14872,7 @@
           "y_max": 79.41160178,
           "useful_cap": 1
         },
-        "pd_ratio": 11.172832210000001,
+        "pd_ratio": 11.385239030000001,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -14938,7 +14938,7 @@
           "y_max": 5.37913783,
           "useful_cap": 5
         },
-        "pd_ratio": 11.172832210000001,
+        "pd_ratio": 11.385239030000001,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -15008,7 +15008,7 @@
           "y_max": 5.9248345,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15074,7 +15074,7 @@
           "y_max": 0.59953267,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15144,7 +15144,7 @@
           "y_max": 5.225290386,
           "useful_cap": 1
         },
-        "pd_ratio": 5.606283752,
+        "pd_ratio": 5.7578901280000006,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15210,7 +15210,7 @@
           "y_max": 0.5915193905,
           "useful_cap": 1
         },
-        "pd_ratio": 5.606283752,
+        "pd_ratio": 5.7578901280000006,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15280,7 +15280,7 @@
           "y_max": 5.225290386,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15346,7 +15346,7 @@
           "y_max": 0.5915193905,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15416,7 +15416,7 @@
           "y_max": 4.9316209650000005,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15482,7 +15482,7 @@
           "y_max": 0.5876264676,
           "useful_cap": 1
         },
-        "pd_ratio": 8.755181885,
+        "pd_ratio": 8.991941467,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -15552,7 +15552,7 @@
           "y_max": 19.86048368,
           "useful_cap": 1
         },
-        "pd_ratio": 5.20615975,
+        "pd_ratio": 5.383210155,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15618,7 +15618,7 @@
           "y_max": 1.539763867,
           "useful_cap": 1
         },
-        "pd_ratio": 6.1325810370000005,
+        "pd_ratio": 6.341137057,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15688,7 +15688,7 @@
           "y_max": 14.73773987,
           "useful_cap": 1
         },
-        "pd_ratio": 3.5134746430000003,
+        "pd_ratio": 3.632960433,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15754,7 +15754,7 @@
           "y_max": 1.499358275,
           "useful_cap": 1
         },
-        "pd_ratio": 3.623021002,
+        "pd_ratio": 3.7462322300000004,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15824,7 +15824,7 @@
           "y_max": 14.73773987,
           "useful_cap": 1
         },
-        "pd_ratio": 6.1325810370000005,
+        "pd_ratio": 6.341137057,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15890,7 +15890,7 @@
           "y_max": 1.499358275,
           "useful_cap": 1
         },
-        "pd_ratio": 6.1325810370000005,
+        "pd_ratio": 6.341137057,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -15960,7 +15960,7 @@
           "y_max": 13.03126473,
           "useful_cap": 1
         },
-        "pd_ratio": 6.1325810370000005,
+        "pd_ratio": 6.341137057,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -16026,7 +16026,7 @@
           "y_max": 1.4796455970000002,
           "useful_cap": 1
         },
-        "pd_ratio": 6.1325810370000005,
+        "pd_ratio": 6.341137057,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -16096,7 +16096,7 @@
           "y_max": 10.10882595,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16162,7 +16162,7 @@
           "y_max": 1.035617824,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16232,7 +16232,7 @@
           "y_max": 8.9777685,
           "useful_cap": 1
         },
-        "pd_ratio": 2.779930837,
+        "pd_ratio": 2.88357417,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16298,7 +16298,7 @@
           "y_max": 1.022421738,
           "useful_cap": 1
         },
-        "pd_ratio": 2.779930837,
+        "pd_ratio": 2.88357417,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16368,7 +16368,7 @@
           "y_max": 8.9777685,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16434,7 +16434,7 @@
           "y_max": 1.022421738,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16504,7 +16504,7 @@
           "y_max": 8.520935147000001,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16570,7 +16570,7 @@
           "y_max": 1.016217068,
           "useful_cap": 1
         },
-        "pd_ratio": 4.879504496,
+        "pd_ratio": 5.0614256090000005,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16640,7 +16640,7 @@
           "y_max": 3.6621253410000003,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16706,7 +16706,7 @@
           "y_max": 0.4062263866,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 16.06,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16776,7 +16776,7 @@
           "y_max": 3.4155019060000003,
           "useful_cap": 1
         },
-        "pd_ratio": 4.1014400470000005,
+        "pd_ratio": 4.2385473860000005,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16842,7 +16842,7 @@
           "y_max": 0.40299850070000004,
           "useful_cap": 1
         },
-        "pd_ratio": 4.1014400470000005,
+        "pd_ratio": 4.2385473860000005,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16912,7 +16912,7 @@
           "y_max": 3.4155019060000003,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -16978,7 +16978,7 @@
           "y_max": 0.40299850070000004,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 8.030000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -17048,7 +17048,7 @@
           "y_max": 3.3062730630000003,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -17114,7 +17114,7 @@
           "y_max": 0.4014336918,
           "useful_cap": 1
         },
-        "pd_ratio": 6.804694456,
+        "pd_ratio": 7.032169084,
         "weights_gb": 4.015000000000001,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -17184,7 +17184,7 @@
           "useful_cap": 1,
           "reason": "needs TP=1×PP=2=2 GPUs per replica; only 1 available"
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17258,7 +17258,7 @@
           "y_max": 2.975096846,
           "useful_cap": 2
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 141.2,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17328,7 +17328,7 @@
           "y_max": 36.08053691,
           "useful_cap": 1
         },
-        "pd_ratio": 8.045831626,
+        "pd_ratio": 8.198791008,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17394,7 +17394,7 @@
           "y_max": 2.148681055,
           "useful_cap": 2
         },
-        "pd_ratio": 9.513706335,
+        "pd_ratio": 9.694571497,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17464,7 +17464,7 @@
           "y_max": 36.08053691,
           "useful_cap": 1
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17530,7 +17530,7 @@
           "y_max": 2.975096846,
           "useful_cap": 2
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 70.60000000000001,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17600,7 +17600,7 @@
           "y_max": 23.89333333,
           "useful_cap": 1
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17666,7 +17666,7 @@
           "y_max": 2.975096846,
           "useful_cap": 2
         },
-        "pd_ratio": 12.89163547,
+        "pd_ratio": 13.13671847,
         "weights_gb": 35.300000000000004,
         "kv_per_token_kb": 160,
         "kv_per_seq_gb": 0.37748736
@@ -17736,7 +17736,7 @@
           "y_max": 2.101775148,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -17802,7 +17802,7 @@
           "y_max": 0.2585529189,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 15.200000000000001,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -17872,7 +17872,7 @@
           "y_max": 1.9678670360000001,
           "useful_cap": 1
         },
-        "pd_ratio": 7.163710975000001,
+        "pd_ratio": 7.3574336460000005,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -17938,7 +17938,7 @@
           "y_max": 0.23288749020000002,
           "useful_cap": 1
         },
-        "pd_ratio": 7.163710975000001,
+        "pd_ratio": 7.3574336460000005,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -18008,7 +18008,7 @@
           "y_max": 2.06872452,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -18074,7 +18074,7 @@
           "y_max": 0.2585529189,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 7.6000000000000005,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -18144,7 +18144,7 @@
           "y_max": 2.06872452,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -18210,7 +18210,7 @@
           "y_max": 0.2585529189,
           "useful_cap": 1
         },
-        "pd_ratio": 10.546424700000001,
+        "pd_ratio": 10.83162347,
         "weights_gb": 3.8000000000000003,
         "kv_per_token_kb": 28,
         "kv_per_seq_gb": 0.066060288
@@ -18280,7 +18280,7 @@
           "y_max": 6.041958042,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18346,7 +18346,7 @@
           "y_max": 0.5957251207,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 29.6,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18416,7 +18416,7 @@
           "y_max": 5.246963563,
           "useful_cap": 1
         },
-        "pd_ratio": 4.813754235,
+        "pd_ratio": 4.977459765,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18482,7 +18482,7 @@
           "y_max": 0.5869565217,
           "useful_cap": 1
         },
-        "pd_ratio": 4.813754235,
+        "pd_ratio": 4.977459765,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18552,7 +18552,7 @@
           "y_max": 5.246963563,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18618,7 +18618,7 @@
           "y_max": 0.5869565217,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 14.8,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18688,7 +18688,7 @@
           "y_max": 4.918406072000001,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18754,7 +18754,7 @@
           "y_max": 0.5826028321,
           "useful_cap": 1
         },
-        "pd_ratio": 7.757417097,
+        "pd_ratio": 8.021230331,
         "weights_gb": 7.4,
         "kv_per_token_kb": 96,
         "kv_per_seq_gb": 0.226492416
@@ -18824,7 +18824,7 @@
           "y_max": 3.6080536910000003,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -18890,7 +18890,7 @@
           "y_max": 0.40555220280000004,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 14.4,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -18960,7 +18960,7 @@
           "y_max": 3.393939394,
           "useful_cap": 1
         },
-        "pd_ratio": 3.7571445860000003,
+        "pd_ratio": 3.8972210890000003,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -19026,7 +19026,7 @@
           "y_max": 0.4026966292,
           "useful_cap": 1
         },
-        "pd_ratio": 3.7571445860000003,
+        "pd_ratio": 3.8972210890000003,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -19096,7 +19096,7 @@
           "y_max": 3.393939394,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -19162,7 +19162,7 @@
           "y_max": 0.4026966292,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 7.2,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -19232,7 +19232,7 @@
           "y_max": 3.294117647,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944
@@ -19298,7 +19298,7 @@
           "y_max": 0.40125391850000003,
           "useful_cap": 1
         },
-        "pd_ratio": 6.3237347470000005,
+        "pd_ratio": 6.559500667,
         "weights_gb": 3.6,
         "kv_per_token_kb": 64,
         "kv_per_seq_gb": 0.150994944

@@ -392,17 +392,29 @@ test("pdRatio Splitwise conversation-shape lands in order-of-magnitude band", ()
     `pdRatio out of empirical [1,20] band: ${pd} (Splitwise conv HH reported ~1.67; flipped formula would give ~200)`);
 });
 
-// prefillThroughputPerChip: closed-form sanity. H100 BF16/BF16 on Llama-3-70B:
-// 989 TF × 0.40 / (2 × 70.6 B) = 2,801 tok/s/chip. FP8/FP8 doubles via tensor
-// cores: ≈ 5,603 tok/s/chip.
-test("prefillThroughputPerChip H100 + Llama-3-70B BF16 ≈ 2.8k tok/s/chip", () => {
-  const tput = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16" });
-  within(tput, 2801, 1);
+// prefillThroughputPerChip: closed-form sanity at short context where attention
+// is negligible (<1% of FLOPs at ISL=1k for Llama-3-70B). H100 BF16/BF16 on
+// Llama-3-70B with ISL=1k: 989 TF × 0.40 / (2 × 70.6 B + attn) ≈ 2,790 tok/s/chip.
+test("prefillThroughputPerChip H100 + Llama-3-70B BF16 short context ≈ 2.8k tok/s/chip", () => {
+  const tput = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16", isl: 1024 });
+  within(tput, 2790, 2);
 });
-test("prefillThroughputPerChip H100 FP8/FP8 doubles via tensor-core path", () => {
-  const bf16 = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16" });
-  const fp8  = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "FP8",  act_prec: "FP8"  });
-  within(fp8, bf16 * 2, 2);
+// FP8/FP8 should still ~2× BF16/BF16 at the SAME context (attention term identical
+// in both, only the matmul-dominated portion scales).
+test("prefillThroughputPerChip H100 FP8/FP8 ≈ 2× BF16/BF16 at matched ISL", () => {
+  const bf16 = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16", isl: 1024 });
+  const fp8  = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "FP8",  act_prec: "FP8",  isl: 1024 });
+  within(fp8, bf16 * 2, 3);
+});
+// Long-context regression: attention term must materially reduce tput at ISL=32k
+// for Llama-3-70B (d_model=8192, n_layers=80). Predicted drop: from ~2790 (1k
+// ISL) to ~2050 (32k ISL) — a ~26% drop. If attention isn't wired, both numbers
+// would be ~2800 and this test would fail loudly. Guards the long-context fix.
+test("prefillThroughputPerChip attention term materially reduces long-context tput", () => {
+  const short = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16", isl: 1024 });
+  const long  = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16", isl: 32768 });
+  assert.ok(long < short * 0.85, `attention term not wired: long=${long} should be < 85% of short=${short}`);
+  assert.ok(long > short * 0.6,  `attention term over-counted: long=${long} should be > 60% of short=${short}`);
 });
 
 // ---------- Layer 7: sweep ranges ----------
