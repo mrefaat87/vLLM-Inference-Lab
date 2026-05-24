@@ -70,6 +70,27 @@ test("Llama-3-70B on a single T4 surfaces a weights-overflow diagnostic", async 
   expect(diag.toLowerCase()).toContain("overflow");
 });
 
+test("DeepSeek-V3 propagates MoE sparsity to b_crit + total-weights UI tiles", async ({ page }) => {
+  // Wires together the two halves of the MoE-correctness refactor:
+  //   - b_crit must pick up the sparsity factor (≥ 4000 vs dense ≈ 295)
+  //   - weights_gb must use params_b_total (≥ 1000 GB at BF16 vs old 74 GB)
+  await page.goto(pathToFileURL(HTML).href);
+  await page.waitForFunction(() => window.__sizingChart != null);
+
+  await page.locator("#model").selectOption("deepseek-v3");
+  // Force BF16 so the weights tile assertion is anchored to a known precision.
+  await page.locator("#weight-prec").selectOption("BF16");
+  await page.waitForTimeout(50);
+
+  const bcrit = parseInt(await page.locator("#m-bcrit").textContent().then(t => t.replace(/[^\d]/g, "")), 10);
+  expect(bcrit).toBeGreaterThanOrEqual(4000);
+
+  // Weights tile reads e.g. "1342 GB" — strip non-digits before parsing.
+  const weightsText = await page.locator("#m-weights").textContent();
+  const weightsGb = parseInt(weightsText.replace(/[^\d]/g, ""), 10);
+  expect(weightsGb).toBeGreaterThanOrEqual(1000);
+});
+
 test("copy button copies the snippet to clipboard", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(pathToFileURL(HTML).href);
