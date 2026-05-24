@@ -153,9 +153,14 @@ export function stepTime({ B, kv_per_token, seq, weight_bytes_total, paramCount_
   return attnMemTime + Math.max(mlpMemTime, computeTime);
 }
 
-// Throughput at a given batch (tokens/sec). Derived from stepTime since
-// stepTime accounts for both bottlenecks; the reference §4 closed form is only
-// the memory-bound branch.
+// Aggregate decode throughput in tokens/sec at batch B. One decode step emits
+// exactly one new token per active sequence (autoregressive invariant), so
+// B tokens per step → tps = B / stepTime. This is the headline tok/s number
+// vendors quote — NOT per-user rate (= 1/stepTime). Inherits stepTime's
+// physics: rises ~linearly with B below B_crit, then saturates at the
+// compute ceiling FLOPs/(2N) above (where B cancels in the asymptote because
+// stepTime is itself linear in B). Delegating to stepTime keeps one source
+// of truth — the per-kernel KV/MLP/compute breakdown lives there, not here.
 export function throughputAtB(args) {
   const t = stepTime(args);
   return args.B / t;
