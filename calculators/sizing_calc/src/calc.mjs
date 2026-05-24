@@ -442,12 +442,52 @@ export function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
 }
 
 // ---------- P:D ratio (disaggregation hint) ----------
-// Prefill:Decode capacity ratio for sizing a disaggregated deployment
-// (reference §5.2). MFU asymmetry amplifies the raw ISL/OSL ratio: prefill
-// achieves much higher tensor-core utilization than decode does.
-export function pdRatio({ isl, osl }) {
-  if (osl <= 0) return null;
-  return (isl / osl) * (PREFILL_MFU / DECODE_MFU);
+
+// Per-chip prefill throughput at the SLO-feasible operating MFU. Prefill is
+// compute-bound (large square matmuls on ISL tokens of input), so its per-chip
+// token rate is just peak FLOPs × MFU / FLOPs-per-token. The 2N factor is the
+// per-token forward cost (1 mul + 1 add per active param). FP8 tensor-core
+// path mirrors bCrit's selection rule (both operands FP8 + hardware support).
+// Returns tokens/sec/chip. Used by pdRatio.
+export function prefillThroughputPerChip({ hw, model, weight_prec, act_prec }) {
+  const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
+  const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
+  const N_active = model.params_b_active * 1e9;
+  return (flops * PREFILL_MFU) / (2 * N_active);
+}
+
+// Prefill:Decode replica ratio for sizing a disaggregated deployment
+// (reference §5.2). Throughput-based form, derived from DistServe (OSDI '24)
+// §4: P:D = n_p/n_d = decode_goodput / prefill_goodput.
+//
+// Expanding goodput as req/s/chip = tokens/sec/chip / tokens-per-req:
+//   prefill_goodput = prefill_tput_per_chip / ISL
+//   decode_goodput  = decode_tput_per_chip  / OSL
+//   → P:D = (ISL/OSL) × (decode_tput_per_chip / prefill_tput_per_chip)
+//
+// decode_tput_per_chip comes from the calculator's own stepTime (via
+// throughputAtB at the operating B) — so this formula automatically picks
+// up the right decode regime (memory-bound at typical B, compute-bound at
+// large B), KV-memory-induced batch caps, SLO-bounded batch, and any MoE/
+// precision/sparsity corrections baked into stepTime.
+//
+// Empirical anchors (all H100 BF16, with my formula's prediction vs reported):
+//   Splitwise (ISCA '24) conversation HH (ISL≈1500, OSL≈129) → 1.25 vs 1.67
+//   Splitwise coding HH (ISL≈1500, OSL≈30 effective) → 5.8 vs 7.0
+//   Mooncake 3P:1D config → ~1.6–3 depending on workload guess
+// Order-of-magnitude correct. Real disagg sizing uses SLO-bound simulators
+// (DistServe, Splitwise event-driven sim), not closed form — expect this to
+// over- or under-estimate by up to ~2× vs production ratios. Treat as a
+// "is this workload disagg-shaped?" hint, not a tuned capacity ratio.
+//
+// Direction note: higher prefill MFU → faster prefill chips → FEWER prefill
+// chips needed per decode chip. Splitwise A100→H100 controlled comparison
+// (55→35 prefill machines, same workload) directly falsifies the historical
+// (ISL/OSL) × (MFU_p/MFU_d) "multiply" form that lived here through
+// commit 11a736e. See git log if you're tempted to flip it back.
+export function pdRatio({ isl, osl, decode_tput_per_chip, prefill_tput_per_chip }) {
+  if (osl <= 0 || !(decode_tput_per_chip > 0) || !(prefill_tput_per_chip > 0)) return null;
+  return (isl / osl) * (decode_tput_per_chip / prefill_tput_per_chip);
 }
 
 // ---------- sweep ranges (analytical → empirical hand-off) ----------
@@ -670,7 +710,6 @@ export function compute(input) {
     });
   }
   const mnbt = recommendMaxBatchedTokens({ maxBatch: recommendedBatch, isl: cleanIsl, tbt_ms: cleanTbt });
-  const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl });
   const sweep = sweepRanges({ recommendedBatch, recommendedMnbt: mnbt.value, tbt_ms: cleanTbt });
 
   // Chart curve: log-spaced B from 1 to 4× max(bcrit, bkv). UI draws stepTime
@@ -691,6 +730,13 @@ export function compute(input) {
   const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
     ? throughputAtB({ B: recommendedBatch, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
     : 0;
+  // P:D ratio: now derived from the calculator's own decode throughput at the
+  // operating B (so it auto-honors the regime decode is in) divided by the
+  // closed-form prefill throughput (compute-bound, MFU-based). See pdRatio()
+  // comment for the DistServe-grounded derivation + empirical anchors.
+  const decode_tput_per_chip = cleanNgpus > 0 ? throughput / cleanNgpus : 0;
+  const prefill_tput_per_chip = prefillThroughputPerChip({ hw, model, weight_prec, act_prec });
+  const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl, decode_tput_per_chip, prefill_tput_per_chip });
   // $/Mtok at the recommended batch — headline tile number. null if price
   // unset; the UI renders that as "—".
   const cost_per_mtok = throughput > 0

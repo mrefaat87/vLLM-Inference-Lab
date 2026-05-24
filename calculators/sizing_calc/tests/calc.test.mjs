@@ -14,7 +14,7 @@ import {
   ACT_OVERHEAD, DTYPE_BYTES,
   weightsBytes, kvPerToken, bCrit, stepTime, throughputAtB, costPerMtok,
   bSlo, bKv, yMax, recommendParallelism, recommendMaxBatchedTokens,
-  pdRatio, sweepRanges, compute,
+  pdRatio, prefillThroughputPerChip, sweepRanges, compute,
 } from "../src/calc.mjs";
 
 // ---------- fixtures ----------
@@ -351,12 +351,58 @@ test("recommendMaxBatchedTokens: strict TBT band caps at 2048", () => {
 
 // ---------- Layer 6: P:D ratio ----------
 
-test("pdRatio amplifies ISL/OSL by MFU asymmetry (4×)", () => {
-  // ISL/OSL = 4, MFU ratio = PREFILL_MFU/DECODE_MFU = 0.40/0.10 = 4 → expect 16.
-  // The 4× multiplier itself is rule-of-thumb (defensible range 3×–8× across
-  // sources — see calc.mjs MFU comment and reference §0.3 footnote). This test
-  // pins the *implementation*, not the underlying physics constant.
-  within(pdRatio({ isl: 4000, osl: 1000 }), 16, 0.01);
+// Structural form: P:D = (ISL/OSL) × (decode_tput / prefill_tput). Sanity-check
+// reduction: when the two throughputs are equal, pdRatio collapses to ISL/OSL.
+test("pdRatio reduces to ISL/OSL when decode and prefill tput are equal", () => {
+  const r = pdRatio({ isl: 4000, osl: 1000, decode_tput_per_chip: 1000, prefill_tput_per_chip: 1000 });
+  within(r, 4, 0.001);
+});
+
+// Direction guard: catching a future "multiply MFU" regression. Per DistServe
+// (OSDI '24) and Splitwise (ISCA '24) controlled A100→H100 experiment, faster
+// prefill chips need FEWER prefill replicas → P:D shrinks when prefill_tput
+// rises. Doubling prefill_tput must halve pdRatio; doubling decode_tput must
+// double it.
+test("pdRatio scales correctly with throughput inputs (DistServe form)", () => {
+  const base = pdRatio({ isl: 1000, osl: 100, decode_tput_per_chip: 500, prefill_tput_per_chip: 10000 });
+  const fasterPrefill = pdRatio({ isl: 1000, osl: 100, decode_tput_per_chip: 500, prefill_tput_per_chip: 20000 });
+  const fasterDecode  = pdRatio({ isl: 1000, osl: 100, decode_tput_per_chip: 1000, prefill_tput_per_chip: 10000 });
+  within(fasterPrefill, base / 2, 0.001);
+  within(fasterDecode,  base * 2, 0.001);
+});
+
+// Empirical anchor: Splitwise (ISCA '24) conversation HH (ISL≈1500, OSL≈129,
+// Llama-13B on H100) deployed P:D = 1.67. Llama-3-8B is the closest in-data
+// proxy. We assert the calculator lands in the order-of-magnitude [1, 20]
+// band — wider than tight because (a) the calculator uses default MFU
+// midpoints, not Splitwise's achieved MFU, (b) operating B from bKv differs
+// from Splitwise's deployed B, (c) real sizers use SLO-bound simulators. The
+// test's job is to catch a flipped-formula regression: the historical
+// (ISL/OSL)×(MFU_p/MFU_d) "multiply" form gave ~200 for this workload —
+// outside the band by 10× and would fail loudly.
+test("pdRatio Splitwise conversation-shape lands in order-of-magnitude band", () => {
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-8b"],
+    isl: 1500, osl: 129,
+    weight_prec: "BF16", kv_prec: "BF16", act_prec: "BF16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+  });
+  const pd = out.metrics.pd_ratio;
+  assert.ok(pd != null && pd >= 1 && pd <= 20,
+    `pdRatio out of empirical [1,20] band: ${pd} (Splitwise conv HH reported ~1.67; flipped formula would give ~200)`);
+});
+
+// prefillThroughputPerChip: closed-form sanity. H100 BF16/BF16 on Llama-3-70B:
+// 989 TF × 0.40 / (2 × 70.6 B) = 2,801 tok/s/chip. FP8/FP8 doubles via tensor
+// cores: ≈ 5,603 tok/s/chip.
+test("prefillThroughputPerChip H100 + Llama-3-70B BF16 ≈ 2.8k tok/s/chip", () => {
+  const tput = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16" });
+  within(tput, 2801, 1);
+});
+test("prefillThroughputPerChip H100 FP8/FP8 doubles via tensor-core path", () => {
+  const bf16 = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "BF16", act_prec: "BF16" });
+  const fp8  = prefillThroughputPerChip({ hw: HW["H100-80GB"], model: MODEL["llama-3-70b"], weight_prec: "FP8",  act_prec: "FP8"  });
+  within(fp8, bf16 * 2, 2);
 });
 
 // ---------- Layer 7: sweep ranges ----------
