@@ -1044,6 +1044,19 @@ function throughputAtB(args) {
 // experts); N = paramCount_active (per-token compute scales with active params
 // only — the 2BN/FLOPs term). Dense models: total === active, asymmetry is a
 // no-op.
+//
+// Note on B_ridge vs B_crit: these answer different questions. B_ridge is the
+// MLP weight-load-vs-compute crossover *within this simplified stepTime model*
+// (no activation streaming). B_crit (in bCrit() above) is the per-matmul
+// arithmetic-intensity threshold that DOES include activation memory via the
+// bits_w/bits_act factor. They coincide numerically for symmetric precision
+// (BF16/BF16, INT8/INT8) by algebraic coincidence, but diverge for FP8/FP8
+// (B_ridge ≈ α, B_crit ≈ 2α). The Scaling Book inference chapter explicitly
+// omits activations from the stepTime model ("activation costs are largely
+// ignored — negligible for both prefill and generate"), so B_ridge is the
+// correct boundary for this solve. Do NOT replace B_ridge with bCrit() —
+// the two regime expressions below would no longer match the boundary and
+// the solve would silently report falsely-permissive values for FP8/FP8.
 function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
   const T = tbt_ms / 1000;
   const W = weight_bytes_total;
