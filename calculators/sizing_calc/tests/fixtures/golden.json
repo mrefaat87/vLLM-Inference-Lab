@@ -4,6 +4,7 @@
     {
       "name": "H100 bf16/bf16",
       "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
       "weight_prec": "BF16",
       "act_prec": "BF16",
       "expected": 295,
@@ -13,6 +14,7 @@
     {
       "name": "H100 fp8/fp8 (FP8 tensor core path)",
       "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
       "weight_prec": "FP8",
       "act_prec": "FP8",
       "expected": 590,
@@ -22,6 +24,7 @@
     {
       "name": "H100 int8 weights, bf16 acts (asymmetric drops B_crit ~2x)",
       "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
       "weight_prec": "INT8",
       "act_prec": "BF16",
       "expected": 147,
@@ -31,6 +34,7 @@
     {
       "name": "H100 int8/int8 (symmetric, ratio unchanged)",
       "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
       "weight_prec": "INT8",
       "act_prec": "INT8",
       "expected": 295,
@@ -40,11 +44,42 @@
     {
       "name": "H200 bf16/bf16",
       "hw_key": "H200",
+      "model_key": "llama-3-70b",
       "weight_prec": "BF16",
       "act_prec": "BF16",
       "expected": 205,
       "tolerance_pct": 2,
       "source": "§1 Hardware Roofline Ratios table"
+    },
+    {
+      "name": "DSv3 H100 BF16/BF16 (MoE sparsity 671/37 ≈ 18.135×)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 5347,
+      "tolerance_pct": 0.5,
+      "source": "Scaling Book inference Q5: B_crit_MoE = B_crit_dense × E/k. Dense 70B BF16/BF16 → 295; DSv3 sparsity 671/37 = 18.135× → 5347.7"
+    },
+    {
+      "name": "DSv3 H100 FP8/FP8 (MoE sparsity + FP8 path)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "FP8",
+      "act_prec": "FP8",
+      "expected": 10695,
+      "tolerance_pct": 0.5,
+      "source": "Scaling Book Q5 + FP8 path: 590 × 671/37 = 10695.4"
+    },
+    {
+      "name": "DSv3 H100 INT8/BF16 (asymmetric + MoE sparsity)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "INT8",
+      "act_prec": "BF16",
+      "expected": 2666,
+      "tolerance_pct": 1,
+      "source": "Scaling Book Q5 + asymmetric: 147 × 671/37 = 2666.0"
     }
   ],
   "kv": [

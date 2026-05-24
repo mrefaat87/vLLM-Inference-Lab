@@ -39,7 +39,7 @@ const within = (actual, expected, tol_pct) => {
 
 test("bCrit goldens (reference §1)", () => {
   for (const g of golden.bcrit) {
-    const got = bCrit(HW[g.hw_key], g.weight_prec, g.act_prec);
+    const got = bCrit(HW[g.hw_key], MODEL[g.model_key], g.weight_prec, g.act_prec);
     within(got, g.expected, g.tolerance_pct);
   }
 });
@@ -74,7 +74,7 @@ test("stepTime is monotonic non-decreasing in B", () => {
     kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8),
     avgSeq: 4096,
     weight_bytes_total: weightsBytes(m.params_b_total, DTYPE_BYTES.INT8),
-    paramCount: m.params_b_active * 1e9,
+    paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
     totalFLOPs: hw.fp16_tflops * 1e12,
   });
@@ -93,13 +93,13 @@ test("bSlo self-consistency: stepTime(bSlo) ≤ SLO < stepTime(bSlo+1)", () => {
   const K = kvPerToken(m, DTYPE_BYTES.INT8);
   const args = {
     tbt_ms: 50, kv_per_token: K, avgSeq: 4096, weight_bytes_total: W,
-    paramCount: m.params_b_active * 1e9,
+    paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
     totalFLOPs: hw.fp16_tflops * 1e12,
   };
   const r = bSlo(args);
   if (r.unreachable) return; // separately covered
-  const stArgs = (B) => ({ B, ...args, paramCount: args.paramCount });
+  const stArgs = (B) => ({ B, ...args, paramCount_active: args.paramCount_active });
   const at = stepTime(stArgs(r.value)) * 1000;
   const next = stepTime(stArgs(r.value + 1)) * 1000;
   assert.ok(at <= 50 + 1e-6, `stepTime(${r.value})=${at}ms exceeds 50ms SLO`);
@@ -120,7 +120,7 @@ test("bKv self-consistency: used HBM stays under cap", () => {
 test("throughput tracks stepTime: tps = B / stepTime", () => {
   const args = {
     B: 32, kv_per_token: 1000, avgSeq: 1024, weight_bytes_total: 1e10,
-    paramCount: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
+    paramCount_active: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
   };
   const t = stepTime(args);
   const tps = throughputAtB(args);
@@ -159,7 +159,7 @@ test("bSlo unreachable when TBT × BW < weight stream time", () => {
   const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = bSlo({
     tbt_ms: 10, kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8), avgSeq: 4096,
-    weight_bytes_total: W, paramCount: m.params_b_active * 1e9,
+    weight_bytes_total: W, paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9, totalFLOPs: hw.fp16_tflops * 1e12,
   });
   assert.equal(r.unreachable, true);
@@ -366,7 +366,7 @@ test("stepTime large-B: per-kernel sum differs from old single-max form", () => 
   const B = 800;
   const avgSeq = 8192;
 
-  const tNew = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount: N, totalBW: BW, totalFLOPs: F });
+  const tNew = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount_active: N, totalBW: BW, totalFLOPs: F });
 
   // Analytical: attn = B·K·S/BW; mlp = max(W/BW, 2BN/F)
   const attn = (B * K * avgSeq) / BW;
@@ -390,9 +390,83 @@ test("stepTime large-B: per-kernel sum differs from old single-max form", () => 
     `gap (${gap.toFixed(4)}s) should be on the order of the dropped MLP kernel time`);
 });
 
-test("property: bCrit is independent of model size", () => {
+test("property: bCrit is independent of dense model size (sparsity=1)", () => {
   const hw = HW["H100-80GB"];
-  const v8 = bCrit(hw, "FP16", "FP16");
-  const v70 = bCrit(hw, "FP16", "FP16");
+  const v8 = bCrit(hw, MODEL["llama-3-8b"], "FP16", "FP16");
+  const v70 = bCrit(hw, MODEL["llama-3-70b"], "FP16", "FP16");
   assert.equal(v8, v70);
+});
+
+// ---------- Layer 10: MoE sparsity propagation ----------
+
+test("bCrit MoE sparsity is multiplicative", () => {
+  const hw = HW["H100-80GB"];
+  const base = { key: "syn-1", label: "Syn-1", params_b_total: 37, params_b_active: 37 };
+  const baseVal = bCrit(hw, base, "BF16", "BF16");
+  for (const S of [1, 2, 4, 8, 18.135, 32]) {
+    const m = { key: `syn-${S}`, label: `Syn-${S}`, params_b_total: S * 37, params_b_active: 37 };
+    const v = bCrit(hw, m, "BF16", "BF16");
+    const ratio = v / baseVal;
+    assert.ok(Math.abs(ratio - S) < 1e-9, `S=${S}: ratio ${ratio} ≠ ${S}`);
+  }
+});
+
+test("stepTime compute branch reads paramCount_active only", () => {
+  // Pick args where compute strictly dominates the memory branch so the
+  // max() in the MLP kernel selects compute. Large B + large active params.
+  const base = {
+    B: 10000, kv_per_token: 1, avgSeq: 1, weight_bytes_total: 1, // tiny mem terms
+    paramCount_active: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
+  };
+  const t1 = stepTime(base);
+  const t2 = stepTime({ ...base, paramCount_active: 2e10 });
+  // Doubling active params doubles the compute term — both delta and absolute time.
+  const computeOnly = (2 * base.B * base.paramCount_active) / base.totalFLOPs;
+  assert.ok(Math.abs((t2 - t1) - computeOnly) / computeOnly < 1e-9,
+    `expected compute delta ≈ ${computeOnly}, got ${t2 - t1}`);
+
+  // Doubling weight_bytes_total must NOT change the compute branch (mem branch
+  // would only matter if it became larger than compute; we keep it tiny).
+  const t3 = stepTime({ ...base, weight_bytes_total: 2 });
+  assert.equal(t3, t1, `compute-dominated regime: doubling W must not change stepTime`);
+});
+
+test("stepTime memory branch reads weight_bytes_total only", () => {
+  // Memory-dominated regime: large W, tiny active params so max() picks W/BW.
+  const base = {
+    B: 1, kv_per_token: 1, avgSeq: 1, weight_bytes_total: 1e12,
+    paramCount_active: 1, totalBW: 1e12, totalFLOPs: 1e15,
+  };
+  const t1 = stepTime(base);
+  const t2 = stepTime({ ...base, weight_bytes_total: 2e12 });
+  // Doubling W doubles the memory term (which dominates).
+  const memOnly = base.weight_bytes_total / base.totalBW;
+  assert.ok(Math.abs((t2 - t1) - memOnly) / memOnly < 1e-9,
+    `expected mem delta ≈ ${memOnly}, got ${t2 - t1}`);
+
+  // Doubling active params must NOT change the memory branch (compute term
+  // stays well below W/BW).
+  const t3 = stepTime({ ...base, paramCount_active: 2 });
+  assert.equal(t3, t1, `memory-dominated regime: doubling active must not change stepTime`);
+});
+
+test("DSv3 sanity: single-H100 fires weights_overflow, 16-H100 produces sane bKv", () => {
+  const single = compute({
+    hw: HW["H100-80GB"], model: MODEL["deepseek-v3"],
+    isl: 1024, osl: 256, weight_prec: "BF16", kv_prec: "BF16", act_prec: "BF16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+  });
+  const overflow = single.warnings.find((w) => /overflow/i.test(w.msg) && w.level === "error");
+  assert.ok(overflow, "expected weights_overflow error warning at ngpus=1");
+
+  // FP8 weights (671 GB) fit on 16×H100 (1280 GB - 10% headroom = 1152 GB);
+  // BF16 (1342 GB) would still overflow. The point of this assertion is the
+  // multi-GPU path producing a finite positive bKv, which requires fit-first.
+  const many = compute({
+    hw: HW["H100-80GB"], model: MODEL["deepseek-v3"],
+    isl: 1024, osl: 256, weight_prec: "FP8", kv_prec: "FP8", act_prec: "FP8",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 16,
+  });
+  assert.ok(many.metrics.b_kv > 0 && Number.isFinite(many.metrics.b_kv),
+    `expected positive finite b_kv at ngpus=16, got ${many.metrics.b_kv}`);
 });

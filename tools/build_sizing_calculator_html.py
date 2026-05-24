@@ -103,7 +103,10 @@ def body_html() -> str:
         <details id="model-custom" class="custom">
           <summary>Custom model</summary>
           <div class="field-row">
-            <div class="field"><label>Params <span class="unit">B</span></label><input id="c-params" type="number" value="7" min="0.1" step="0.1"></div>
+            <div class="field"><label>Total params <span class="unit">B</span></label><input id="c-params-total" type="number" value="7" min="0.1" step="0.1" title="Total parameter count. For MoE, all experts must sit in HBM. For dense models, set equal to active."></div>
+            <div class="field"><label>Active params <span class="unit">B</span></label><input id="c-params-active" type="number" value="7" min="0.1" step="0.1" title="Parameters that execute per token. For dense models, same as total. For MoE, this drives compute roofline."></div>
+          </div>
+          <div class="field-row">
             <div class="field"><label>Layers</label><input id="c-layers" type="number" value="32" min="1"></div>
           </div>
           <div class="field-row">

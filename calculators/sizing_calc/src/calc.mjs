@@ -55,10 +55,13 @@ export const DTYPE_BYTES = Object.freeze({
 // ---------- low-level building blocks ----------
 
 // Total weight memory across all GPUs (TP shards it, but the aggregate is what
-// matters for the roofline since BW also aggregates). params_b is in billions,
-// matching the data table; multiply by 1e9 here once so callers stay in "B".
-export function weightsBytes(params_b, weight_bytes) {
-  return params_b * 1e9 * weight_bytes;
+// matters for the roofline since BW also aggregates). params_b_total is in
+// billions, matching the data table; multiply by 1e9 here once so callers stay
+// in "B". Note: this is the *total* parameter count — for MoE, all experts must
+// sit in HBM regardless of routing. The compute-roofline formula uses active
+// params via stepTime's paramCount_active, not this function.
+export function weightsBytes(params_b_total, weight_bytes) {
+  return params_b_total * 1e9 * weight_bytes;
 }
 
 // KV cache bytes per generated token, per sequence (reference §3).
@@ -80,22 +83,34 @@ export function kvPerToken(model, kv_bytes) {
 
 // Roofline ridge-point batch (reference §1, Scaling Book inference chapter
 // https://jax-ml.github.io/scaling-book/inference/):
-//   B_crit = (C / W_hbm) × (bits_w / bits_act)
-// where C is the *precision-adjusted* peak FLOPs — not a fixed FP16 rate.
-// The book's rule: "If we do our FLOPs in int8 or fp8, B_crit increases by 2x."
-// FP8 tensor cores fire only when BOTH operands are FP8 AND the hardware
-// exposes an FP8 path (cuBLAS GEMM rule), so FP8/FP8 picks fp8_tflops (2× on
-// H100 → 590) while BF16/BF16 stays on fp16_tflops (295). Asymmetric cases
-// (e.g., INT8 weights + BF16 acts) ride the FP16 compute path and shift only
-// through bits_w/bits_act (8/16 → halves B_crit, matching the book's TPU v5e
-// int8-weights/bf16-acts → 120 example).
-export function bCrit(hw, weight_prec, act_prec) {
+//   B_crit = (C / W_hbm) × (bits_w / bits_act) × (N_total / N_active)
+// where C is the *precision-adjusted* peak FLOPs — not a fixed FP16 rate, and
+// the trailing factor is the Scaling Book inference Q5 "factor of E/k" MoE
+// sparsity correction: weight memory streams ALL experts (N_total) per step
+// while compute scales only with the ACTIVE experts per token (N_active), so
+// the ridge batch shifts right by exactly that ratio. For dense models
+// N_total = N_active, sparsity = 1, and the formula reduces to the original.
+//
+// The book's rule on precision: "If we do our FLOPs in int8 or fp8, B_crit
+// increases by 2x." FP8 tensor cores fire only when BOTH operands are FP8 AND
+// the hardware exposes an FP8 path (cuBLAS GEMM rule), so FP8/FP8 picks
+// fp8_tflops (2× on H100 → 590) while BF16/BF16 stays on fp16_tflops (295).
+// Asymmetric cases (e.g., INT8 weights + BF16 acts) ride the FP16 compute path
+// and shift only through bits_w/bits_act (8/16 → halves B_crit, matching the
+// book's TPU v5e int8-weights/bf16-acts → 120 example).
+//
+// Worked MoE example (DeepSeek-V3 on H100, BF16/BF16):
+//   dense B_crit = 295; sparsity = 671/37 ≈ 18.135; B_crit_MoE ≈ 5347.
+export function bCrit(hw, model, weight_prec, act_prec) {
   const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
   const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
   const bw = hw.hbm_bw_gbs * 1e9;
   const bits_w = DTYPE_BYTES[weight_prec] * 8;
   const bits_act = DTYPE_BYTES[act_prec] * 8;
-  return (flops / bw) * (bits_w / bits_act);
+  // Scaling Book inference Q5: B_crit_MoE = B_crit_dense × (E/k) = N_total/N_active.
+  // Dense models: params_b_total === params_b_active → sparsity = 1.
+  const sparsity = model.params_b_total / model.params_b_active;
+  return (flops / bw) * (bits_w / bits_act) * sparsity;
 }
 
 // Time per decode step (seconds), per-kernel form (reference §4 + Scaling Book
@@ -111,22 +126,25 @@ export function bCrit(hw, weight_prec, act_prec) {
 // (left) is never compute-bound, and thus doesn't need a FLOPs roofline" — so
 // attention is modelled as pure HBM-bandwidth on the KV stream only.
 //
-// Simplification (kept verbatim from the book): the right-hand side uses
-// *total* params N and *total* weight bytes W, not the MLP-only slice. This
-// over-attributes a small slice of memory/compute to the MLP kernel but keeps
-// the formula closed-form and matches the book's numerical worked examples.
+// MoE contract (formerly a verbatim-from-book simplification): the two MLP-
+// branch terms read DIFFERENT param counts. Memory branch uses
+// `weight_bytes_total` (full HBM weight stream — all MoE experts); caller MUST
+// pass `weightsBytes(model.params_b_total, ...)`. Compute branch uses
+// `paramCount_active` (per-token FLOPs scale with active params only — MoE
+// compute sparsity DOES reduce 2BN/FLOPs). For dense models both fields are
+// equal and behavior is unchanged vs the original single-N formulation.
 //
 // avgSeq is the mean tokens-of-KV per active sequence during the step we're
 // modelling (≈ ISL + OSL/2 for steady-state decode).
-export function stepTime({ B, kv_per_token, avgSeq, weight_bytes_total, paramCount, totalBW, totalFLOPs }) {
+export function stepTime({ B, kv_per_token, avgSeq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
   // Attention kernel: stream the live KV of every sequence each step. No compute
   // roof — attention's AI is ~1, always memory-bound at decode (reference §0.3).
   const attnMemTime = (B * kv_per_token * avgSeq) / totalBW;
   // MLP kernel: weight-load vs compute, whichever is slower. W/BW is constant
   // in B (the per-step weight stream is the same regardless of how many
-  // tokens share it); 2BN/FLOPs grows linearly in B.
+  // tokens share it); 2BN/FLOPs grows linearly in B. N here = active params.
   const mlpMemTime = weight_bytes_total / totalBW;
-  const computeTime = (2 * B * paramCount) / totalFLOPs;
+  const computeTime = (2 * B * paramCount_active) / totalFLOPs;
   return attnMemTime + Math.max(mlpMemTime, computeTime);
 }
 
@@ -159,10 +177,14 @@ export function throughputAtB(args) {
 // whose B *actually lands in its own regime* (i.e., on its own side of B_ridge).
 // At small B regime (a) is correct; at large B regime (b) is correct. The
 // boundary B_ridge is also a valid answer when both candidates straddle it.
-export function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount, totalBW, totalFLOPs }) {
+// Variables: W = weight_bytes_total (total HBM weight stream — for MoE, all
+// experts); N = paramCount_active (per-token compute scales with active params
+// only — the 2BN/FLOPs term). Dense models: total === active, asymmetry is a
+// no-op.
+export function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
   const T = tbt_ms / 1000;
   const W = weight_bytes_total;
-  const N = paramCount;
+  const N = paramCount_active;
   const KS = kv_per_token * avgSeq;
 
   const wOverBW = W / totalBW;
@@ -209,6 +231,7 @@ export function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCo
 // (reference §3, §5). Uses peak occupancy ISL+OSL — end-of-decode is when KV
 // is largest, so this is the conservative bound that won't OOM mid-generation.
 export function bKv({ hw, model, ngpus, weight_bytes_total, kv_per_token, isl, osl }) {
+  // weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all experts sit in HBM regardless of routing. Compute sparsity does NOT shrink HBM footprint.
   const totalHBM = hw.hbm_gb * ngpus * 1e9;
   const usable = totalHBM * (1 - ACT_OVERHEAD) - weight_bytes_total;
   if (usable <= 0) {
@@ -250,6 +273,7 @@ export function yMax(d_ff, batch, hw) {
 //      latency choice.
 // ngpus is total GPUs across the deployment; replicas = serving units that fit.
 export function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
+  // weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all experts sit in HBM regardless of routing. Compute sparsity does NOT shrink HBM footprint.
   const hbm_per_gpu = hw.hbm_gb * 1e9 * (1 - ACT_OVERHEAD);
   const ymax = yMax(d_ff, batch, hw);
   // Useful TP ceiling: NVLink fan-out (8), GPU count, and Y_max combined.
@@ -368,17 +392,14 @@ export function compute(input) {
   }
   if (model.attn_type === "MLA") {
     warnings.push({ level: "info", msg: `${model.label} uses MLA: KV modelled as (d_c + d_rope) × bytes × n_layers per token (reference §3).` });
-    // MoE caveat: params_b in the data table is *active* params, which is
-    // correct for the compute roof (2BN/FLOPs uses active params per token).
-    // But weight-memory math uses the same params_b, which under-reports total
-    // weight bytes (DeepSeek-V3: 37B active vs 671B total). Surface this so
-    // sizing decisions on weight HBM aren't silently optimistic.
-    if (/MoE/i.test(model.label) || /\(.*active.*\)/i.test(model.label)) {
-      warnings.push({
-        level: "warn",
-        msg: `${model.label}: weight-memory uses active params (${model.params_b}B) — total MoE weights are larger. Compute roofline is correct; HBM-fit estimate is optimistic.`,
-      });
-    }
+  }
+  // MoE info note (independent of attention type): announce the sparsity factor.
+  const isMoE = model.params_b_total > model.params_b_active;
+  if (isMoE) {
+    warnings.push({
+      level: "info",
+      msg: `${model.label} is MoE: ${model.params_b_total}B total weights stream from HBM, ${model.params_b_active}B execute per token. B_crit shifted by ${(model.params_b_total/model.params_b_active).toFixed(1)}× vs a dense ${model.params_b_active}B model.`,
+    });
   }
   if (weight_prec === "FP8" && !hw.fp8_tflops) {
     warnings.push({ level: "warn", msg: `${hw.label} has no hardware FP8 path; using FP16 roofline for compute (FP8 byte savings still apply to weights/KV memory).` });
@@ -387,8 +408,8 @@ export function compute(input) {
   const wBytes = DTYPE_BYTES[weight_prec];
   const kvBytes = DTYPE_BYTES[kv_prec];
 
-  const W = weightsBytes(model.params_b, wBytes);
-  const paramCount = model.params_b * 1e9;
+  const W_total           = weightsBytes(model.params_b_total, wBytes);
+  const paramCount_active = model.params_b_active * 1e9;
   const K = kvPerToken(model, kvBytes);
   const totalBW = hw.hbm_bw_gbs * 1e9 * cleanNgpus;
   // Match bCrit: FP8 tensor cores only fire on FP8×FP8 GEMM on FP8-capable HW.
@@ -398,21 +419,21 @@ export function compute(input) {
 
   // bCrit only depends on a single GPU's roofline ratio (it's a per-chip
   // arithmetic-intensity threshold; aggregating ngpus would cancel out).
-  const bcrit = bCrit(hw, weight_prec, act_prec);
+  const bcrit = bCrit(hw, model, weight_prec, act_prec);
 
   // Sequence-occupancy: ISL+OSL for KV (peak end-of-decode is the OOM risk);
   // ISL+OSL/2 for stepTime (mean during decode, what TBT actually averages).
   const peakSeq = cleanIsl + cleanOsl;
   const avgSeq = cleanIsl + cleanOsl / 2;
 
-  const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount, totalBW, totalFLOPs });
-  const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W, kv_per_token: K, isl: cleanIsl, osl: cleanOsl });
+  const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs });
+  const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W_total, kv_per_token: K, isl: cleanIsl, osl: cleanOsl });
 
   if (bslo.unreachable) {
     warnings.push({ level: "error", msg: `b_slo unreachable: TBT=${cleanTbt}ms × BW < weight stream time. Raise TP or relax TBT.` });
   }
   if (bkv.weights_overflow) {
-    warnings.push({ level: "error", msg: `Weights overflow available HBM (${(W / 1e9).toFixed(1)} GB > ${hw.hbm_gb * cleanNgpus} GB). Increase ngpus.` });
+    warnings.push({ level: "error", msg: `Weights overflow available HBM (${(W_total / 1e9).toFixed(1)} GB > ${hw.hbm_gb * cleanNgpus} GB). Increase ngpus.` });
   }
 
   // The "recommended batch" = the binding analytical bound. max_num_seqs in
@@ -426,7 +447,7 @@ export function compute(input) {
 
   // Parallelism depends on batch (for Y_max), so compute it after recommendedBatch.
   const parallelism = recommendParallelism({
-    hw, weight_bytes_total: W, ngpus: cleanNgpus,
+    hw, weight_bytes_total: W_total, ngpus: cleanNgpus,
     d_ff: model.d_ff, batch: recommendedBatch,
   });
   if (!parallelism.fits) {
@@ -450,14 +471,14 @@ export function compute(input) {
   const curveMax = Math.max(bcrit * 4, (bkv.value || 1) * 2, 64);
   const curve = [];
   for (let B = 1; B <= curveMax; B = Math.max(B + 1, Math.ceil(B * 1.2))) {
-    const t_ms = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount, totalBW, totalFLOPs }) * 1000;
+    const t_ms = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
     const tps = (B / (t_ms / 1000));
     curve.push({ B, step_ms: t_ms, tokens_per_sec: tps });
   }
 
   // Throughput at the recommended batch — headline tile number.
   const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
-    ? throughputAtB({ B: recommendedBatch, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount, totalBW, totalFLOPs })
+    ? throughputAtB({ B: recommendedBatch, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
     : 0;
 
   return {
@@ -473,7 +494,7 @@ export function compute(input) {
       throughput_tps_per_gpu: throughput / cleanNgpus,
       parallelism,
       pd_ratio: pd,
-      weights_gb: W / 1e9,
+      weights_gb: W_total / 1e9,
       kv_per_token_kb: K / 1024,
       kv_per_seq_gb: (K * peakSeq) / 1e9,
     },

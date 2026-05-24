@@ -68,9 +68,20 @@ function readForm() {
     nvlink: document.getElementById("c-nvlink").checked,
   } : HW_BY_KEY[hwKey];
 
-  const model = customModel ? {
+  const model = customModel ? (() => {
+    // Custom-mode model: read total + active params. If active is blank/zero,
+    // mirror it from total (the dense one-click case). Fallback to legacy
+    // single c-params input if it still exists (HTML may not be rebuilt yet).
+    const totalEl  = document.getElementById("c-params-total");
+    const activeEl = document.getElementById("c-params-active");
+    const legacyEl = document.getElementById("c-params");
+    const total  = totalEl  ? +totalEl.value  : (legacyEl ? +legacyEl.value : 0);
+    const activeRaw = activeEl ? +activeEl.value : 0;
+    const active = activeRaw > 0 ? activeRaw : total;
+    return ({
     key: "custom", label: "Custom Model",
-    params_b: +document.getElementById("c-params").value,
+    params_b_total: total,
+    params_b_active: active,
     n_layers: +document.getElementById("c-layers").value,
     d_model: +document.getElementById("c-dmodel").value,
     n_heads: +document.getElementById("c-heads").value,
@@ -78,7 +89,8 @@ function readForm() {
     head_dim: +document.getElementById("c-headdim").value,
     max_context: +document.getElementById("c-maxctx").value,
     attn_type: document.getElementById("c-attn").value,
-  } : MODEL_BY_KEY[modelKey];
+  });
+  })() : MODEL_BY_KEY[modelKey];
 
   return {
     hw, model,

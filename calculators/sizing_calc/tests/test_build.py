@@ -80,7 +80,7 @@ def test_required_form_ids_present(html: str) -> None:
         "scope-canvas", "patchbay", "snippet-body", "copy-btn", "diagnostics",
         # Custom-mode fields
         "c-hbm-gb", "c-hbm-bw", "c-fp16", "c-fp8", "c-nvlink",
-        "c-params", "c-layers", "c-dmodel", "c-heads", "c-kvheads",
+        "c-params-total", "c-params-active", "c-layers", "c-dmodel", "c-heads", "c-kvheads",
         "c-headdim", "c-maxctx", "c-attn",
     ]
     for ident in required:
