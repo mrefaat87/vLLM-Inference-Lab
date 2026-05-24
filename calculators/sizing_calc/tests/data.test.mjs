@@ -49,7 +49,32 @@ test("models: required fields present + plausibility ranges", () => {
   for (const m of models) {
     assert.ok(typeof m.key === "string" && m.key.length > 0);
     assert.ok(typeof m.label === "string");
-    assert.ok(isPosNum(m.params_b) && m.params_b <= 2000, `${m.key} params_b out of range`);
+    // Split schema: params_b_total drives memory budgeting; params_b_active drives
+    // compute roofline. For dense models the two are equal. For MoE, active < total.
+    assert.ok(isPosNum(m.params_b_total) && m.params_b_total <= 2000,
+      `${m.key} params_b_total out of range`);
+    assert.ok(isPosNum(m.params_b_active) && m.params_b_active <= m.params_b_total,
+      `${m.key} params_b_active must be positive and ≤ params_b_total`);
+    // MoE detection: any model with fewer active than total is MoE. Today all
+    // known MoE attention is MLA — guard catches a future row that sets
+    // active<total but forgets the MoE expert metadata.
+    if (m.attn_type === "MLA" && m.params_b_active < m.params_b_total) {
+      assert.ok(isPosInt(m.n_experts),
+        `${m.key} MoE (active<total) must declare n_experts`);
+      assert.ok(isPosInt(m.experts_per_token),
+        `${m.key} MoE (active<total) must declare experts_per_token`);
+      assert.ok(m.experts_per_token <= m.n_experts,
+        `${m.key} experts_per_token (${m.experts_per_token}) > n_experts (${m.n_experts})`);
+    }
+    // Dense models must NOT carry MoE-only fields — keeps the data table honest
+    // about which formula path applies (the dump_dense_metrics script uses the
+    // presence of n_experts as the MoE marker).
+    if (m.params_b_active === m.params_b_total) {
+      assert.equal(m.n_experts, undefined,
+        `${m.key} is dense (active==total) but carries n_experts`);
+      assert.equal(m.experts_per_token, undefined,
+        `${m.key} is dense (active==total) but carries experts_per_token`);
+    }
     assert.ok(isPosInt(m.n_layers) && m.n_layers <= 200, `${m.key} n_layers out of range`);
     assert.ok(isPosInt(m.d_model) && m.d_model <= 20000, `${m.key} d_model out of range`);
     assert.ok(isPosInt(m.n_heads) && m.n_heads <= 256, `${m.key} n_heads out of range`);

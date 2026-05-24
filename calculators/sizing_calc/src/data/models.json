@@ -3,7 +3,10 @@
     "fields": {
       "key": "stable identifier used in URL hashes and tests",
       "label": "human-readable display name",
-      "params_b": "total parameters in billions (used for weights memory math)",
+      "params_b_total": "Total parameter count in billions. Drives weight memory budgeting (weightsBytes) — for MoE, all experts must sit in HBM. For dense models, equals params_b_active.",
+      "params_b_active": "Parameters that actually execute per token, in billions. Drives compute roofline (2BN/FLOPs in stepTime). For dense models, equals params_b_total. For MoE, this is (shared experts) + k × (routed expert size).",
+      "n_experts": "MoE only: total routed experts (E). Omit for dense models.",
+      "experts_per_token": "MoE only: top-k routing (k). Omit for dense models.",
       "n_layers": "transformer layer count",
       "d_model": "hidden dimension",
       "n_heads": "query head count",
@@ -25,7 +28,8 @@
     {
       "key": "llama-3-8b",
       "label": "Llama-3-8B",
-      "params_b": 8.03,
+      "params_b_total": 8.03,
+      "params_b_active": 8.03,
       "n_layers": 32,
       "d_model": 4096,
       "n_heads": 32,
@@ -39,7 +43,8 @@
     {
       "key": "llama-3-70b",
       "label": "Llama-3-70B",
-      "params_b": 70.6,
+      "params_b_total": 70.6,
+      "params_b_active": 70.6,
       "n_layers": 80,
       "d_model": 8192,
       "n_heads": 64,
@@ -53,7 +58,8 @@
     {
       "key": "qwen2.5-7b",
       "label": "Qwen2.5-7B",
-      "params_b": 7.6,
+      "params_b_total": 7.6,
+      "params_b_active": 7.6,
       "n_layers": 28,
       "d_model": 3584,
       "n_heads": 28,
@@ -67,7 +73,8 @@
     {
       "key": "qwen2.5-14b",
       "label": "Qwen2.5-14B",
-      "params_b": 14.8,
+      "params_b_total": 14.8,
+      "params_b_active": 14.8,
       "n_layers": 48,
       "d_model": 5120,
       "n_heads": 40,
@@ -80,7 +87,8 @@
     {
       "key": "mistral-7b",
       "label": "Mistral-7B",
-      "params_b": 7.2,
+      "params_b_total": 7.2,
+      "params_b_active": 7.2,
       "n_layers": 32,
       "d_model": 4096,
       "n_heads": 32,
@@ -94,7 +102,10 @@
     {
       "key": "deepseek-v3",
       "label": "DeepSeek-V3 (671B MoE, 37B active)",
-      "params_b": 37,
+      "params_b_total": 671,
+      "params_b_active": 37,
+      "n_experts": 256,
+      "experts_per_token": 8,
       "n_layers": 61,
       "d_model": 7168,
       "n_heads": 128,
@@ -105,7 +116,7 @@
       "attn_type": "MLA",
       "kv_lora_rank": 512,
       "qk_rope_head_dim": 64,
-      "notes": "MoE: params_b=37B (active) drives the compute roofline correctly; weight-memory line under-reports vs 671B total — known limitation, separate active/total fields are a follow-up. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
+      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
     }
   ]
 }

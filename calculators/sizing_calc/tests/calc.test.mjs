@@ -59,7 +59,7 @@ test("KV cache goldens (reference §3, §5 worked example)", () => {
 test("Weights goldens (reference §5)", () => {
   for (const g of golden.weights) {
     const m = MODEL[g.model_key];
-    const w = weightsBytes(m.params_b, DTYPE_BYTES[g.weight_prec]);
+    const w = weightsBytes(m.params_b_total, DTYPE_BYTES[g.weight_prec]);
     within(w / 1e9, g.expected_gb, g.tolerance_pct);
   }
 });
@@ -73,8 +73,8 @@ test("stepTime is monotonic non-decreasing in B", () => {
     B,
     kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8),
     avgSeq: 4096,
-    weight_bytes_total: weightsBytes(m.params_b, DTYPE_BYTES.INT8),
-    paramCount: m.params_b * 1e9,
+    weight_bytes_total: weightsBytes(m.params_b_total, DTYPE_BYTES.INT8),
+    paramCount: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
     totalFLOPs: hw.fp16_tflops * 1e12,
   });
@@ -89,11 +89,11 @@ test("stepTime is monotonic non-decreasing in B", () => {
 test("bSlo self-consistency: stepTime(bSlo) ≤ SLO < stepTime(bSlo+1)", () => {
   const m = MODEL["llama-3-70b"];
   const hw = HW["H100-80GB"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const K = kvPerToken(m, DTYPE_BYTES.INT8);
   const args = {
     tbt_ms: 50, kv_per_token: K, avgSeq: 4096, weight_bytes_total: W,
-    paramCount: m.params_b * 1e9,
+    paramCount: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
     totalFLOPs: hw.fp16_tflops * 1e12,
   };
@@ -109,7 +109,7 @@ test("bSlo self-consistency: stepTime(bSlo) ≤ SLO < stepTime(bSlo+1)", () => {
 test("bKv self-consistency: used HBM stays under cap", () => {
   const m = MODEL["llama-3-8b"];
   const hw = HW["H100-80GB"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.FP16);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.FP16);
   const K = kvPerToken(m, DTYPE_BYTES.FP16);
   const r = bKv({ hw, model: m, ngpus: 1, weight_bytes_total: W, kv_per_token: K, isl: 1024, osl: 256 });
   const used = W + r.value * K * (1024 + 256);
@@ -156,10 +156,10 @@ test("Llama-3-70B on a single T4 reports weights overflow", () => {
 test("bSlo unreachable when TBT × BW < weight stream time", () => {
   const m = MODEL["llama-3-70b"];
   const hw = HW["T4"]; // tiny BW
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = bSlo({
     tbt_ms: 10, kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8), avgSeq: 4096,
-    weight_bytes_total: W, paramCount: m.params_b * 1e9,
+    weight_bytes_total: W, paramCount: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9, totalFLOPs: hw.fp16_tflops * 1e12,
   });
   assert.equal(r.unreachable, true);
@@ -191,9 +191,9 @@ test("Zero / negative inputs never produce NaN or Infinity", () => {
 
 test("INT4 weights stay in float math (no integer-division bugs)", () => {
   const m = MODEL["llama-3-8b"];
-  const w = weightsBytes(m.params_b, DTYPE_BYTES.INT4);
+  const w = weightsBytes(m.params_b_total, DTYPE_BYTES.INT4);
   // 8.03B params × 0.5 B/param = 4.015 GB — not a round integer.
-  within(w / 1e9, m.params_b * 0.5, 0.01);
+  within(w / 1e9, m.params_b_total * 0.5, 0.01);
   assert.ok(!Number.isInteger(w / 1e9));
 });
 
@@ -201,7 +201,7 @@ test("INT4 weights stay in float math (no integer-division bugs)", () => {
 
 test("recommendParallelism: 70B int8 needs TP≥4 on H100s", () => {
   const m = MODEL["llama-3-70b"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = recommendParallelism({ hw: HW["H100-80GB"], weight_bytes_total: W, ngpus: 8, d_ff: m.d_ff, batch: 32 });
   // 70 GB weights × 1.1 headroom = 77 GB; per-GPU usable = 72 GB; TP=2 yields
   // 35 GB/GPU which fits.
@@ -211,14 +211,14 @@ test("recommendParallelism: 70B int8 needs TP≥4 on H100s", () => {
 
 test("recommendParallelism: 70B int8 cannot fit on 1× T4", () => {
   const m = MODEL["llama-3-70b"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = recommendParallelism({ hw: HW["T4"], weight_bytes_total: W, ngpus: 1, d_ff: m.d_ff, batch: 1 });
   assert.equal(r.fits, false);
 });
 
 test("recommendParallelism: ngpus=3 caps TP at largest pow2 ≤ 3", () => {
   const m = MODEL["llama-3-70b"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = recommendParallelism({ hw: HW["A100-40GB"], weight_bytes_total: W, ngpus: 3, d_ff: m.d_ff, batch: 32 });
   assert.ok([1, 2].includes(r.tp), `TP should be 1 or 2 with ngpus=3, got ${r.tp}`);
 });
@@ -263,7 +263,7 @@ test("compute: emits ICI-binding diagnostic when Y_max < TP_CAP", () => {
   // realistic batch on H100. Real-world: this regime fires for big batches
   // on slow-ICI hardware, or for tiny models that don't need much sharding.
   const micro = {
-    key: "micro", label: "Micro-1B", params_b: 1.0, n_layers: 16, d_model: 1024,
+    key: "micro", label: "Micro-1B", params_b_total: 1.0, params_b_active: 1.0, n_layers: 16, d_model: 1024,
     n_heads: 16, n_kv_heads: 4, head_dim: 64, d_ff: 1024, max_context: 4096, attn_type: "GQA",
   };
   const out = compute({
@@ -358,9 +358,9 @@ test("property: every (hw, model, prec) combo produces finite metrics", () => {
 test("stepTime large-B: per-kernel sum differs from old single-max form", () => {
   const m = MODEL["llama-3-70b"];
   const hw = HW["H100-80GB"];
-  const W = weightsBytes(m.params_b, DTYPE_BYTES.INT8);
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const K = kvPerToken(m, DTYPE_BYTES.INT8);
-  const N = m.params_b * 1e9;
+  const N = m.params_b_active * 1e9;
   const BW = hw.hbm_bw_gbs * 1e9;
   const F = hw.fp16_tflops * 1e12; // INT8 acts use FP16 compute path on H100
   const B = 800;
