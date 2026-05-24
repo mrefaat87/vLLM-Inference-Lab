@@ -6,9 +6,11 @@
 // MODEL_SIZING_SCALING_REFERENCE.md so reviewers can trace numbers to source.
 
 // ---------- constants ----------
-// Reserve ~10% of HBM for activations + workspace + paging fragmentation. The
-// reference doesn't pin this; it's a vLLM-style headroom (gpu_memory_utilization
-// defaults to 0.90). Tunable from the UI later if needed.
+// Reserve ~10% of HBM for activations + workspace + paging fragmentation.
+// The reference doesn't pin this; it's a vLLM-style headroom. Note: actual
+// vLLM default is gpu_memory_utilization=0.92 (vllm/config/cache.py), so our
+// ACT_OVERHEAD=0.10 (→ 90% utilization) is intentionally conservative vs the
+// shipped default. Tunable from the UI later if needed.
 export const ACT_OVERHEAD = 0.10;
 // Practical within-node TP fan-out. 8 is the standard NVLink island (HGX/DGX).
 // The hardware ceiling. The *useful* TP ceiling is min(TP_CAP, Y_max) — see
@@ -17,8 +19,13 @@ export const TP_CAP = 8;
 // max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
 // We use the midpoint as the centerpoint; the sweep widens around it.
 export const ALPHA = 0.15;
-// MFU defaults from reference §0.3 — prefill saturates more of the compute than
-// decode does, so the prefill:decode ratio is amplified beyond just ISL/OSL.
+// MFU midpoints. Reference §0.3 quotes practitioner heuristic bands of
+// ~40–60% prefill MFU and ~5–15% decode MFU; these constants are the
+// midpoints of those bands. §0.3 itself does not cite a primary benchmark —
+// the bands are widely-quoted folklore (engine docs, blog posts), not
+// source-verified numbers. The 5× ratio they imply directly drives the
+// pdRatio multiplier below, which is therefore rule-of-thumb-grade and very
+// sensitive to this choice (e.g., picking 45%/12% would give 3.75×, not 5×).
 export const PREFILL_MFU = 0.5;
 export const DECODE_MFU = 0.10;
 
@@ -58,20 +65,24 @@ export function kvPerToken(model, kv_bytes) {
   return 2 * kv_bytes * model.n_kv_heads * model.head_dim * model.n_layers;
 }
 
-// Roofline ridge-point batch (reference §1). Below this, weights dominate and
-// adding batch is free; above, compute dominates and latency grows linearly.
-// Hardware FP8 tensor cores fire only when BOTH operands are FP8 (cuBLAS GEMM
-// rule) AND the hardware exposes an FP8 path. INT8 weights with FP16 acts use
-// the FP16 compute path with the weight/act ratio capturing the asymmetry.
+// Roofline ridge-point batch (reference §1, Scaling Book inference chapter
+// https://jax-ml.github.io/scaling-book/inference/):
+//   B_crit = (C / W_hbm) × (bits_w / bits_act)
+// where C is the *precision-adjusted* peak FLOPs — not a fixed FP16 rate.
+// The book's rule: "If we do our FLOPs in int8 or fp8, B_crit increases by 2x."
+// FP8 tensor cores fire only when BOTH operands are FP8 AND the hardware
+// exposes an FP8 path (cuBLAS GEMM rule), so FP8/FP8 picks fp8_tflops (2× on
+// H100 → 590) while BF16/BF16 stays on fp16_tflops (295). Asymmetric cases
+// (e.g., INT8 weights + BF16 acts) ride the FP16 compute path and shift only
+// through bits_w/bits_act (8/16 → halves B_crit, matching the book's TPU v5e
+// int8-weights/bf16-acts → 120 example).
 export function bCrit(hw, weight_prec, act_prec) {
-  const weight_bytes = DTYPE_BYTES[weight_prec];
-  const act_bytes = DTYPE_BYTES[act_prec];
   const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
   const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
-  const bw_bytes_per_sec = hw.hbm_bw_gbs * 1e9;
-  // bits_per_param / bits_per_activation: equivalent to weight_bytes/act_bytes
-  // since both are ×8. Skip the round-trip to avoid float noise.
-  return (flops / bw_bytes_per_sec) * (weight_bytes / act_bytes);
+  const bw = hw.hbm_bw_gbs * 1e9;
+  const bits_w = DTYPE_BYTES[weight_prec] * 8;
+  const bits_act = DTYPE_BYTES[act_prec] * 8;
+  return (flops / bw) * (bits_w / bits_act);
 }
 
 // Time per decode step (seconds), per-kernel form (reference §4 + Scaling Book
@@ -270,16 +281,23 @@ export function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batc
 // ---------- max_num_batched_tokens ----------
 
 // vLLM's max_num_batched_tokens. Combines DJL's α × batch × ISL hint with
-// Sarathi-Serve's strict/relaxed token-budget bands as reproduced in reference
-// §10 (Sarathi-Serve, OSDI '24: strict ≈ 512, relaxed ≈ 2048). Snaps to a
-// power of 2 ≥ 1024 so it lines up with kernel tile sizes.
+// Sarathi-Serve's strict/relaxed token-budget bands.
+// Source-verified against Sarathi-Serve OSDI '24 (arXiv 2403.02310v3) §5.1:
+//   "We use token budget of 2048 and 512 for all models under the relaxed
+//    and strict settings, respectively, except for the LLaMA2-70B relaxed
+//    configuration where we use token budget of 1536 to reduce the impact
+//    of pipeline bubbles."
+// So: 512 (strict TBT SLO), 2048 (relaxed), 1536 specifically for 70B-class
+// models under pipeline parallelism. Candidate set is powers-of-2 ≥ 1024
+// (kernel tile alignment) plus 1536 as the Sarathi-Serve PP-tuned variant.
 // Caveat: the α=0.15 midpoint is DJL guidance, not source-verified from a
 // primary benchmark — treat as a starting hint, not a tuned constant.
 export function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
   const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
   const sarathiBand = tbt_ms <= 30 ? "strict (~512)" : "relaxed (~2048)";
   const candidates = [512, 1024, 1536, 2048, 4096, 8192];
-  // Prefer the smallest candidate ≥ max(1024, hint) — Sarathi powers-of-2 rule.
+  // Prefer the smallest candidate ≥ max(1024, hint) — Sarathi powers-of-2 rule
+  // (with 1536 included for the LLaMA2-70B PP case).
   let pick = candidates.find((c) => c >= Math.max(1024, hint)) ?? 8192;
   // If the strict TBT band is in play, never exceed 2048.
   if (tbt_ms <= 30 && pick > 2048) pick = 2048;
