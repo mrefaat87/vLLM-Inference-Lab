@@ -501,36 +501,67 @@ function powersOf2In(minV, maxV) {
   return out;
 }
 
-// Build the empirical sweep grid that hands the analytical recommendation
-// off to a benchmark runner. The whole point of the calculator (reference §0.5
-// "two-stage methodology"): use analytical bounds to rule out ~80% of the
-// search space, then sweep a tight band around the recommendation instead of
-// a wide blind grid. Output is the three vLLM-shaped knobs a runner needs.
+// Build the empirical sweep grid a benchmark harness drives. The whole
+// reason the calculator exists (reference §0.5 "two-stage methodology"):
+// use the analytical knee b = min(b_slo, b_kv) to rule out ~80% of the
+// search space, then sweep a tight band around it — on the order of ~70
+// runs instead of ~600 blind ones.
 //
-//   max_num_seqs:           powers of 2 in [b/4, 2b]. The vLLM "concurrent
-//                           request cap." Powers of 2 because vLLM's
-//                           scheduler prefers them and Sarathi-Serve §4
-//                           recommends the family. Brackets the analytical
-//                           batch by ½ decade either side so a sweep can
-//                           empirically locate the knee.
-//   max_num_batched_tokens: Sarathi-Serve verified bands (512 / 1024 / 2048 /
-//                           4096) truncated to ≤ 2× the recommended value.
-//                           Token budget per step — controls how much prefill
-//                           can backfill alongside decode. Smaller protects
-//                           TBT; larger raises prefill throughput.
-//   concurrency:            request-level load. Fractional steps around b
-//                           ([1, b/4, b/2, b, 1.5b, 2b]) — deliberately NOT
-//                           powers of 2 because the goal is to land exactly
-//                           at sub-saturation (b/4, b/2: confirms the system
-//                           doesn't saturate prematurely), at the analytical
-//                           knee (b: confirms it matches reality), and at
-//                           super-saturation (1.5b, 2b: confirms SLO breaks
-//                           where the math says it should).
+// The three grids split across two surfaces:
 //
-// Caller (compute()) feeds in recommendedBatch = min(b_slo, b_kv) and
+//   SERVER-SIDE (set on `vllm serve`; each combination = one restart)
+//   ────────────────────────────────────────────────────────────────────
+//   max_num_seqs            Concurrent-request cap. Powers of 2 in
+//                           [b/4, 2b] because vLLM's scheduler is
+//                           opinionated about them (Sarathi-Serve §4).
+//                           Walking this axis locates the empirical
+//                           KV/SLO ceiling — does the knee really sit
+//                           where min(b_slo, b_kv) said it would?
+//   max_num_batched_tokens: Per-step token budget. Sarathi-Serve
+//                           verified bands (512 / 1024 / 2048 / 4096)
+//                           capped at ≤ 2× the picker's recommendation
+//                           and at the strict-TBT cap so the sweep
+//                           never suggests a value the picker already
+//                           ruled out. Walking this axis finds the
+//                           chunk size that best trades TBT against
+//                           prefill backfill throughput for the user's
+//                           ISL/OSL mix.
+//
+//   CLIENT-SIDE (driven by the load generator — wrk, locust, or
+//                `vllm bench serve --max-concurrency`; cheap to change,
+//                no server restart)
+//   ────────────────────────────────────────────────────────────────────
+//   concurrency:            Offered request-level load. Fractional
+//                           steps [1, b/4, b/2, b, 1.5b, 2b] —
+//                           deliberately NOT powers of 2 because the
+//                           goal is to land exactly at three regimes
+//                           relative to the predicted knee:
+//                             • sub-saturation (1, b/4, b/2): TBT
+//                               stays flat, throughput is linear
+//                             • at the knee (b): throughput plateaus
+//                               at the SLO edge
+//                             • super-saturation (1.5b, 2b): TBT
+//                               cliff, queue growth
+//                           If the empirical cliff lands at 0.5b or 3b
+//                           instead of b, the analytical model is
+//                           mis-calibrated for that workload and the
+//                           user has learned something concrete.
+//
+// Canonical runner pattern these grids are shaped for (server config is
+// the outer Cartesian product because relaunch is expensive; concurrency
+// is the cheap inner sweep that traces the load curve per server config):
+//
+//   for ns in max_num_seqs:                   # outer: server relaunch
+//     for mnbt in max_num_batched_tokens:     # outer: server relaunch
+//       launch_vllm(max_num_seqs=ns, max_num_batched_tokens=mnbt)
+//       for c in concurrency:                 # inner: client load step
+//         record(ns, mnbt, c, ttft, tbt_p50, tbt_p99, tput, gpu_util)
+//       teardown_vllm()
+//
+// Caller (compute()) feeds recommendedBatch = min(b_slo, b_kv) and
 // recommendedMnbt from recommendMaxBatchedTokens(). The UI's "patchbay"
-// renders the three grids as chip rows for the user to copy into their
-// benchmark harness.
+// renders the three grids as chip rows; the snippet block emits them
+// as Python lists ready to paste into a runner.
 export function sweepRanges({ recommendedBatch, recommendedMnbt, tbt_ms }) {
   const b = Math.max(1, Math.floor(recommendedBatch));
   const seqs = powersOf2In(Math.max(1, Math.floor(b / 4)), Math.max(2, b * 2));

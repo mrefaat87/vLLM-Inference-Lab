@@ -251,7 +251,7 @@ export function createScope(canvas, channel, initial) {
       },
       scales: {
         x: {
-          type: "logarithmic",
+          type: "linear",
           title: { display: true, text: "BATCH SIZE  (B)", color: COLOR.muted,
                    font: { family: '"Martian Mono", monospace', size: 10, weight: "500" } },
           ticks: { color: COLOR.dim, font: { family: '"Martian Mono", monospace', size: 10 } },

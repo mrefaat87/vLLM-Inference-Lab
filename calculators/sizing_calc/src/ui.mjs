@@ -193,15 +193,14 @@ function drawSparkline(id, curve, markB, color) {
   const minT = Math.min(...pts.map((p) => p.step_ms));
   const maxT = Math.max(...pts.map((p) => p.step_ms));
   const minB = pts[0].B, maxB = pts[pts.length - 1].B;
-  const lx = (B) => pad + (Math.log(B) - Math.log(minB)) / (Math.log(maxB) - Math.log(minB)) * (w - 2 * pad);
-  // Log Y. step_ms is roughly flat below B_crit and grows linearly above —
-  // on a linear axis that compresses the entire memory-bound region against
-  // the bottom edge (was visually a "solid rectangle" hugging the floor).
-  // Log spreads the early variation so the curve shape, not just the right
-  // tail, is readable. Falls back to mid-line if minT === maxT (degenerate).
-  const logSpan = Math.log(maxT) - Math.log(minT);
-  const ly = logSpan > 0
-    ? (t) => h - pad - (Math.log(t) - Math.log(minT)) / logSpan * (h - 2 * pad)
+  const lx = (B) => pad + (B - minB) / (maxB - minB) * (w - 2 * pad);
+  // Linear Y. Trade-off: the memory-bound region below B_crit compresses
+  // against the bottom edge so curve shape there is barely readable; the
+  // compute-bound tail dominates. Kept linear for consistency with the main
+  // scopes (also flipped to linear). Falls back to mid-line if degenerate.
+  const tSpan = maxT - minT;
+  const ly = tSpan > 0
+    ? (t) => h - pad - (t - minT) / tSpan * (h - 2 * pad)
     : () => (h - pad - (h - 2 * pad) / 2);
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
   const mx = markB && Number.isFinite(markB) && markB >= minB && markB <= maxB ? lx(markB) : null;
