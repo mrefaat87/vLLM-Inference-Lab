@@ -113,7 +113,7 @@ A single request stitches together **two completely different physics regimes**:
 >
 > Sources: [DeepSeek-V3/R1 Inference System Overview](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md); [Investigation of FP8 Across Accelerators (arXiv:2502.01070)](https://arxiv.org/abs/2502.01070); [Sarathi-Serve (OSDI '24)](https://arxiv.org/abs/2403.02310) (qualitative: "decode batches are memory-bound, low MFU"); [Databricks LLM Inference Best Practices](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices) (publishes **MBU** for decode — A100-40GB 55%, H100-80GB 60% at batch 1 — not MFU, deliberately; MFU is the wrong axis for a memory-bound workload).
 >
-> **Caveat that matters for any P:D sizing decision built on these:** the prefill/decode MFU *ratio* (which §5.2's `pdRatio` heuristic depends on) is therefore a rule-of-thumb in the **3×–8×** range, not a single calibrated number. Treat the calculator's pdRatio output as an order-of-magnitude hint for "is this workload disagg-shaped?" — not a precise capacity ratio.
+> **Caveat that matters for any P:D sizing decision built on these:** post-refactor (commit `4c5e222`), the calculator's `pdRatio` is **no longer a direct function of the MFU ratio**. It computes `P:D = (ISL/OSL) × (decode_tput_per_chip / prefill_tput_per_chip)` per [DistServe](https://arxiv.org/abs/2401.09670) (OSDI '24) §4. The prefill side still depends on `MFU_p` (closed-form, compute-bound matmul); the decode side comes from `stepTime` and is memory-bound for typical operating points (so `MFU_d` doesn't appear directly — the limit is HBM BW × KV-budget-set batch). The MFU asymmetry's effect on P:D is now indirect, mediated by stepTime; expect the calculator's pdRatio to land 1.5–3× *above* production deployments (DistServe / Splitwise / Mooncake sizers use SLO-bound simulators, not closed form). See §5.2 for the worked Llama-3-70B example with the three empirical anchors.
 
 **Implication for sizing:** every decision must ask "which phase?" first. The same GPU can be compute-bound for prefill and memory-bound for decode *in the same second*. Mixing them on one server means prefill bursts crater decode TBT — which is why disaggregation (Splitwise / DistServe / Mooncake) became table stakes for TTFT-sensitive products. (See §2 for the deeper comparison.)
 
@@ -455,9 +455,28 @@ So at batch ≥ 120 decode tokens in flight, matmuls become compute-bound. The S
 | Per-step decode latency | 17 ms @ BS=32 on 4×2 |
 | Throughput | 235 tok/s/chip |
 | Prefill cost | 0.91 s for 8k @ 40% FLOPs util on 16 chips |
-| Disagg ratio | **~3× prefill servers per decode server** (8k prompt / 512 output) |
+| Disagg ratio (P:D) | **~6–7 prefill chips per decode chip** (8k prompt / 512 output) |
 
-The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, prefill compute per request is ~16× decode compute per request, but decode runs 512 steps per request, so steady-state P:D ratio = (16/512) × (QPS_p / QPS_d) ≈ 3:1.
+The **disagg ratio** drops out of the [DistServe](https://arxiv.org/abs/2401.09670) (OSDI '24) sizing formula. At steady state, `n_prefill = ⌈R / prefill_goodput⌉` and `n_decode = ⌈R / decode_goodput⌉`, so:
+
+```
+P:D = decode_goodput / prefill_goodput
+    = (ISL / OSL) × (decode_tput_per_chip / prefill_tput_per_chip)
+```
+
+For the §5.1 operating point above:
+- `decode_tput = 235 tok/s/chip` (at BS=32 on 4×2 TPU v5e)
+- `prefill_tput = 8192 / 0.91s / 16 chips ≈ 562 tok/s/chip` (the "0.91 s for 8k" line)
+- P:D = (8192/512) × (235/562) ≈ **6.7**
+
+Direction note: prefill is more compute-efficient per chip, so each prefill chip absorbs more tokens/sec, so you need *fewer* prefill chips per decode chip than the raw ISL/OSL = 16 would suggest. Higher prefill MFU damps P:D; doesn't grow it. [Splitwise](https://arxiv.org/abs/2311.18677) (ISCA '24) directly confirms this via its A100→H100 controlled experiment — same workload, faster prefill chips, 55→35 prefill machines deployed.
+
+Production sizers (DistServe simulator, Splitwise event-driven sim) use SLO-bound search and typically land 1.5–3× *below* this analytical ratio. Empirical anchors from Splitwise + Mooncake:
+- Splitwise conversation HH (Llama-13B, ISL≈1500/OSL≈129): deployed **P:D = 1.67**
+- Splitwise coding HH (ISL≈1500/OSL≈13 median): deployed **P:D = 7.0**
+- Mooncake 3P:1D test config: deployed **P:D = 3.0**
+
+The calculator's `pdRatio` output is an order-of-magnitude hint for "is this workload disagg-shaped?" — not a tuned capacity ratio. Real deployments tune through SLO-feasibility simulators.
 
 ---
 
