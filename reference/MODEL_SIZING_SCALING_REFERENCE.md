@@ -596,10 +596,14 @@ You trade FLOP utilization for time-to-token. The smaller your batch, the more a
 
 **Sub-GPU partitioning (MIG)** — the dual to TP. When the model is small enough that a whole GPU is wasted (e.g., <3B params on H100), **Multi-Instance GPU** *splits* a single GPU into up to 7 isolated slices, each with its own SM and memory partition. Lets you serve several small replicas on one card with hard performance isolation. Pairs with horizontal autoscaling; irrelevant for large models that already use ≥1 GPU.
 
-**MoE detail (DeepSeek-V3 in SGLang prod):**
-- Prefill: TP16 + EP32 over 4×H100 nodes
-- Decode: EP72 over 9×H100 nodes
-- All-to-all (DeepEP): **~0.17 ms/layer**, optimizable to 0.06 ms
+**MoE detail (DeepSeek-V3):**
+- **Production** (DeepSeek's own deployment, per [Open-Infra-Index Day 6](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md), Feb 2025):
+  - Prefill: EP32 routed + DP32 (with TP for shared/MLA) over **4×H800** nodes; 9 routed + 1 shared experts per GPU.
+  - Decode: **EP144** routed + DP144 over **18×H800** nodes; 2 routed + 1 shared experts per GPU.
+- **SGLang open-source replication** (LMSYS, May 2025, runs at half DeepSeek's decode scale on H100):
+  - Prefill: TP16 + EP32 over 4×H100 nodes.
+  - Decode: EP72 over 9×H100 nodes.
+- All-to-all (DeepEP): **~0.17 ms/layer**, optimizable to 0.06 ms.
 
 ---
 
@@ -618,11 +622,11 @@ You trade FLOP utilization for time-to-token. The smaller your batch, the more a
 ```mermaid
 flowchart LR
     LB[Load balancer<br/>+ admission control]
-    LB --> P1[Prefill replica<br/>TP16 + EP32<br/>4×H100]
-    LB --> P2[Prefill replica<br/>TP16 + EP32<br/>4×H100]
+    LB --> P1[Prefill replica<br/>EP32 + DP32<br/>4×H800]
+    LB --> P2[Prefill replica<br/>EP32 + DP32<br/>4×H800]
     LB -.short or<br/>prefix-cached.-> D1
-    P1 -.KV via RDMA.-> D1[Decode replica<br/>EP72<br/>9×H100]
-    P2 -.KV via RDMA.-> D2[Decode replica<br/>EP72<br/>9×H100]
+    P1 -.KV via RDMA.-> D1[Decode replica<br/>EP144<br/>18×H800]
+    P2 -.KV via RDMA.-> D2[Decode replica<br/>EP144<br/>18×H800]
     D1 --> Client[Token stream]
     D2 --> Client
 
