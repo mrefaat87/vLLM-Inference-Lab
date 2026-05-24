@@ -1394,14 +1394,77 @@ function compute(input) {
     warnings.push({ level: "error", msg: `Weights overflow available HBM (${(W_total / 1e9).toFixed(1)} GB > ${hw.hbm_gb * cleanNgpus} GB). Increase ngpus.` });
   }
 
-  // The "recommended batch" = the binding analytical bound. max_num_seqs in
-  // vLLM should be set to this so empirical sweeps start at the right scale.
-  // If both bounds are zero/unreachable, fall back to 1 (we still want the
-  // sweep table to render something sane and never propagate Infinity).
+  // ---- recommended operating batch ----
+  //
+  // The three Bs are NOT the same kind of bound:
+  //   b_kv:  hard CEILING — exceed → OOM.
+  //   b_slo: hard CEILING — exceed → TBT SLO violated.
+  //   b_crit: NOT a ceiling. It's the roofline ridge — the batch above which
+  //          the MLP kernel flips from memory-bound (FLOPs idle) to
+  //          compute-bound (latency grows linearly with B). It's a *regime
+  //          marker / target floor*, not a constraint: nothing breaks if you
+  //          run above it, you just pay latency for throughput; nothing breaks
+  //          if you run below it, you just leave FLOPs on the floor.
+  //
+  // Recommended operating point: push to the right edge of the feasible range
+  // [b_crit, min(b_slo, b_kv)] — max out throughput within the ceilings,
+  // even if that lands past b_crit (the rational compute-bound trade-off).
+  // Hence min(b_slo, b_kv), NOT min(b_crit, b_slo, b_kv): including b_crit
+  // would deliberately under-batch and waste throughput honoring a constraint
+  // that doesn't exist. The b_crit vs recommended comparison is then surfaced
+  // as a regime diagnostic below (memory-bound vs compute-bound).
+  //
+  // How parallelism enters the numbers above:
+  //   b_crit: per-chip roofline ratio (FLOPs/BW × bits_w/bits_act × sparsity).
+  //          TP/PP do NOT change it — sharding splits weights and compute
+  //          proportionally, so the per-chip ratio is invariant. That's why
+  //          bCrit() takes no ngpus.
+  //   b_kv:  scales ~linearly with ngpus. bKv() uses (hw.hbm_gb × ngpus) for
+  //          aggregate HBM; weights still occupy W_total (sharded but the sum
+  //          is the same), so usable HBM for KV grows almost linearly.
+  //   b_slo: scales ~linearly with ngpus via totalBW = hbm_bw × ngpus and
+  //          totalFLOPs = flops × ngpus — both branches of the closed form
+  //          (weight-load branch and compute branch) grow with ngpus.
+  // Net effect: adding GPUs lifts both ceilings while b_crit stays put — so
+  // more hardware moves you rightward through the regimes (memory-bound →
+  // ridge → compute-bound). What we DO NOT model: the comm cost of crossing
+  // the useful-TP ceiling (Y_max). Beyond Y_max the all-reduce floor inflates
+  // step time and the linear-in-ngpus assumption breaks down. We surface that
+  // as a diagnostic via the parallelism block below, but don't dock b_slo for
+  // it — sizing remains optimistic past Y_max.
+  //
+  // Fall back to 1 if both bounds are zero/unreachable so the sweep grids
+  // still render something sane and we never propagate Infinity.
   const bsloEff = bslo.value > 0 ? bslo.value : Infinity;
   const bkvEff = bkv.value > 0 ? bkv.value : Infinity;
   const rawBatch = Math.min(bsloEff, bkvEff);
   const recommendedBatch = Number.isFinite(rawBatch) ? Math.max(1, rawBatch) : 1;
+
+  // Regime diagnostic: where does the recommended batch sit relative to the
+  // roofline ridge? See the long comment above for why b_crit isn't a
+  // constraint — it's a regime marker, and that's what we report here.
+  if (bcrit > 0 && Number.isFinite(bcrit)) {
+    const binder = bsloEff <= bkvEff ? "TBT SLO" : "KV cache";
+    if (recommendedBatch < bcrit * 0.8) {
+      warnings.push({
+        level: "info",
+        msg: `Memory-bound regime: recommended batch (${Math.round(recommendedBatch)}) is below B_crit (${Math.round(bcrit)}). ` +
+             `FLOPs are idle — ${binder} is the binder. More HBM or relaxed TBT would unlock throughput; a faster GPU at same BW would NOT help.`,
+      });
+    } else if (recommendedBatch > bcrit * 1.2) {
+      warnings.push({
+        level: "info",
+        msg: `Compute-bound regime: recommended batch (${Math.round(recommendedBatch)}) is past B_crit (${Math.round(bcrit)}). ` +
+             `Each additional sequence trades linear latency for throughput — the rational regime when ${binder} headroom allows it.`,
+      });
+    } else {
+      warnings.push({
+        level: "info",
+        msg: `Operating near the roofline ridge: recommended batch (${Math.round(recommendedBatch)}) ≈ B_crit (${Math.round(bcrit)}). ` +
+             `Throughput-per-latency sweet spot — neither FLOPs nor BW is significantly underutilized.`,
+      });
+    }
+  }
 
   // Parallelism depends on batch (for Y_max), so compute it after recommendedBatch.
   const parallelism = recommendParallelism({
