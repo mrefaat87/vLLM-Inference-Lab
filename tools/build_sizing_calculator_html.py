@@ -45,12 +45,15 @@ def _escape_for_inline_script(js: str) -> str:
 
 def bundle_modules() -> str:
     # Order matters: calc defines compute/DTYPE_BYTES used by chart and ui;
-    # chart defines createScope used by ui.
+    # chart defines createScope used by ui; drawer defines mountFormulasDrawer
+    # which ui's bootstrap() calls.
     calc = strip_module_syntax((SRC / "calc.mjs").read_text())
     chart = strip_module_syntax((SRC / "chart.mjs").read_text())
+    drawer = strip_module_syntax((SRC / "drawer.mjs").read_text())
     ui = strip_module_syntax((SRC / "ui.mjs").read_text())
     bundle = "\n// ===== calc.mjs =====\n" + calc + \
              "\n// ===== chart.mjs =====\n" + chart + \
+             "\n// ===== drawer.mjs =====\n" + drawer + \
              "\n// ===== ui.mjs =====\n" + ui
     return _escape_for_inline_script(bundle)
 
@@ -69,6 +72,9 @@ def body_html() -> str:
     <span>vLLM · Inference · Roofline analysis</span>
   </div>
   <div class="strip-right">
+    <button id="formulas-trigger" class="formulas-trigger" type="button"
+            aria-controls="formulas-drawer" aria-expanded="false"
+            title="Show every formula the calculator uses (shortcut: f)">[ FORMULAS ]</button>
     <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ MODEL SIZING REFERENCE</a>
   </div>
 </header>
@@ -293,10 +299,20 @@ def body_html() -> str:
   <span>built for hands-on inference work · MIT</span>
   <span>companion to <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">MODEL_SIZING_SCALING_REFERENCE</a></span>
 </footer>
+
+<div id="formulas-backdrop" class="formulas-backdrop" hidden></div>
+<aside id="formulas-drawer" class="formulas-drawer" role="dialog" aria-modal="true"
+       aria-label="All formulas used by the calculator" hidden>
+  <header class="formulas-head">
+    <span class="formulas-title">FORMULAS</span>
+    <button class="formulas-close" type="button" title="Close (Esc)">[ × ]</button>
+  </header>
+  <div class="formulas-body"><!-- populated by drawer.mjs --></div>
+</aside>
 """
 
 
-def wrap_template(css: str, hw_json: str, model_json: str, bundle: str) -> str:
+def wrap_template(css: str, hw_json: str, model_json: str, formulas_json: str, bundle: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -308,12 +324,19 @@ def wrap_template(css: str, hw_json: str, model_json: str, bundle: str) -> str:
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- KaTeX renders the formulas drawer. The pinned version + integrity hash on
+     the script tag prevent CDN supply-chain drift; the CSS chains to webfont
+     URLs which the build test's allowlist must permit. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+        onload="window.dispatchEvent(new Event('katex-loaded'))"></script>
 <style>{css}</style>
 </head>
 <body>
 {body_html()}
 <script type="application/json" id="hardware-data">{hw_json}</script>
 <script type="application/json" id="models-data">{model_json}</script>
+<script type="application/json" id="formulas-data">{formulas_json}</script>
 <script type="module">
 {bundle}
 </script>
@@ -326,8 +349,9 @@ def main() -> None:
     css = (SRC / "styles.css").read_text()
     hw_json = (SRC / "data" / "hardware.json").read_text()
     model_json = (SRC / "data" / "models.json").read_text()
+    formulas_json = (SRC / "data" / "formulas.json").read_text()
     bundle = bundle_modules()
-    html = wrap_template(css, hw_json, model_json, bundle)
+    html = wrap_template(css, hw_json, model_json, formulas_json, bundle)
     DST.write_text(html)
     print(f"wrote {DST} ({len(html):,} bytes)")
 

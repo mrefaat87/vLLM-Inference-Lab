@@ -7,6 +7,7 @@
 
 import { compute, DTYPE_BYTES } from "./calc.mjs";
 import { createScope } from "./chart.mjs";
+import { mountFormulasDrawer } from "./drawer.mjs";
 
 // ---------- data tables ----------
 // Embedded as <script type="application/json"> by the build script; the build
@@ -362,6 +363,10 @@ export function bootstrap() {
     if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
   });
   wireCopyButton();
+  // Side-drawer for "show all formulas" — populated once from the inlined
+  // formulas-data tag and kept hidden until the user opens it. Idempotent;
+  // no-op if its DOM scaffold isn't present (test harnesses).
+  mountFormulasDrawer();
   // Skip the pulse on first paint — pulse should signal change, not arrival.
   recompute(true);
 }

@@ -427,14 +427,218 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 .foot a:hover { color: var(--accent); }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Formulas drawer — slide-out reference panel anchored to the right edge.
+   Closed by default (driven by the `hidden` attribute on the drawer/backdrop
+   so the empty state is zero-cost). Body is the only scrollable region; the
+   header stays sticky so the close button is always reachable.
+   ────────────────────────────────────────────────────────────────────────── */
+.formulas-backdrop {
+  /* Plain dim overlay — no blur. Catches outside-clicks to close. */
+  position: fixed; inset: 0;
+  background: rgba(2, 6, 12, 0.55);
+  z-index: 90;
+}
+.formulas-backdrop[hidden] { display: none; }
+
+.formulas-drawer {
+  /* Fixed right column. 520px on desktop; 100vw on narrow viewports so
+     phones get the full canvas. Border + bg match the existing engineering-
+     instrument vocabulary (no shadows, no rounded corners). */
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(520px, 100vw);
+  background: var(--bg-deep);
+  border-left: 1px solid var(--rule);
+  z-index: 91;
+  display: flex; flex-direction: column;
+  /* Slide-in. Transform-only (no width/opacity), so the GPU compositor
+     handles it without layout. prefers-reduced-motion zeroes this out below. */
+  transform: translateX(0);
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.formulas-drawer[hidden] {
+  /* Use the attribute as the closed state — but keep display:flex so the
+     transform animates instead of jump-cutting. The pointer-events guard
+     keeps the offscreen drawer from blocking clicks. */
+  display: flex !important;
+  transform: translateX(100%);
+  pointer-events: none;
+}
+.formulas-drawer[hidden] .formulas-body,
+.formulas-drawer[hidden] .formulas-head { visibility: hidden; }
+
+.formulas-head {
+  position: sticky; top: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.formulas-head .formulas-title { color: var(--text); }
+.formulas-close {
+  /* Mirror .copy-btn so the drawer's trigger and dismiss read as one family. */
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.18em;
+}
+.formulas-close:hover { color: var(--accent); border-color: var(--accent); }
+
+.formulas-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 18px 32px;
+}
+
+.formula-cat {
+  /* Group separator between categories — no heavy headings, just a hairline
+     and a small monospace label, matching the existing h2 + lede rhythm. */
+  margin-top: 18px;
+}
+.formula-cat:first-child { margin-top: 0; }
+.formula-cat-head {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.formula-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.formula-row:last-child { border-bottom: none; }
+.formula-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 6px;
+}
+.formula-name {
+  font-family: var(--font-body);
+  font-size: 13px; color: var(--text);
+}
+.formula-path {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.formula-expr {
+  /* KaTeX renders math into its own .katex wrapper. We center it and let
+     the .katex-display margin do the spacing. Horizontal overflow is allowed
+     so long expressions can scroll without wrapping mid-equation. */
+  margin: 4px 0 8px;
+  font-size: 13.5px;
+  color: var(--text);
+  overflow-x: auto;
+}
+.formula-expr .katex-display { margin: 0.4em 0; }
+.formula-expr-fallback {
+  /* Pre-KaTeX fallback — reuses the snippet monospace treatment so slow CDN
+     loads don't show ugly raw LaTeX, just unfancied code. */
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.formula-details {
+  /* Reuses the .custom expander vocabulary: uppercase mono summary with a
+     ▸/▾ disclosure marker. Keeps the drawer visually rhyming with the
+     custom-hardware / custom-model expanders the user already knows. */
+  border-left: 2px solid var(--rule);
+  padding: 4px 0 4px 12px;
+  margin-top: 4px;
+}
+.formula-details > summary {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+.formula-details > summary::-webkit-details-marker { display: none; }
+.formula-details > summary::before { content: "▸ "; color: var(--dim); }
+.formula-details[open] > summary::before { content: "▾ "; color: var(--accent); }
+.formula-details[open] > summary { color: var(--text); }
+.formula-details > summary:hover { color: var(--accent); }
+
+.formula-body { padding: 8px 0 4px; font-size: 12.5px; color: var(--muted); }
+.formula-body p { margin: 0 0 8px; line-height: 1.55; }
+.formula-description { color: var(--text); }
+.formula-derivation { color: var(--muted); }
+
+.formula-where {
+  /* Variable glossary — two-column grid, monospace name, plain meaning. */
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+.formula-where dt {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--accent);
+}
+.formula-where dt code { background: none; padding: 0; }
+.formula-where dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.formula-citations {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  margin-top: 8px;
+}
+.formula-cite {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.1em;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+  padding-bottom: 1px;
+}
+.formula-cite:hover { color: var(--text); border-bottom-style: solid; }
+
+/* Trigger button — placed in the top strip, styled to match .copy-btn so it
+   reads as a sibling control, not a new control family. */
+.formulas-trigger {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.formulas-trigger:hover,
+.formulas-trigger[aria-expanded="true"] {
+  color: var(--accent); border-color: var(--accent);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Accessibility: respect reduced-motion and forced-colors.
    ────────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .live-dot, .readout.pulse { animation: none; }
   .copy-btn, .chip, .field input, .field select { transition: none; }
+  /* Drawer slides become instant — preserve the open/close logic without
+     motion. */
+  .formulas-drawer { transition: none; }
 }
 @media (forced-colors: active) {
   body { background: Canvas; color: CanvasText; }
   .scope, .snippet, .diagnostics { background: Canvas; border-color: CanvasText; }
   .chip.recommended { box-shadow: 0 0 0 1px Highlight inset; color: Highlight; }
+  .formulas-drawer, .formula-where { background: Canvas; border-color: CanvasText; }
+  .formula-cite, .formulas-trigger { color: LinkText; border-color: LinkText; }
 }

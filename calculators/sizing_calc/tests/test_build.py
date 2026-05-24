@@ -35,8 +35,11 @@ def test_output_is_single_file(html: str) -> None:
     `file://` users get nothing but the single HTML + Chart.js + Google Fonts.
     Anything else means we forgot to inline an asset.
     """
-    # Permitted external refs: Chart.js CDN, Google Fonts. Internal anchor (../)
-    # for the back-link to the reference doc is allowed (siblings in the repo).
+    # Permitted external refs: Chart.js CDN, Google Fonts, KaTeX CDN (chart
+    # canvas, the page's typography, and the formulas drawer respectively).
+    # KaTeX's CSS chains to webfont URLs on the same jsdelivr origin so the
+    # broad cdn.jsdelivr.net allow covers them. Internal anchor (../) for the
+    # back-link to the reference doc is allowed (siblings in the repo).
     allowed = re.compile(
         r"^(https://(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)(/|$)|"
         r"\.\./reference/MODEL_SIZING_SCALING_REFERENCE\.html|"
@@ -44,6 +47,12 @@ def test_output_is_single_file(html: str) -> None:
     )
     for m in re.finditer(r'(?:src|href)\s*=\s*"([^"]+)"', html):
         url = m.group(1)
+        # Skip JS template-literal interpolations like `${expr}` that appear
+        # inside the inlined module bundle (e.g. drawer.mjs builds citation
+        # links via `<a href="${href}">`). These are JS source, not real HTML
+        # attributes the parser will resolve.
+        if "${" in url:
+            continue
         assert allowed.match(url), f"unexpected external/local reference: {url!r}"
 
 
@@ -52,6 +61,7 @@ def test_embedded_json_round_trips(html: str) -> None:
     for tag, src_path in [
         ("hardware-data", SRC / "data" / "hardware.json"),
         ("models-data",   SRC / "data" / "models.json"),
+        ("formulas-data", SRC / "data" / "formulas.json"),
     ]:
         m = re.search(rf'<script type="application/json" id="{tag}">(.*?)</script>',
                       html, re.DOTALL)
@@ -119,9 +129,10 @@ def test_exactly_one_module_script_open_and_close(html: str) -> None:
     """
     # Opening <script tags in source-code strings inside the bundle don't fool
     # the HTML parser; closing </script> tags do. Only the close count matters
-    # for parser-correctness. 1 chart.js CDN + 2 JSON blocks + 1 module = 4.
+    # for parser-correctness. 1 chart.js CDN + 1 katex CDN + 3 JSON blocks
+    # (hardware/models/formulas) + 1 module = 6.
     closes = len(re.findall(r"</script\s*>", html))
-    assert closes == 4, f"unexpected </script tag count: {closes} (a literal </script> probably leaked from a source comment)"
+    assert closes == 6, f"unexpected </script tag count: {closes} (a literal </script> probably leaked from a source comment)"
 
 
 def test_three_scope_canvases_no_duplicate_ids(html: str) -> None:
@@ -141,3 +152,73 @@ def test_no_obvious_secrets_or_pii(html: str) -> None:
     """OSS release safety check — no API keys, no email addresses leaked."""
     assert not re.search(r"sk-[A-Za-z0-9]{20,}", html), "looks like an API key"
     assert "AKIA" not in html, "looks like an AWS access key"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Formulas drawer — scaffold, KaTeX wiring, and byte-budget guards.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_formulas_data_length_matches_source(html: str) -> None:
+    """Inlined formulas.json must contain the same number of entries as the
+    source file. Catches a build that silently truncates the JSON."""
+    m = re.search(r'<script type="application/json" id="formulas-data">(.*?)</script>',
+                  html, re.DOTALL)
+    assert m, "missing embedded formulas-data tag"
+    inlined = json.loads(m.group(1))
+    source = json.loads((SRC / "data" / "formulas.json").read_text())
+    assert len(inlined["formulas"]) == len(source["formulas"]) > 0
+
+
+def test_katex_externals_present_and_pinned(html: str) -> None:
+    """KaTeX powers the formulas drawer. Both CSS and JS must be referenced,
+    both pinned to a version (no `@latest` — supply-chain hygiene), and the
+    onload event must dispatch `katex-loaded` so the drawer can upgrade
+    fallback <code> blocks once the script arrives."""
+    assert "katex.min.css" in html, "KaTeX CSS not linked"
+    assert "katex.min.js" in html, "KaTeX JS not linked"
+    # Pinned version — refuse `@latest` to keep behavior reproducible.
+    assert not re.search(r"katex@latest", html), "KaTeX must be pinned, not @latest"
+    assert re.search(r"katex@\d+\.\d+\.\d+", html), "KaTeX version must be pinned with x.y.z"
+    assert "katex-loaded" in html, "onload event 'katex-loaded' not wired"
+
+
+def test_formulas_drawer_scaffold_present(html: str) -> None:
+    """The drawer's DOM scaffold (trigger button + drawer + backdrop) must be
+    in the rendered HTML, with ARIA wiring so screen readers announce it as a
+    dialog and the trigger advertises which element it controls."""
+    assert re.search(r'id="formulas-trigger"[^>]*aria-controls="formulas-drawer"',
+                     html), "trigger button missing or not wired to drawer"
+    assert re.search(r'id="formulas-trigger"[^>]*aria-expanded="false"',
+                     html), "trigger must start with aria-expanded=false"
+    assert re.search(r'id="formulas-drawer"[^>]*role="dialog"',
+                     html), "drawer must have role=dialog"
+    assert re.search(r'id="formulas-drawer"[^>]*aria-modal="true"',
+                     html), "drawer must have aria-modal=true"
+    assert re.search(r'id="formulas-drawer"[^>]*\bhidden\b',
+                     html), "drawer must start hidden"
+    assert re.search(r'id="formulas-backdrop"[^>]*\bhidden\b',
+                     html), "backdrop must start hidden"
+    assert 'class="formulas-close"' in html, "missing close button"
+    assert 'class="formulas-body"' in html, "missing scrollable body container"
+
+
+def test_drawer_module_bundled(html: str) -> None:
+    """The drawer module must be concatenated into the inline <script type=module>
+    bundle — guards the 'I added the file but forgot bundle_modules()' mistake."""
+    assert "function mountFormulasDrawer" in html, "drawer.mjs not in bundle"
+    # ui.mjs must actually call the mount function (not just import the name).
+    assert "mountFormulasDrawer()" in html, "ui.mjs bootstrap doesn't call mountFormulasDrawer"
+    # And the drawer's category-order constant should make it through.
+    assert "CATEGORY_ORDER" in html, "drawer's CATEGORY_ORDER constant missing — module wasn't bundled fully"
+
+
+def test_html_byte_budget(html: str) -> None:
+    """Page weight ceiling. Current build ~162 KB; budget set at 220 KB so a
+    careless edit that inlines a fat asset (e.g. dropping the KaTeX CDN ref
+    in favor of bundled CSS, ~330 KB) trips this test before shipping."""
+    size = len(html.encode("utf-8"))
+    assert size <= 220_000, (
+        f"HTML grew to {size:,} bytes (budget 220,000). If this is intentional, "
+        f"raise the budget. If not, check what just got inlined."
+    )

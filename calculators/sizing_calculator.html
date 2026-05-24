@@ -9,6 +9,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- KaTeX renders the formulas drawer. The pinned version + integrity hash on
+     the script tag prevent CDN supply-chain drift; the CSS chains to webfont
+     URLs which the build test's allowlist must permit. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+        onload="window.dispatchEvent(new Event('katex-loaded'))"></script>
 <style>/* ──────────────────────────────────────────────────────────────────────────
    LLM Inference Sizing Calculator — engineering-instrument aesthetic.
    Hairlines, oscilloscope chart, monospace numerals as the hero.
@@ -438,16 +444,220 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 .foot a:hover { color: var(--accent); }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Formulas drawer — slide-out reference panel anchored to the right edge.
+   Closed by default (driven by the `hidden` attribute on the drawer/backdrop
+   so the empty state is zero-cost). Body is the only scrollable region; the
+   header stays sticky so the close button is always reachable.
+   ────────────────────────────────────────────────────────────────────────── */
+.formulas-backdrop {
+  /* Plain dim overlay — no blur. Catches outside-clicks to close. */
+  position: fixed; inset: 0;
+  background: rgba(2, 6, 12, 0.55);
+  z-index: 90;
+}
+.formulas-backdrop[hidden] { display: none; }
+
+.formulas-drawer {
+  /* Fixed right column. 520px on desktop; 100vw on narrow viewports so
+     phones get the full canvas. Border + bg match the existing engineering-
+     instrument vocabulary (no shadows, no rounded corners). */
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(520px, 100vw);
+  background: var(--bg-deep);
+  border-left: 1px solid var(--rule);
+  z-index: 91;
+  display: flex; flex-direction: column;
+  /* Slide-in. Transform-only (no width/opacity), so the GPU compositor
+     handles it without layout. prefers-reduced-motion zeroes this out below. */
+  transform: translateX(0);
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.formulas-drawer[hidden] {
+  /* Use the attribute as the closed state — but keep display:flex so the
+     transform animates instead of jump-cutting. The pointer-events guard
+     keeps the offscreen drawer from blocking clicks. */
+  display: flex !important;
+  transform: translateX(100%);
+  pointer-events: none;
+}
+.formulas-drawer[hidden] .formulas-body,
+.formulas-drawer[hidden] .formulas-head { visibility: hidden; }
+
+.formulas-head {
+  position: sticky; top: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.formulas-head .formulas-title { color: var(--text); }
+.formulas-close {
+  /* Mirror .copy-btn so the drawer's trigger and dismiss read as one family. */
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.18em;
+}
+.formulas-close:hover { color: var(--accent); border-color: var(--accent); }
+
+.formulas-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 18px 32px;
+}
+
+.formula-cat {
+  /* Group separator between categories — no heavy headings, just a hairline
+     and a small monospace label, matching the existing h2 + lede rhythm. */
+  margin-top: 18px;
+}
+.formula-cat:first-child { margin-top: 0; }
+.formula-cat-head {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.formula-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.formula-row:last-child { border-bottom: none; }
+.formula-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 6px;
+}
+.formula-name {
+  font-family: var(--font-body);
+  font-size: 13px; color: var(--text);
+}
+.formula-path {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.formula-expr {
+  /* KaTeX renders math into its own .katex wrapper. We center it and let
+     the .katex-display margin do the spacing. Horizontal overflow is allowed
+     so long expressions can scroll without wrapping mid-equation. */
+  margin: 4px 0 8px;
+  font-size: 13.5px;
+  color: var(--text);
+  overflow-x: auto;
+}
+.formula-expr .katex-display { margin: 0.4em 0; }
+.formula-expr-fallback {
+  /* Pre-KaTeX fallback — reuses the snippet monospace treatment so slow CDN
+     loads don't show ugly raw LaTeX, just unfancied code. */
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.formula-details {
+  /* Reuses the .custom expander vocabulary: uppercase mono summary with a
+     ▸/▾ disclosure marker. Keeps the drawer visually rhyming with the
+     custom-hardware / custom-model expanders the user already knows. */
+  border-left: 2px solid var(--rule);
+  padding: 4px 0 4px 12px;
+  margin-top: 4px;
+}
+.formula-details > summary {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+.formula-details > summary::-webkit-details-marker { display: none; }
+.formula-details > summary::before { content: "▸ "; color: var(--dim); }
+.formula-details[open] > summary::before { content: "▾ "; color: var(--accent); }
+.formula-details[open] > summary { color: var(--text); }
+.formula-details > summary:hover { color: var(--accent); }
+
+.formula-body { padding: 8px 0 4px; font-size: 12.5px; color: var(--muted); }
+.formula-body p { margin: 0 0 8px; line-height: 1.55; }
+.formula-description { color: var(--text); }
+.formula-derivation { color: var(--muted); }
+
+.formula-where {
+  /* Variable glossary — two-column grid, monospace name, plain meaning. */
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+.formula-where dt {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--accent);
+}
+.formula-where dt code { background: none; padding: 0; }
+.formula-where dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.formula-citations {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  margin-top: 8px;
+}
+.formula-cite {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.1em;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+  padding-bottom: 1px;
+}
+.formula-cite:hover { color: var(--text); border-bottom-style: solid; }
+
+/* Trigger button — placed in the top strip, styled to match .copy-btn so it
+   reads as a sibling control, not a new control family. */
+.formulas-trigger {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.formulas-trigger:hover,
+.formulas-trigger[aria-expanded="true"] {
+  color: var(--accent); border-color: var(--accent);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Accessibility: respect reduced-motion and forced-colors.
    ────────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .live-dot, .readout.pulse { animation: none; }
   .copy-btn, .chip, .field input, .field select { transition: none; }
+  /* Drawer slides become instant — preserve the open/close logic without
+     motion. */
+  .formulas-drawer { transition: none; }
 }
 @media (forced-colors: active) {
   body { background: Canvas; color: CanvasText; }
   .scope, .snippet, .diagnostics { background: Canvas; border-color: CanvasText; }
   .chip.recommended { box-shadow: 0 0 0 1px Highlight inset; color: Highlight; }
+  .formulas-drawer, .formula-where { background: Canvas; border-color: CanvasText; }
+  .formula-cite, .formulas-trigger { color: LinkText; border-color: LinkText; }
 }
 </style>
 </head>
@@ -460,6 +670,9 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
     <span>vLLM · Inference · Roofline analysis</span>
   </div>
   <div class="strip-right">
+    <button id="formulas-trigger" class="formulas-trigger" type="button"
+            aria-controls="formulas-drawer" aria-expanded="false"
+            title="Show every formula the calculator uses (shortcut: f)">[ FORMULAS ]</button>
     <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ MODEL SIZING REFERENCE</a>
   </div>
 </header>
@@ -684,6 +897,16 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   <span>built for hands-on inference work · MIT</span>
   <span>companion to <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">MODEL_SIZING_SCALING_REFERENCE</a></span>
 </footer>
+
+<div id="formulas-backdrop" class="formulas-backdrop" hidden></div>
+<aside id="formulas-drawer" class="formulas-drawer" role="dialog" aria-modal="true"
+       aria-label="All formulas used by the calculator" hidden>
+  <header class="formulas-head">
+    <span class="formulas-title">FORMULAS</span>
+    <button class="formulas-close" type="button" title="Close (Esc)">[ × ]</button>
+  </header>
+  <div class="formulas-body"><!-- populated by drawer.mjs --></div>
+</aside>
 
 <script type="application/json" id="hardware-data">{
   "_schema": {
@@ -917,6 +1140,606 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   ]
 }
 </script>
+<script type="application/json" id="formulas-data">{
+  "formulas": [
+    {
+      "id": "constants",
+      "name": "Calculator constants",
+      "category": "constants",
+      "expr_tex": "\\begin{aligned} \\text{ACT\\_OVERHEAD} &= 0.10 \\\\ \\text{TP\\_CAP} &= 8 \\\\ \\alpha &= 0.15 \\\\ \\text{PREFILL\\_MFU} &= 0.40 \\\\ \\text{DECODE\\_MFU} &= 0.10 \\\\ \\text{DTYPE\\_BYTES} &= \\{\\text{FP16}{:}2, \\text{BF16}{:}2, \\text{FP8}{:}1, \\text{INT8}{:}1, \\text{INT4}{:}0.5\\} \\\\ \\text{SARATHI\\_BANDS} &= \\{512, 1024, 1536, 2048, 4096, 8192\\} \\end{aligned}",
+      "where": [
+        [
+          "ACT_OVERHEAD",
+          "Fraction of HBM reserved for activations + workspace + paging fragmentation (10% → 90% utilization; vLLM default is 92%)."
+        ],
+        [
+          "TP_CAP",
+          "NVLink fan-out ceiling (HGX/DGX). Useful ceiling is min(TP_CAP, Y_max)."
+        ],
+        [
+          "alpha",
+          "DJL TRT-LLM token-budget hint midpoint: mnbt ≈ α × B × ISL, α ∈ [0.1, 0.2]."
+        ],
+        [
+          "PREFILL_MFU",
+          "Prefill MFU midpoint (~30–50% band) for closed-form prefill throughput."
+        ],
+        [
+          "DECODE_MFU",
+          "Decode MFU midpoint (~5–15% band). Kept for reference; decode tput now derived from stepTime."
+        ],
+        [
+          "DTYPE_BYTES",
+          "Bytes per element by dtype; INT4 stored as 0.5 so multiplication never truncates a param count."
+        ],
+        [
+          "SARATHI_BANDS",
+          "Sarathi-Serve §5.1 token-budget bands; single source of truth shared by picker and sweep grid."
+        ]
+      ],
+      "description": "Tunable constants used across the calculator: HBM headroom, NVLink TP ceiling, DJL token-budget α, MFU midpoints, dtype byte costs, Sarathi-Serve bands.",
+      "derivation": "ACT_OVERHEAD=0.10 is a vLLM-style headroom (intentionally conservative vs vLLM's 92% default). TP_CAP=8 is the NVLink fan-out of a standard HGX/DGX node. α=0.15 is the DJL TRT-LLM 'sensible band' midpoint. PREFILL_MFU=0.40 and DECODE_MFU=0.10 are reference §0.3 band midpoints synthesized from DeepSeek-V3 (~34% prefill / ~7% decode on FP8 H800), 'Investigation of FP8 Across Accelerators' (square GEMM ~59% FP8 peak; thin GEMM <1%), Sarathi-Serve, and Databricks (which reports MBU not MFU for decode). SARATHI_BANDS = {512 strict, 1024 default, 1536 LLaMA-70B PP variant, 2048 relaxed cap, 4096, 8192} — verbatim from Sarathi-Serve §5.1 plus throughput extensions; one constant guarantees the picker and sweep grid agree.",
+      "citation": [
+        {
+          "label": "Reference §0.3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#03-inference-is-two-workloads-not-one"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        },
+        {
+          "label": "Investigation of FP8 Across Accelerators",
+          "url": "https://arxiv.org/abs/2502.01070"
+        }
+      ],
+      "calc_fn": "(constants)",
+      "calc_path": "calc.mjs:14"
+    },
+    {
+      "id": "weights_bytes",
+      "name": "Weight memory (total HBM stream)",
+      "category": "memory",
+      "expr_tex": "W = N_{\\text{total}} \\cdot 10^9 \\cdot b_w",
+      "where": [
+        [
+          "N_total",
+          "Total params in billions (for MoE: all experts — all must sit in HBM regardless of routing)."
+        ],
+        [
+          "b_w",
+          "Bytes per weight element (DTYPE_BYTES)."
+        ],
+        [
+          "W",
+          "Total weight bytes streamed from HBM per step."
+        ]
+      ],
+      "description": "Aggregate weight memory. TP shards it across GPUs, but the aggregate matters because aggregate HBM BW also scales with the shard count.",
+      "derivation": "params_b_total is in billions to match the data table; multiply by 1e9 once here. Total (not active) is used because MoE routing does not shrink HBM footprint — all experts must be resident even if only a few execute per token. Compute uses active params via stepTime's paramCount_active.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "weightsBytes",
+      "calc_path": "calc.mjs:63"
+    },
+    {
+      "id": "kv_per_token_mha",
+      "name": "KV bytes per token (MHA / GQA / MQA)",
+      "category": "memory",
+      "expr_tex": "K_{\\text{tok}} = 2 \\cdot b_{kv} \\cdot n_{kv} \\cdot d_{\\text{head}} \\cdot L",
+      "where": [
+        [
+          "b_kv",
+          "Bytes per KV element."
+        ],
+        [
+          "n_kv",
+          "Number of KV heads (n_kv < n_heads for GQA; n_kv = 1 for MQA; n_kv = n_heads for MHA)."
+        ],
+        [
+          "d_head",
+          "Head dimension."
+        ],
+        [
+          "L",
+          "Transformer layer count."
+        ],
+        [
+          "2",
+          "K and V tensors cached separately."
+        ]
+      ],
+      "description": "KV cache bytes per token per sequence for standard attention. The factor of 2 is K + V; reducing n_kv is what GQA / MQA compress.",
+      "derivation": "Reference §3: each layer caches one K and one V of shape (n_kv × d_head) per token in dtype b_kv; multiply by L for the model. GQA compresses by reducing n_kv vs n_heads (Llama-3-70B: 8 KV heads vs 64 attention heads → 8× smaller KV than dense MHA). MQA pushes n_kv to 1.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "kvPerToken",
+      "calc_path": "calc.mjs:77"
+    },
+    {
+      "id": "kv_per_token_mla",
+      "name": "KV bytes per token (MLA)",
+      "category": "memory",
+      "expr_tex": "K_{\\text{tok}}^{\\text{MLA}} = (d_c + d_{\\text{rope}}) \\cdot b_{kv} \\cdot L",
+      "where": [
+        [
+          "d_c",
+          "Latent (kv_lora_rank) dimension of the low-rank KV compression."
+        ],
+        [
+          "d_rope",
+          "RoPE key dimension (qk_rope_head_dim) carried alongside the latent."
+        ],
+        [
+          "b_kv",
+          "Bytes per KV element."
+        ],
+        [
+          "L",
+          "Transformer layer count."
+        ]
+      ],
+      "description": "KV bytes per token for Multi-head Latent Attention (DeepSeek-V2/V3). One shared low-rank latent plus a small RoPE key, cached once across all heads.",
+      "derivation": "MLA is structurally different (reference §3 table): one low-rank latent of size d_c plus one RoPE key of size d_rope, shared across heads. No factor of 2 (single cached tensor, not K+V separately), no n_kv, no d_head multiplier. Field names match DeepSeek HF config. This is why DeepSeek-V3 (671B total) has a smaller per-token KV than Llama-3-70B despite being ~10× larger.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "kvPerToken",
+      "calc_path": "calc.mjs:77"
+    },
+    {
+      "id": "b_crit",
+      "name": "Roofline ridge-point batch (B_crit)",
+      "category": "regime",
+      "expr_tex": "B_{\\text{crit}} = \\frac{C}{W_{\\text{hbm}}} \\cdot \\frac{\\text{bits}_w}{\\text{bits}_{\\text{act}}} \\cdot \\frac{N_{\\text{total}}}{N_{\\text{active}}}",
+      "where": [
+        [
+          "C",
+          "Precision-adjusted peak FLOPs (FP8 path only when both operands FP8 + HW support; else FP16/BF16 rate)."
+        ],
+        [
+          "W_hbm",
+          "HBM bandwidth (bytes/s)."
+        ],
+        [
+          "bits_w, bits_act",
+          "Weight and activation precision in bits."
+        ],
+        [
+          "N_total / N_active",
+          "MoE sparsity correction (= 1 for dense)."
+        ]
+      ],
+      "description": "Batch size where the MLP kernel flips from memory-bound to compute-bound. Below B_crit, FLOPs idle; above it, latency grows linearly with B.",
+      "derivation": "Standard AI threshold (reference §1, Scaling Book inference Q5): ridge of the roofline is where compute time equals memory time per matmul. bits_w/bits_act is the book's rule that int8/fp8 doubles B_crit. FP8 tensor cores fire only when both operands are FP8 + HW supports it; asymmetric precision rides FP16 path and shifts only via bits_w/bits_act. The N_total/N_active factor is the Scaling Book MoE sparsity correction: weights stream all experts each step while compute scales only with active experts, so the ridge shifts right by that ratio. Example: DeepSeek-V3 on H100 BF16/BF16, dense B_crit=295, sparsity 671/37≈18.135 → B_crit_MoE≈5347.",
+      "citation": [
+        {
+          "label": "Reference §1",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#1-the-roofline-mental-model-scaling-book-part-7"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "bCrit",
+      "calc_path": "calc.mjs:104"
+    },
+    {
+      "id": "step_time",
+      "name": "Per-step decode latency (per-kernel form)",
+      "category": "latency",
+      "expr_tex": "T_{\\text{step}} = \\frac{B \\cdot K_{\\text{tok}} \\cdot S}{\\text{BW}} + \\max\\!\\left(\\frac{W}{\\text{BW}},\\ \\frac{2 B N_{\\text{active}}}{\\text{FLOPs}}\\right)",
+      "where": [
+        [
+          "B",
+          "Active sequences in the step."
+        ],
+        [
+          "K_tok",
+          "KV bytes per token per sequence."
+        ],
+        [
+          "S",
+          "Per-sequence KV occupancy; we use PEAK seq = ISL + OSL (last decode step)."
+        ],
+        [
+          "BW, FLOPs",
+          "Aggregate HBM bandwidth and compute across all GPUs."
+        ],
+        [
+          "W",
+          "Total HBM weight stream (all experts for MoE)."
+        ],
+        [
+          "N_active",
+          "Per-token active parameters (= N_total for dense)."
+        ]
+      ],
+      "description": "Attention kernel (always memory-bound on KV) plus MLP kernel (max of weight-load vs compute). Each layer runs these as separate sequential CUDA kernels, so they add per step.",
+      "derivation": "Reference §4 / Scaling Book. Attention and MLP are separate sequential kernels per layer → per-step time sums. Attention AI is ~1 at decode (no compute roof), so pure HBM-BW on the KV stream. The MLP max picks the slower of weight-load (W/BW, constant in B) and compute (2BN/FLOPs, linear in B). MoE contract: W uses total params; compute term uses active. PEAK seq (ISL+OSL) — not mean — because SLAs bound EVERY step and the last decode step is the worst. Sizing against the mean fits batches that meet TBT on average but blow SLO at end-of-decode.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "stepTime",
+      "calc_path": "calc.mjs:144"
+    },
+    {
+      "id": "throughput_at_b",
+      "name": "Aggregate decode throughput",
+      "category": "latency",
+      "expr_tex": "\\text{tps}(B) = \\frac{B}{T_{\\text{step}}(B)}",
+      "where": [
+        [
+          "B",
+          "Active sequences."
+        ],
+        [
+          "T_step(B)",
+          "Per-step latency from stepTime."
+        ],
+        [
+          "tps",
+          "Aggregate tokens/sec emitted by the fleet."
+        ]
+      ],
+      "description": "Vendor-headline tok/s, not per-user rate. Autoregressive invariant: one new token per active sequence per step, so fleet tps = B / T_step.",
+      "derivation": "B tokens land per step → tps = B / T_step. Inherits stepTime's regimes: roughly linear in B below B_crit, then saturates at FLOPs/(2N) above (B cancels asymptotically because T_step is itself linear in B). Per-user rate is 1/T_step — strictly smaller. Delegating to stepTime keeps a single source of truth for the per-kernel breakdown.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        }
+      ],
+      "calc_fn": "throughputAtB",
+      "calc_path": "calc.mjs:164"
+    },
+    {
+      "id": "cost_per_mtok",
+      "name": "Cost per million output tokens",
+      "category": "cost",
+      "expr_tex": "\\$/\\text{Mtok} = \\frac{p \\cdot n_{\\text{gpus}} \\cdot 10^6}{3600 \\cdot \\text{tps}}",
+      "where": [
+        [
+          "p",
+          "USD price per GPU per hour."
+        ],
+        [
+          "n_gpus",
+          "GPUs in the deployment."
+        ],
+        [
+          "tps",
+          "Aggregate decode tokens/sec at the operating point."
+        ]
+      ],
+      "description": "Unit conversion closing the third axis of the Pareto surface (latency × throughput × $/Mtok). Fleet $/hr ÷ fleet tokens/hr, scaled to per-million.",
+      "derivation": "Fleet cost = p × n_gpus $/hr; emission rate = tps × 3600 tok/hr; $/tok = (p × n_gpus) / (tps × 3600); scale by 1e6. Edge cases: price=null → null (renders '—'); tps=0 → Infinity (caller masks); price=0 → 0 (free hardware = free tokens).",
+      "citation": [
+        {
+          "label": "Reference §0.1",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#01-what-youre-actually-optimizing"
+        }
+      ],
+      "calc_fn": "costPerMtok",
+      "calc_path": "calc.mjs:182"
+    },
+    {
+      "id": "b_slo",
+      "name": "Largest batch meeting TBT SLO (b_slo)",
+      "category": "capacity",
+      "expr_tex": "\\begin{aligned} B_{\\text{ridge}} &= \\frac{W \\cdot \\text{FLOPs}}{2 N_{\\text{active}} \\cdot \\text{BW}} \\\\ B_a &= \\frac{(T_{\\text{slo}} - W/\\text{BW}) \\cdot \\text{BW}}{K_{\\text{tok}} \\cdot S} \\\\ B_b &= \\frac{T_{\\text{slo}}}{K_{\\text{tok}} S / \\text{BW} + 2 N_{\\text{active}} / \\text{FLOPs}} \\\\ B_{\\text{slo}} &= \\begin{cases} B_a & B_a \\le B_{\\text{ridge}} \\\\ B_b & B_b \\ge B_{\\text{ridge}} \\\\ B_{\\text{ridge}} & \\text{otherwise} \\end{cases} \\end{aligned}",
+      "where": [
+        [
+          "T_slo",
+          "Target TBT (seconds)."
+        ],
+        [
+          "W, N_active",
+          "Total weight stream and active params."
+        ],
+        [
+          "K_tok, S",
+          "KV per token and peak seq (ISL + OSL)."
+        ],
+        [
+          "BW, FLOPs",
+          "Aggregate HBM BW and compute."
+        ],
+        [
+          "B_a, B_b",
+          "Candidate solutions in the MLP weight-load and MLP compute regimes."
+        ]
+      ],
+      "description": "Largest batch keeping every decode step under the TBT SLO. Solves stepTime piecewise across its two MLP regimes; the binding answer is the candidate that lands in its own regime.",
+      "derivation": "T_step is piecewise-linear in B with MLP-ridge crossover at B_ridge = (W·FLOPs)/(2N·BW). Below the ridge W/BW dominates; above, 2BN/FLOPs does. Each regime gives a linear equation; the binding answer is the candidate whose B sits in its own regime. If both straddle the ridge, the SLO is met exactly at B_ridge. B_ridge is NOT B_crit — they coincide for symmetric precision (BF16/BF16) but diverge for FP8/FP8 (B_ridge≈α, B_crit≈2α) because Scaling Book's stepTime omits activation streaming. Replacing B_ridge with bCrit() would silently report falsely permissive values for FP8/FP8. We also flag 'attention' as the binder if attention alone exceeds the budget. PEAK seq makes this SLO-conservative (worst step, not average) — the right framing for any p99-style SLA.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "bSlo",
+      "calc_path": "calc.mjs:226"
+    },
+    {
+      "id": "b_kv",
+      "name": "Largest batch fitting KV in HBM (b_kv)",
+      "category": "capacity",
+      "expr_tex": "B_{\\text{kv}} = \\left\\lfloor \\frac{\\text{HBM}_{\\text{total}} (1 - \\text{ACT\\_OVERHEAD}) - W}{K_{\\text{tok}} \\cdot S} \\right\\rfloor",
+      "where": [
+        [
+          "HBM_total",
+          "Aggregate HBM (hbm_gb × ngpus × 1e9)."
+        ],
+        [
+          "W",
+          "Total weight stream (all experts for MoE)."
+        ],
+        [
+          "K_tok",
+          "KV bytes per token (from kvPerToken for the right attention variant)."
+        ],
+        [
+          "S",
+          "Peak seq = ISL + OSL."
+        ]
+      ],
+      "description": "Largest batch that fits the KV cache in HBM after weights and activation headroom. Uses peak occupancy so the bound never OOMs mid-generation.",
+      "derivation": "Reference §3 / §5: usable HBM for KV = HBM × (1 − ACT_OVERHEAD) − W; KV per sequence = K_tok × peak_seq. ISL+OSL is the conservative choice because KV grows monotonically through decode — last step is worst case for OOM. This function owns the kvPerToken call internally so callers can't silently mis-apply the MHA formula to MLA. Compute sparsity does NOT shrink HBM footprint; W is the total stream.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        },
+        {
+          "label": "Reference §5",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#5-critical-batch-llama-70b-worked-example"
+        }
+      ],
+      "calc_fn": "bKv",
+      "calc_path": "calc.mjs:290"
+    },
+    {
+      "id": "y_max",
+      "name": "Useful TP ceiling (Y_max)",
+      "category": "parallelism",
+      "expr_tex": "Y_{\\max} = \\frac{d_{\\text{ff}}}{B \\cdot \\beta}, \\quad \\beta = \\frac{W_{\\text{hbm}}}{W_{\\text{ici}}}",
+      "where": [
+        [
+          "d_ff",
+          "FFW hidden dim (d_model and L cancel in the derivation; only d_ff survives)."
+        ],
+        [
+          "B",
+          "Batch size."
+        ],
+        [
+          "beta",
+          "Hardware HBM-to-ICI BW ratio (H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8)."
+        ]
+      ],
+      "description": "Max useful TP degree per replica before ICI all-reduce dominates per-step decode latency. Past Y_max, more TP does not cut step time.",
+      "derivation": "Reference §6 (Scaling Book): per-layer FFW weight stream T_HBM = 2DF/(Y·W_hbm); per-layer activation all-reduce T_ICI = 2BD/W_ici. The crossover T_ICI > T_HBM simplifies (D cancels both sides; L scales both equally) to Y > d_ff / (B · β) — only d_ff survives. Returns +∞ if ici_bw_gbs is missing ('no constraint modelled'); caller still applies TP_CAP and memory-fit ceilings. This is a latency-usefulness ceiling, not a hard limit — exceeding it means more TP doesn't help (and may hurt), not that it crashes.",
+      "citation": [
+        {
+          "label": "Reference §6",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#6-parallelism-decision-tree"
+        }
+      ],
+      "calc_fn": "yMax",
+      "calc_path": "calc.mjs:322"
+    },
+    {
+      "id": "recommend_parallelism",
+      "name": "Recommend TP × PP × replicas",
+      "category": "parallelism",
+      "expr_tex": "\\text{TP}^{*} = \\min\\{t \\in \\{1,2,4,8\\} : W/t \\le \\text{HBM}_{\\text{per-gpu}} (1 - \\text{ACT\\_OVERHEAD})\\}",
+      "where": [
+        [
+          "W",
+          "Total weight bytes."
+        ],
+        [
+          "HBM_per_gpu",
+          "hw.hbm_gb × 1e9."
+        ],
+        [
+          "TP*",
+          "Smallest TP in {1,2,4,8} that fits the per-GPU shard."
+        ],
+        [
+          "PP",
+          "Pipeline stages used when no TP in {1,2,4,8} fits: TP=8 per stage, PP = ceil(W / (8 × HBM_per_gpu_usable))."
+        ]
+      ],
+      "description": "Two-ceiling parallelism recommender. Smallest TP that fits the memory shard; falls back to TP=8 × PP when even TP=8 won't fit; surfaces Y_max as a soft diagnostic.",
+      "derivation": "Scan {1,2,4,8} (NVLink-aligned, ngpus-bounded); pick the smallest TP whose shard W/TP fits HBM_per_gpu × (1 − ACT_OVERHEAD). Replicas = floor(ngpus / TP). No fit → use TP=8 per stage and PP = ceil(W / (8 · HBM_per_gpu_usable)). We do NOT force TP down to Y_max — if memory needs TP=4 we honor that even if Y_max=2 — but surface a diagnostic so users know TP=4 was memory-driven, not latency-driven. Useful cap = min(TP_CAP, ngpus, floor(Y_max)). Memory-fit is hard; Y_max is soft.",
+      "citation": [
+        {
+          "label": "Reference §6",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#6-parallelism-decision-tree"
+        }
+      ],
+      "calc_fn": "recommendParallelism",
+      "calc_path": "calc.mjs:338"
+    },
+    {
+      "id": "recommend_max_batched_tokens",
+      "name": "Recommended max_num_batched_tokens",
+      "category": "engine_knobs",
+      "expr_tex": "\\text{mnbt} = \\min_{c \\in \\text{SARATHI\\_BANDS}} \\big\\{ c : c \\geq \\max(1024,\\, \\alpha \\cdot B \\cdot \\text{ISL}) \\big\\},\\quad \\text{capped at 2048 if TBT} \\leq 30\\text{ ms}",
+      "where": [
+        [
+          "B",
+          "recommended batch (min of b_slo, b_kv)"
+        ],
+        [
+          "ISL",
+          "input sequence length (prompt tokens)"
+        ],
+        [
+          "TBT",
+          "tokens-between-time SLO (ms)"
+        ],
+        [
+          "\\alpha",
+          "DJL TRT-LLM band midpoint (= ALPHA = 0.15)"
+        ],
+        [
+          "SARATHI_BANDS",
+          "{512, 1024, 1536, 2048, 4096, 8192}"
+        ]
+      ],
+      "description": "Starting value for vLLM's --max-num-batched-tokens — the per-step token budget that gates how much prefill can backfill alongside decode. Picked from the Sarathi-Serve verified bands instead of a free-form integer so the analytical recommendation matches a configuration the paper actually measured.",
+      "derivation": "Sarathi-Serve §5.1 shows that strict-TBT deployments (≤30 ms) should run a small chunk (~512) to protect per-token latency, while relaxed deployments (~100 ms TBT) can run 2048 to recover prefill throughput. DJL's TRT-LLM tuning guide gives an upper-bound hint of α·B·ISL with α ∈ [0.1, 0.2] (we use 0.15, the midpoint). The picker takes max(1024, hint) and walks the verified band list upward, then applies the strict cap of 2048 if TBT ≤ 30 ms. Returning the band label ('strict' vs 'relaxed') lets the UI explain which regime the recommendation came from.",
+      "citation": [
+        {
+          "label": "Reference §10",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#10-tensorrt-llm-tuning-methodology"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        }
+      ],
+      "calc_fn": "recommendMaxBatchedTokens",
+      "calc_path": "calc.mjs:436"
+    },
+    {
+      "id": "prefill_throughput_per_chip",
+      "name": "Per-chip prefill throughput",
+      "category": "disagg",
+      "expr_tex": "\\text{tps}_{p} = \\frac{C \\cdot \\text{PREFILL\\_MFU}}{2 N_{\\text{active}} + 2 \\cdot \\text{ISL} \\cdot d_{\\text{model}} \\cdot L}",
+      "where": [
+        [
+          "C",
+          "Per-chip peak FLOPs (FP8 path needs both operands FP8 + HW support)."
+        ],
+        [
+          "PREFILL_MFU",
+          "0.40 — midpoint of the 30–50% band."
+        ],
+        [
+          "N_active",
+          "Per-token active params (matmul FLOPs = 2 · N_active per token)."
+        ],
+        [
+          "ISL · d_model · L",
+          "Self-attention FLOPs per token (Q·Kᵀ + attn·V over preceding ISL/2 tokens × 2 matmuls, causally averaged)."
+        ]
+      ],
+      "description": "Tokens/sec/chip for prefill at the operating MFU. Feeds pdRatio. B does not appear because per-step work and tokens generated both scale linearly in B, so B cancels.",
+      "derivation": "Per-token FLOPs has two components: matmul (QKVO + FFW) = 2 · N_active per token (Scaling Book §6 convention) plus self-attention (causally averaged) = 2 · ISL · d_model · L. Attention share at d_model=8192, L=80: ~1% at ISL=2k, ~8% at ISL=8k (Scaling Book worked example), ~30% at ISL=32k, >70% at ISL=128k (MFU convention itself breaks down). PREFILL_MFU=0.40 anchors at 'decently-batched chunked prefill' (~2k chunks); achieved MFU swings ~30% at 512 chunks to ~50–60% at 8k+. That swing is the dominant source of pdRatio's order-of-magnitude band. FP8 selection rule mirrors bCrit's.",
+      "citation": [
+        {
+          "label": "Reference §5.2",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#52-full-topology-recap"
+        },
+        {
+          "label": "Investigation of FP8 Across Accelerators",
+          "url": "https://arxiv.org/abs/2502.01070"
+        }
+      ],
+      "calc_fn": "prefillThroughputPerChip",
+      "calc_path": "calc.mjs:497"
+    },
+    {
+      "id": "pd_ratio",
+      "name": "Prefill:Decode replica ratio",
+      "category": "disagg",
+      "expr_tex": "\\text{P:D} = \\frac{\\text{ISL}}{\\text{OSL}} \\cdot \\frac{\\text{tps}_{d,\\text{chip}}}{\\text{tps}_{p,\\text{chip}}}",
+      "where": [
+        [
+          "ISL, OSL",
+          "Input and output sequence lengths."
+        ],
+        [
+          "tps_{d,chip}",
+          "Decode tokens/sec/chip from stepTime/throughputAtB at operating B."
+        ],
+        [
+          "tps_{p,chip}",
+          "Prefill tokens/sec/chip from prefillThroughputPerChip."
+        ]
+      ],
+      "description": "Prefill:decode chip ratio for disaggregated sizing. Order-of-magnitude correct; expect ±2× vs production sizers (DistServe / Splitwise / Mooncake use SLO-bound simulators).",
+      "derivation": "Reference §5.2 / DistServe (OSDI '24) §4 throughput-based form: n_p = ceil(R / prefill_goodput), n_d = ceil(R / decode_goodput) → P:D = decode_goodput / prefill_goodput. Expand goodput as req/s/chip = tokens/sec/chip ÷ tokens-per-req: prefill_goodput = prefill_tput/ISL, decode_goodput = decode_tput/OSL → P:D = (ISL/OSL) × (decode_tput / prefill_tput). Decode side comes from the calculator's own stepTime, auto-honoring regime, KV cap, SLO cap, and MoE corrections. Direction note: higher prefill MFU → faster prefill chips → FEWER prefill per decode. Splitwise A100→H100 controlled experiment (55→35 prefill machines, same workload) falsifies the older multiplicative MFU_p/MFU_d form.",
+      "citation": [
+        {
+          "label": "Reference §5.2",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#52-full-topology-recap"
+        },
+        {
+          "label": "DistServe (OSDI '24)",
+          "url": "https://arxiv.org/abs/2401.09670"
+        },
+        {
+          "label": "Splitwise (ISCA '24)",
+          "url": "https://arxiv.org/abs/2311.18677"
+        }
+      ],
+      "calc_fn": "pdRatio",
+      "calc_path": "calc.mjs:532"
+    },
+    {
+      "id": "sweep_ranges",
+      "name": "Empirical sweep grids",
+      "category": "engine_knobs",
+      "expr_tex": "\\begin{aligned} \\text{max\\_num\\_seqs} &\\in \\{2^k : b/4 \\le 2^k \\le 2b\\} \\\\ \\text{mnbt} &\\in \\text{SARATHI\\_BANDS} \\cap [1, \\min(2 \\cdot \\text{mnbt}^{*}, \\text{strictCap})] \\\\ \\text{concurrency} &\\in \\{1, b/4, b/2, b, \\lfloor 1.5b \\rfloor, 2b\\} \\end{aligned}",
+      "where": [
+        [
+          "b",
+          "Recommended batch = min(b_slo, b_kv)."
+        ],
+        [
+          "mnbt*",
+          "Picker's recommended max_num_batched_tokens."
+        ],
+        [
+          "strictCap",
+          "SARATHI_STRICT_CAP (2048) if TBT ≤ 30 ms, else +∞."
+        ]
+      ],
+      "description": "Three grids: two server-side (Cartesian product, each combo = vLLM restart) and one client-side load axis. Brackets the analytical knee so the empirical sweep finds the actual cliff on either side.",
+      "derivation": "Reference §0.5 two-stage methodology: min(b_slo, b_kv) rules out ~80% of the search space; tight sweep around it costs ~70 runs vs ~600 blind. max_num_seqs walks powers of 2 in [b/4, 2b] (vLLM scheduler is opinionated about them — Sarathi §4) to locate the empirical KV/SLO ceiling. max_num_batched_tokens draws from SARATHI_BANDS (shared with the picker — prevents drift where the picker recommends 1536 but the grid only shows {512,1024,2048,4096}), capped at 2× the picker's pick and at SARATHI_STRICT_CAP under strict TBT. concurrency uses fractional steps — deliberately NOT powers of 2 — to land at sub-saturation (TBT flat, throughput linear), at-knee (plateau), and super-saturation (TBT cliff, queue growth). If the cliff lands at 0.5b or 3b, the model is mis-calibrated for that workload.",
+      "citation": [
+        {
+          "label": "Reference §0.5",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#05-method-analytical-bounds-empirical-refinement-goodput"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        }
+      ],
+      "calc_fn": "sweepRanges",
+      "calc_path": "calc.mjs:609"
+    }
+  ]
+}</script>
 <script type="module">
 
 // ===== calc.mjs =====
@@ -2082,6 +2905,212 @@ function createScope(canvas, channel, initial) {
   };
 }
 
+// ===== drawer.mjs =====
+// Formulas drawer — slide-out reference panel that renders every formula
+// the calculator uses with KaTeX, plus a description / derivation / citation
+// expander per row. Content lives in src/data/formulas.json (inlined by the
+// build into <script id="formulas-data">). KaTeX comes from the CDN script
+// the HTML head includes; if it hasn't loaded yet we render the raw expr_tex
+// in a <code> block and upgrade in place once KaTeX arrives.
+
+// Category labels — kept in render order so the drawer reads top-down from
+// "things you might know" to "things you came to look up."
+const CATEGORY_ORDER = [
+  ["constants",     "CONSTANTS"],
+  ["memory",        "MEMORY"],
+  ["regime",        "ROOFLINE / REGIME"],
+  ["latency",       "LATENCY MODEL"],
+  ["capacity",      "CAPACITY CEILINGS"],
+  ["parallelism",   "PARALLELISM"],
+  ["engine_knobs",  "ENGINE KNOBS"],
+  ["disagg",        "DISAGGREGATION"],
+  ["cost",          "COST"],
+];
+
+// Escape user-supplied strings before injecting into innerHTML. Same helper
+// pattern used by ui.mjs escapeHtml — kept local so this module is
+// self-contained (so the build can decide where to place it in bundle order).
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// Render one formula expression. Tries KaTeX if it's loaded; falls back to a
+// <code> block tagged for upgrade-in-place once the CDN script arrives.
+function renderExpr(expr) {
+  if (typeof window !== "undefined" && window.katex && typeof window.katex.renderToString === "function") {
+    try {
+      return window.katex.renderToString(expr, { throwOnError: false, displayMode: true });
+    } catch (_) {
+      // fall through to the plaintext fallback if KaTeX itself throws
+    }
+  }
+  // Fallback path. The data-katex-pending attribute is what the upgrade pass
+  // looks for once window.katex becomes available.
+  return `<code class="formula-expr-fallback" data-katex-pending="1">${esc(expr)}</code>`;
+}
+
+// One row per formula. Math is visible always; everything else is collapsed
+// behind a <details> expander so the user sees a clean list by default.
+function renderRow(f) {
+  const where = f.where.map(([name, meaning]) =>
+    `<dt><code>${esc(name)}</code></dt><dd>${esc(meaning)}</dd>`).join("");
+  const citations = f.citation.map((c) => {
+    const href = c.anchor ?? c.url ?? "#";
+    const target = c.url ? ` target="_blank" rel="noopener"` : "";
+    return `<a class="formula-cite" href="${esc(href)}"${target}>${esc(c.label)}</a>`;
+  }).join("");
+  return `
+    <article class="formula-row" data-formula-id="${esc(f.id)}">
+      <header class="formula-head">
+        <span class="formula-name">${esc(f.name)}</span>
+        <span class="formula-path">${esc(f.calc_path)}</span>
+      </header>
+      <div class="formula-expr" data-expr="${esc(f.expr_tex)}">${renderExpr(f.expr_tex)}</div>
+      <details class="formula-details">
+        <summary>WHY / WHERE / SOURCE</summary>
+        <div class="formula-body">
+          <p class="formula-description">${esc(f.description)}</p>
+          ${where ? `<dl class="formula-where">${where}</dl>` : ""}
+          <p class="formula-derivation">${esc(f.derivation)}</p>
+          <div class="formula-citations">${citations}</div>
+        </div>
+      </details>
+    </article>
+  `;
+}
+
+// Group rows by category so the drawer has scannable headings.
+function renderAll(formulas) {
+  const byCat = new Map();
+  for (const f of formulas) {
+    if (!byCat.has(f.category)) byCat.set(f.category, []);
+    byCat.get(f.category).push(f);
+  }
+  const sections = CATEGORY_ORDER
+    .filter(([key]) => byCat.has(key))
+    .map(([key, label]) => `
+      <section class="formula-cat" data-cat="${esc(key)}">
+        <h3 class="formula-cat-head">${esc(label)}</h3>
+        ${byCat.get(key).map(renderRow).join("")}
+      </section>
+    `).join("");
+  return sections;
+}
+
+// If KaTeX loads AFTER first paint (CDN slow / cold cache), walk every
+// pending fallback and upgrade it in place. Bound to the script's onload via
+// the build script; also runs once at mount time in case KaTeX raced ahead.
+function upgradePendingKatex() {
+  if (typeof window === "undefined" || !window.katex) return;
+  const pending = document.querySelectorAll(".formula-expr [data-katex-pending]");
+  for (const node of pending) {
+    const expr = node.parentElement?.dataset.expr;
+    if (!expr) continue;
+    try {
+      node.parentElement.innerHTML = window.katex.renderToString(expr, {
+        throwOnError: false, displayMode: true,
+      });
+    } catch (_) {
+      // Leave the fallback in place; KaTeX renderToString({throwOnError:false})
+      // already emits a red error span so the user sees what failed.
+    }
+  }
+}
+
+// Focus-trap helper. While the drawer is open Tab must cycle within it so
+// keyboard users don't escape into the background page (WAI-ARIA dialog
+// pattern). Returns the keydown handler so the caller can remove it on close.
+function trapFocus(drawer, closeBtn) {
+  return (e) => {
+    if (e.key !== "Tab") return;
+    const focusables = drawer.querySelectorAll(
+      'a[href], button, summary, [tabindex]:not([tabindex="-1"])');
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  };
+}
+
+// Entry point — wires the trigger button, the drawer, the backdrop, the
+// `f` shortcut, Esc-to-close, focus management, and KaTeX upgrade. Idempotent
+// (calling twice is a no-op): guards against double-init by checking for the
+// `data-formulas-mounted` flag on the trigger.
+function mountFormulasDrawer() {
+  const trigger = document.getElementById("formulas-trigger");
+  const drawer = document.getElementById("formulas-drawer");
+  const backdrop = document.getElementById("formulas-backdrop");
+  const dataTag = document.getElementById("formulas-data");
+  if (!trigger || !drawer || !backdrop || !dataTag) return;
+  if (trigger.dataset.formulasMounted === "1") return;
+  trigger.dataset.formulasMounted = "1";
+
+  const formulas = JSON.parse(dataTag.textContent).formulas;
+  // Render once; the data is static so we don't recompute on every open.
+  const body = drawer.querySelector(".formulas-body");
+  body.innerHTML = renderAll(formulas);
+  // If KaTeX is already loaded (cache hit), this is a no-op; otherwise the
+  // CDN script's onload (wired by the build) will call us again.
+  upgradePendingKatex();
+  window.addEventListener("katex-loaded", upgradePendingKatex);
+
+  const closeBtn = drawer.querySelector(".formulas-close");
+  let lastFocused = null;
+  let trapHandler = null;
+
+  const open = () => {
+    if (!drawer.hasAttribute("hidden")) return;
+    lastFocused = document.activeElement;
+    drawer.removeAttribute("hidden");
+    backdrop.removeAttribute("hidden");
+    trigger.setAttribute("aria-expanded", "true");
+    // Focus the close button so Esc/Enter work immediately + screen readers
+    // announce the drawer landmark.
+    closeBtn.focus();
+    trapHandler = trapFocus(drawer, closeBtn);
+    document.addEventListener("keydown", trapHandler);
+  };
+
+  const close = () => {
+    if (drawer.hasAttribute("hidden")) return;
+    drawer.setAttribute("hidden", "");
+    backdrop.setAttribute("hidden", "");
+    trigger.setAttribute("aria-expanded", "false");
+    if (trapHandler) {
+      document.removeEventListener("keydown", trapHandler);
+      trapHandler = null;
+    }
+    // Return focus to the trigger so keyboard users don't lose their place.
+    if (lastFocused && typeof lastFocused.focus === "function") {
+      lastFocused.focus();
+    } else {
+      trigger.focus();
+    }
+  };
+
+  trigger.addEventListener("click", open);
+  closeBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", close);
+  // Esc-to-close — works regardless of focus location (focus trap keeps focus
+  // inside the drawer anyway).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !drawer.hasAttribute("hidden")) close();
+  });
+  // `f` shortcut — only when no input/textarea/select has focus, so it
+  // doesn't fight with the form controls.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "f" && e.key !== "F") return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = document.activeElement;
+    const tag = t?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable) return;
+    if (drawer.hasAttribute("hidden")) { e.preventDefault(); open(); }
+  });
+}
+
 // ===== ui.mjs =====
 // DOM wiring layer. Reads the embedded data tables, builds the form,
 // dispatches recompute on every input change, and renders results into the
@@ -2089,6 +3118,7 @@ function createScope(canvas, channel, initial) {
 //
 // All numeric formatting funnels through `fmt()` so display rounding stays
 // consistent across tiles, chart axes, and the copy-paste snippet.
+
 
 
 
@@ -2446,6 +3476,10 @@ function bootstrap() {
     if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
   });
   wireCopyButton();
+  // Side-drawer for "show all formulas" — populated once from the inlined
+  // formulas-data tag and kept hidden until the user opens it. Idempotent;
+  // no-op if its DOM scaffold isn't present (test harnesses).
+  mountFormulasDrawer();
   // Skip the pulse on first paint — pulse should signal change, not arrival.
   recompute(true);
 }
