@@ -19,14 +19,27 @@ export const TP_CAP = 8;
 // max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
 // We use the midpoint as the centerpoint; the sweep widens around it.
 export const ALPHA = 0.15;
-// MFU midpoints. Reference §0.3 quotes practitioner heuristic bands of
-// ~40–60% prefill MFU and ~5–15% decode MFU; these constants are the
-// midpoints of those bands. §0.3 itself does not cite a primary benchmark —
-// the bands are widely-quoted folklore (engine docs, blog posts), not
-// source-verified numbers. The 5× ratio they imply directly drives the
-// pdRatio multiplier below, which is therefore rule-of-thumb-grade and very
-// sensitive to this choice (e.g., picking 45%/12% would give 3.75×, not 5×).
-export const PREFILL_MFU = 0.5;
+// MFU midpoints. Reference §0.3 (with footnote citing sources) gives bands of
+// ~30–50% prefill MFU and ~5–15% decode MFU, synthesized from:
+//   - DeepSeek-V3 production inference system overview (Feb 2025): back-calculated
+//     ~34% prefill MFU / ~7% decode MFU on H800 against FP8 peak (the prefill
+//     number is inflated by ~56% disk KV-cache hits, so the true compute-only
+//     prefill MFU is lower).
+//   - "Investigation of FP8 Across Accelerators" (arXiv:2502.01070): square
+//     (prefill-shaped) GEMM on H100 hits ~59% of FP8 peak; thin (decode-shaped)
+//     GEMM collapses to <1% peak in adversarial batch=64 cases.
+//   - Sarathi-Serve (OSDI '24): qualitative — "decode is memory-bound, low MFU"
+//     — no published number, just the structural argument.
+//   - Databricks LLM Inference Best Practices: deliberately reports MBU (Model
+//     Bandwidth Utilization), not MFU, for decode (~55–60% at batch=1) because
+//     MFU is the wrong axis for a memory-bound workload.
+// No primary source publishes "the" canonical bands. The midpoints below are
+// rule-of-thumb. The 4× ratio they imply drives the pdRatio multiplier (line
+// ~313) — that ratio is *only* defensible to roughly ±2× (real range across
+// sources: 3×–8×). Treat pdRatio as an order-of-magnitude disagg hint, not a
+// calibrated capacity ratio. See §0.3 "On the MFU bands" footnote in
+// MODEL_SIZING_SCALING_REFERENCE.md for the verbatim source quotes and URLs.
+export const PREFILL_MFU = 0.40;
 export const DECODE_MFU = 0.10;
 
 // Byte costs by dtype name. Sub-byte precisions (INT4) stored as float so we

@@ -646,7 +646,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "notes": "free-form provenance / caveat string"
     },
     "_sources": [
-      "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
+      "NVIDIA datasheets (T4, L4, A100, H100, H200, all SXM where applicable). A10G specifically: official AWS/NVIDIA A10G datasheet PDF at https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf (verified 2026-05-23) — A10G is AWS-custom and differs from the regular A10 (dense FP16 ≈ 70 TF on A10G vs 125 TF on A10).",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
       "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book."
     ]
@@ -680,10 +680,10 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "hbm_gb": 24,
       "hbm_bw_gbs": 600,
       "ici_bw_gbs": 64,
-      "fp16_tflops": 125,
+      "fp16_tflops": 70,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Ampere consumer-class tensor cores; no FP8. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
+      "notes": "Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
     },
     {
       "key": "A100-40GB",
@@ -868,14 +868,27 @@ const TP_CAP = 8;
 // max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
 // We use the midpoint as the centerpoint; the sweep widens around it.
 const ALPHA = 0.15;
-// MFU midpoints. Reference §0.3 quotes practitioner heuristic bands of
-// ~40–60% prefill MFU and ~5–15% decode MFU; these constants are the
-// midpoints of those bands. §0.3 itself does not cite a primary benchmark —
-// the bands are widely-quoted folklore (engine docs, blog posts), not
-// source-verified numbers. The 5× ratio they imply directly drives the
-// pdRatio multiplier below, which is therefore rule-of-thumb-grade and very
-// sensitive to this choice (e.g., picking 45%/12% would give 3.75×, not 5×).
-const PREFILL_MFU = 0.5;
+// MFU midpoints. Reference §0.3 (with footnote citing sources) gives bands of
+// ~30–50% prefill MFU and ~5–15% decode MFU, synthesized from:
+//   - DeepSeek-V3 production inference system overview (Feb 2025): back-calculated
+//     ~34% prefill MFU / ~7% decode MFU on H800 against FP8 peak (the prefill
+//     number is inflated by ~56% disk KV-cache hits, so the true compute-only
+//     prefill MFU is lower).
+//   - "Investigation of FP8 Across Accelerators" (arXiv:2502.01070): square
+//     (prefill-shaped) GEMM on H100 hits ~59% of FP8 peak; thin (decode-shaped)
+//     GEMM collapses to <1% peak in adversarial batch=64 cases.
+//   - Sarathi-Serve (OSDI '24): qualitative — "decode is memory-bound, low MFU"
+//     — no published number, just the structural argument.
+//   - Databricks LLM Inference Best Practices: deliberately reports MBU (Model
+//     Bandwidth Utilization), not MFU, for decode (~55–60% at batch=1) because
+//     MFU is the wrong axis for a memory-bound workload.
+// No primary source publishes "the" canonical bands. The midpoints below are
+// rule-of-thumb. The 4× ratio they imply drives the pdRatio multiplier (line
+// ~313) — that ratio is *only* defensible to roughly ±2× (real range across
+// sources: 3×–8×). Treat pdRatio as an order-of-magnitude disagg hint, not a
+// calibrated capacity ratio. See §0.3 "On the MFU bands" footnote in
+// MODEL_SIZING_SCALING_REFERENCE.md for the verbatim source quotes and URLs.
+const PREFILL_MFU = 0.40;
 const DECODE_MFU = 0.10;
 
 // Byte costs by dtype name. Sub-byte precisions (INT4) stored as float so we

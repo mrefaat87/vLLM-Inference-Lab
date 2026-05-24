@@ -296,9 +296,12 @@ test("recommendMaxBatchedTokens: strict TBT band caps at 2048", () => {
 
 // ---------- Layer 6: P:D ratio ----------
 
-test("pdRatio amplifies ISL/OSL by MFU asymmetry (5×)", () => {
-  // ISL/OSL = 4, MFU ratio = 5 → expect 20.
-  within(pdRatio({ isl: 4000, osl: 1000 }), 20, 0.01);
+test("pdRatio amplifies ISL/OSL by MFU asymmetry (4×)", () => {
+  // ISL/OSL = 4, MFU ratio = PREFILL_MFU/DECODE_MFU = 0.40/0.10 = 4 → expect 16.
+  // The 4× multiplier itself is rule-of-thumb (defensible range 3×–8× across
+  // sources — see calc.mjs MFU comment and reference §0.3 footnote). This test
+  // pins the *implementation*, not the underlying physics constant.
+  within(pdRatio({ isl: 4000, osl: 1000 }), 16, 0.01);
 });
 
 // ---------- Layer 7: sweep ranges ----------

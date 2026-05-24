@@ -12,7 +12,7 @@
       "notes": "free-form provenance / caveat string"
     },
     "_sources": [
-      "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
+      "NVIDIA datasheets (T4, L4, A100, H100, H200, all SXM where applicable). A10G specifically: official AWS/NVIDIA A10G datasheet PDF at https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf (verified 2026-05-23) — A10G is AWS-custom and differs from the regular A10 (dense FP16 ≈ 70 TF on A10G vs 125 TF on A10).",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
       "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book."
     ]
@@ -46,10 +46,10 @@
       "hbm_gb": 24,
       "hbm_bw_gbs": 600,
       "ici_bw_gbs": 64,
-      "fp16_tflops": 125,
+      "fp16_tflops": 70,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Ampere consumer-class tensor cores; no FP8. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
+      "notes": "Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
     },
     {
       "key": "A100-40GB",

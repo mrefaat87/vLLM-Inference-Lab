@@ -100,9 +100,20 @@ A single request stitches together **two completely different physics regimes**:
 | Tokens / step | hundreds–thousands (chunk size) | 1 × num_running_seqs |
 | Arithmetic intensity | high (T/2 for attention) | ~1 (one new token streams full KV) |
 | Bottleneck | FLOPs | HBM bandwidth |
-| MFU (typical) | **40–60%** | **5–15%** |
+| MFU (typical) | **~30–50%** [†](#mfu-bands) | **~5–15%** [†](#mfu-bands) |
+| Better efficiency metric | MFU (compute is the limiter) | **MBU** (Model Bandwidth Utilization — see §2) |
 | Latency metric | TTFT | TBT / ITL |
 | Saturated at | batch = 1 with long prompt | needs many concurrent seqs |
+
+<a id="mfu-bands"></a>
+> **† On the MFU bands.** No single primary source publishes these as canonical bands; they are *synthesized* from a handful of public production data points and the structural roofline argument (§1). The numbers most reviewers will cite if asked:
+>
+> - **Prefill ~30–50%.** DeepSeek-V3 production inference (Feb 2025 system overview) reports ~73.7k tok/s prefill per H800 node with ~37B active params/token → back-calculated **~34% of FP8 peak** (~69% of BF16 peak, but inflated by ~56% disk KV-cache hits, so the true compute MFU is lower). [Investigation of FP8 Across Accelerators (arXiv:2502.01070), Table 1] measured ~**59% of FP8 peak** on H100 for square (prefill-shaped) GEMMs. MosaicML reports ~40% MFU training on H100 — training is prefill-shaped, so this is a reasonable upper anchor.
+> - **Decode ~5–15%.** Same DeepSeek-V3 data: 14.8k tok/s/node decode → **~7% of FP8 peak (~14% of BF16 peak)**. [Investigation of FP8, Table 4] shows thin-GEMM throughput collapses to ~15 TFLOPs on H100 (<1% of 1979 TFLOPs FP8 peak) at batch 64 — i.e., the band's *floor* is much lower than 5% in adversarial cases. The structural argument: decode arithmetic intensity ~1 vs H100 ridge ~280 ⇒ memory-bound by ~280×, so MFU is bounded above by roughly `(bw_util × AI / ridge)` ≈ low-teens % even with good batching.
+>
+> Sources: [DeepSeek-V3/R1 Inference System Overview](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md); [Investigation of FP8 Across Accelerators (arXiv:2502.01070)](https://arxiv.org/abs/2502.01070); [Sarathi-Serve (OSDI '24)](https://arxiv.org/abs/2403.02310) (qualitative: "decode batches are memory-bound, low MFU"); [Databricks LLM Inference Best Practices](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices) (publishes **MBU** for decode — A100-40GB 55%, H100-80GB 60% at batch 1 — not MFU, deliberately; MFU is the wrong axis for a memory-bound workload).
+>
+> **Caveat that matters for any P:D sizing decision built on these:** the prefill/decode MFU *ratio* (which §5.2's `pdRatio` heuristic depends on) is therefore a rule-of-thumb in the **3×–8×** range, not a single calibrated number. Treat the calculator's pdRatio output as an order-of-magnitude hint for "is this workload disagg-shaped?" — not a precise capacity ratio.
 
 **Implication for sizing:** every decision must ask "which phase?" first. The same GPU can be compute-bound for prefill and memory-bound for decode *in the same second*. Mixing them on one server means prefill bursts crater decode TBT — which is why disaggregation (Splitwise / DistServe / Mooncake) became table stakes for TTFT-sensitive products. (See §2 for the deeper comparison.)
 
@@ -289,7 +300,7 @@ B_crit ≈ (peak_FLOPs / peak_HBM_BW) × (bits_per_param / bits_per_activation)
 | Tokens per step | hundreds-thousands | 1 per request |
 | Attention AI | `T/2` (≥480 → compute-bound) | `≈1` (always memory-bound) |
 | Bottleneck | FLOPs | HBM bandwidth (loading weights + KV) |
-| MFU (typical) | **40–60%** | **5–15%** |
+| MFU (typical) | **~30–50%** | **~5–15%** (decode is better characterized by MBU — see §0.3 footnote for sources) |
 | Latency metric | TTFT | TBT / ITL |
 | Batching | Natural (tokens within one prompt) | Requires multiple requests |
 | Sharding that helps | TP, SP, FSDP | TP only (FSDP/DP useless) |
