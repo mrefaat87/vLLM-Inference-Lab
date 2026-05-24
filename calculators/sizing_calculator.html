@@ -703,7 +703,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "NVIDIA datasheets (T4, L4, A100, H100, H200, all SXM where applicable). A10G specifically: official AWS/NVIDIA A10G datasheet PDF at https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf (verified 2026-05-23) — A10G is AWS-custom and differs from the regular A10 (dense FP16 ≈ 70 TF on A10G vs 125 TF on A10).",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
       "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book.",
-      "AWS EC2 on-demand pricing (us-east-1, list) cross-checked via instances.vantage.sh on 2026-05-23. T4 g4dn.xlarge $0.526/hr, L4 g6.xlarge $0.805/hr, A10G g5.xlarge $1.006/hr, A100-40GB p4d.24xlarge $21.958/hr (÷8 = $2.745), A100-80GB p4de.24xlarge $27.447/hr (÷8 = $3.431), H100-80GB p5.48xlarge $55.04/hr (÷8 = $6.88). H200 p5e.48xlarge defaulted to $13.12/GPU (no reliable list source on 2026-05-23 — Vantage table appeared corrupted; override in UI for accurate rate)."
+      "AWS EC2 on-demand pricing (us-east-1, list) cross-checked via instances.vantage.sh on 2026-05-23. T4 g4dn.xlarge $0.526/hr, L4 g6.xlarge $0.805/hr, A10G g5.xlarge $1.006/hr, A100-40GB p4d.24xlarge $21.958/hr (÷8 = $2.745), A100-80GB p4de.24xlarge $27.447/hr (÷8 = $3.431), H100-80GB p5.48xlarge $55.04/hr (÷8 = $6.88). H200 p5e.48xlarge on-demand list price not directly published; derived from AWS Capacity Blocks (https://aws.amazon.com/ec2/capacityblocks/pricing/, fetched 2026-05-23) ratio H200/H100 = $4.975/$4.326 = 1.15× applied to H100 on-demand → $7.91/GPU."
     ]
   },
   "hardware": [
@@ -788,8 +788,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
-      "price_per_hour_usd": 13.12,
-      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: p5e.48xlarge on-demand list approx ($104.93/hr ÷ 8 GPUs); override in UI — exact list rate not confirmed at edit time."
+      "price_per_hour_usd": 7.91,
+      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: derived from AWS Capacity Blocks ratio H200/H100 = $4.975/$4.326 = 1.15× (https://aws.amazon.com/ec2/capacityblocks/pricing/) applied to known H100 on-demand $6.88/GPU → $7.91/GPU. p5en.48xlarge enhanced-networking variant runs higher (~$9/GPU). Override in UI for spot / Capacity Blocks / contract."
     }
   ]
 }
@@ -2109,16 +2109,31 @@ function drawSparkline(id, curve, markB, color) {
   const el = document.getElementById(id);
   if (!el || curve.length < 2) return;
   const w = 220, h = 22, pad = 1;
-  const maxT = Math.max(...curve.map((p) => p.step_ms));
-  const minB = curve[0].B, maxB = curve[curve.length - 1].B;
+  // Filter out non-positive step_ms (defensive — log() blows up on ≤0).
+  const pts = curve.filter((p) => p.step_ms > 0 && p.B > 0);
+  if (pts.length < 2) return;
+  const minT = Math.min(...pts.map((p) => p.step_ms));
+  const maxT = Math.max(...pts.map((p) => p.step_ms));
+  const minB = pts[0].B, maxB = pts[pts.length - 1].B;
   const lx = (B) => pad + (Math.log(B) - Math.log(minB)) / (Math.log(maxB) - Math.log(minB)) * (w - 2 * pad);
-  const ly = (t) => h - pad - (t / maxT) * (h - 2 * pad);
-  const path = curve.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
+  // Log Y. step_ms is roughly flat below B_crit and grows linearly above —
+  // on a linear axis that compresses the entire memory-bound region against
+  // the bottom edge (was visually a "solid rectangle" hugging the floor).
+  // Log spreads the early variation so the curve shape, not just the right
+  // tail, is readable. Falls back to mid-line if minT === maxT (degenerate).
+  const logSpan = Math.log(maxT) - Math.log(minT);
+  const ly = logSpan > 0
+    ? (t) => h - pad - (Math.log(t) - Math.log(minT)) / logSpan * (h - 2 * pad)
+    : () => (h - pad - (h - 2 * pad) / 2);
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
   const mx = markB && Number.isFinite(markB) && markB >= minB && markB <= maxB ? lx(markB) : null;
+  // Tint the curve with the metric color at low opacity — the old `#30363d`
+  // hairline was barely visible against the tile background. Marker stays
+  // dominant at 1.5px solid; curve reads as a faint contextual backdrop.
   el.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="${h}">
-      <path d="${path}" fill="none" stroke="#30363d" stroke-width="1" />
-      ${mx != null ? `<line x1="${mx.toFixed(1)}" y1="0" x2="${mx.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1"/>` : ""}
+      <path d="${path}" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="1.2" />
+      ${mx != null ? `<line x1="${mx.toFixed(1)}" y1="0" x2="${mx.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1.5"/>` : ""}
     </svg>`;
 }
 

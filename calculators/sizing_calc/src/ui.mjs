@@ -187,16 +187,31 @@ function drawSparkline(id, curve, markB, color) {
   const el = document.getElementById(id);
   if (!el || curve.length < 2) return;
   const w = 220, h = 22, pad = 1;
-  const maxT = Math.max(...curve.map((p) => p.step_ms));
-  const minB = curve[0].B, maxB = curve[curve.length - 1].B;
+  // Filter out non-positive step_ms (defensive — log() blows up on ≤0).
+  const pts = curve.filter((p) => p.step_ms > 0 && p.B > 0);
+  if (pts.length < 2) return;
+  const minT = Math.min(...pts.map((p) => p.step_ms));
+  const maxT = Math.max(...pts.map((p) => p.step_ms));
+  const minB = pts[0].B, maxB = pts[pts.length - 1].B;
   const lx = (B) => pad + (Math.log(B) - Math.log(minB)) / (Math.log(maxB) - Math.log(minB)) * (w - 2 * pad);
-  const ly = (t) => h - pad - (t / maxT) * (h - 2 * pad);
-  const path = curve.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
+  // Log Y. step_ms is roughly flat below B_crit and grows linearly above —
+  // on a linear axis that compresses the entire memory-bound region against
+  // the bottom edge (was visually a "solid rectangle" hugging the floor).
+  // Log spreads the early variation so the curve shape, not just the right
+  // tail, is readable. Falls back to mid-line if minT === maxT (degenerate).
+  const logSpan = Math.log(maxT) - Math.log(minT);
+  const ly = logSpan > 0
+    ? (t) => h - pad - (Math.log(t) - Math.log(minT)) / logSpan * (h - 2 * pad)
+    : () => (h - pad - (h - 2 * pad) / 2);
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
   const mx = markB && Number.isFinite(markB) && markB >= minB && markB <= maxB ? lx(markB) : null;
+  // Tint the curve with the metric color at low opacity — the old `#30363d`
+  // hairline was barely visible against the tile background. Marker stays
+  // dominant at 1.5px solid; curve reads as a faint contextual backdrop.
   el.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="${h}">
-      <path d="${path}" fill="none" stroke="#30363d" stroke-width="1" />
-      ${mx != null ? `<line x1="${mx.toFixed(1)}" y1="0" x2="${mx.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1"/>` : ""}
+      <path d="${path}" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="1.2" />
+      ${mx != null ? `<line x1="${mx.toFixed(1)}" y1="0" x2="${mx.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1.5"/>` : ""}
     </svg>`;
 }
 
