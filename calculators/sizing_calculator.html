@@ -639,7 +639,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "label": "human-readable display name",
       "hbm_gb": "HBM capacity per GPU in GB",
       "hbm_bw_gbs": "peak HBM bandwidth per GPU in GB/s",
-      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s (NVLink bidir, or PCIe for no-NVLink cards). Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
+      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s. Dual semantics: NVLink bidir on NVLink-capable cards (A100, H100, H200); PCIe bidir on PCIe-only cards (T4, L4, A10G). Each row's `notes` field calls out which one applies. Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
@@ -648,7 +648,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
     "_sources": [
       "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
-      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — β values: H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8 (book's example)"
+      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book."
     ]
   },
   "hardware": [
@@ -661,7 +661,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work."
+      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "L4",
@@ -672,7 +672,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
-      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs."
+      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "A10G",
@@ -683,7 +683,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 125,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Ampere consumer-class tensor cores; no FP8."
+      "notes": "Ampere consumer-class tensor cores; no FP8. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "A100-40GB",
@@ -855,9 +855,11 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 // MODEL_SIZING_SCALING_REFERENCE.md so reviewers can trace numbers to source.
 
 // ---------- constants ----------
-// Reserve ~10% of HBM for activations + workspace + paging fragmentation. The
-// reference doesn't pin this; it's a vLLM-style headroom (gpu_memory_utilization
-// defaults to 0.90). Tunable from the UI later if needed.
+// Reserve ~10% of HBM for activations + workspace + paging fragmentation.
+// The reference doesn't pin this; it's a vLLM-style headroom. Note: actual
+// vLLM default is gpu_memory_utilization=0.92 (vllm/config/cache.py), so our
+// ACT_OVERHEAD=0.10 (→ 90% utilization) is intentionally conservative vs the
+// shipped default. Tunable from the UI later if needed.
 const ACT_OVERHEAD = 0.10;
 // Practical within-node TP fan-out. 8 is the standard NVLink island (HGX/DGX).
 // The hardware ceiling. The *useful* TP ceiling is min(TP_CAP, Y_max) — see
@@ -866,8 +868,13 @@ const TP_CAP = 8;
 // max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
 // We use the midpoint as the centerpoint; the sweep widens around it.
 const ALPHA = 0.15;
-// MFU defaults from reference §0.3 — prefill saturates more of the compute than
-// decode does, so the prefill:decode ratio is amplified beyond just ISL/OSL.
+// MFU midpoints. Reference §0.3 quotes practitioner heuristic bands of
+// ~40–60% prefill MFU and ~5–15% decode MFU; these constants are the
+// midpoints of those bands. §0.3 itself does not cite a primary benchmark —
+// the bands are widely-quoted folklore (engine docs, blog posts), not
+// source-verified numbers. The 5× ratio they imply directly drives the
+// pdRatio multiplier below, which is therefore rule-of-thumb-grade and very
+// sensitive to this choice (e.g., picking 45%/12% would give 3.75×, not 5×).
 const PREFILL_MFU = 0.5;
 const DECODE_MFU = 0.10;
 
@@ -907,20 +914,24 @@ function kvPerToken(model, kv_bytes) {
   return 2 * kv_bytes * model.n_kv_heads * model.head_dim * model.n_layers;
 }
 
-// Roofline ridge-point batch (reference §1). Below this, weights dominate and
-// adding batch is free; above, compute dominates and latency grows linearly.
-// Hardware FP8 tensor cores fire only when BOTH operands are FP8 (cuBLAS GEMM
-// rule) AND the hardware exposes an FP8 path. INT8 weights with FP16 acts use
-// the FP16 compute path with the weight/act ratio capturing the asymmetry.
+// Roofline ridge-point batch (reference §1, Scaling Book inference chapter
+// https://jax-ml.github.io/scaling-book/inference/):
+//   B_crit = (C / W_hbm) × (bits_w / bits_act)
+// where C is the *precision-adjusted* peak FLOPs — not a fixed FP16 rate.
+// The book's rule: "If we do our FLOPs in int8 or fp8, B_crit increases by 2x."
+// FP8 tensor cores fire only when BOTH operands are FP8 AND the hardware
+// exposes an FP8 path (cuBLAS GEMM rule), so FP8/FP8 picks fp8_tflops (2× on
+// H100 → 590) while BF16/BF16 stays on fp16_tflops (295). Asymmetric cases
+// (e.g., INT8 weights + BF16 acts) ride the FP16 compute path and shift only
+// through bits_w/bits_act (8/16 → halves B_crit, matching the book's TPU v5e
+// int8-weights/bf16-acts → 120 example).
 function bCrit(hw, weight_prec, act_prec) {
-  const weight_bytes = DTYPE_BYTES[weight_prec];
-  const act_bytes = DTYPE_BYTES[act_prec];
   const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
   const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
-  const bw_bytes_per_sec = hw.hbm_bw_gbs * 1e9;
-  // bits_per_param / bits_per_activation: equivalent to weight_bytes/act_bytes
-  // since both are ×8. Skip the round-trip to avoid float noise.
-  return (flops / bw_bytes_per_sec) * (weight_bytes / act_bytes);
+  const bw = hw.hbm_bw_gbs * 1e9;
+  const bits_w = DTYPE_BYTES[weight_prec] * 8;
+  const bits_act = DTYPE_BYTES[act_prec] * 8;
+  return (flops / bw) * (bits_w / bits_act);
 }
 
 // Time per decode step (seconds), per-kernel form (reference §4 + Scaling Book
@@ -1119,16 +1130,23 @@ function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
 // ---------- max_num_batched_tokens ----------
 
 // vLLM's max_num_batched_tokens. Combines DJL's α × batch × ISL hint with
-// Sarathi-Serve's strict/relaxed token-budget bands as reproduced in reference
-// §10 (Sarathi-Serve, OSDI '24: strict ≈ 512, relaxed ≈ 2048). Snaps to a
-// power of 2 ≥ 1024 so it lines up with kernel tile sizes.
+// Sarathi-Serve's strict/relaxed token-budget bands.
+// Source-verified against Sarathi-Serve OSDI '24 (arXiv 2403.02310v3) §5.1:
+//   "We use token budget of 2048 and 512 for all models under the relaxed
+//    and strict settings, respectively, except for the LLaMA2-70B relaxed
+//    configuration where we use token budget of 1536 to reduce the impact
+//    of pipeline bubbles."
+// So: 512 (strict TBT SLO), 2048 (relaxed), 1536 specifically for 70B-class
+// models under pipeline parallelism. Candidate set is powers-of-2 ≥ 1024
+// (kernel tile alignment) plus 1536 as the Sarathi-Serve PP-tuned variant.
 // Caveat: the α=0.15 midpoint is DJL guidance, not source-verified from a
 // primary benchmark — treat as a starting hint, not a tuned constant.
 function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
   const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
   const sarathiBand = tbt_ms <= 30 ? "strict (~512)" : "relaxed (~2048)";
   const candidates = [512, 1024, 1536, 2048, 4096, 8192];
-  // Prefer the smallest candidate ≥ max(1024, hint) — Sarathi powers-of-2 rule.
+  // Prefer the smallest candidate ≥ max(1024, hint) — Sarathi powers-of-2 rule
+  // (with 1536 included for the LLaMA2-70B PP case).
   let pick = candidates.find((c) => c >= Math.max(1024, hint)) ?? 8192;
   // If the strict TBT band is in play, never exceed 2048.
   if (tbt_ms <= 30 && pick > 2048) pick = 2048;

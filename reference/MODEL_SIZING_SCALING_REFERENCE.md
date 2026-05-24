@@ -269,8 +269,8 @@ AI = FLOPs / Bytes_moved
 B_crit ≈ (peak_FLOPs / peak_HBM_BW) × (bits_per_param / bits_per_activation)
 ```
 
-- bf16 weights + bf16 activations on H100 → `B_crit ≈ 280` tokens
-- **int8 weights + bf16 activations → `B_crit` drops 2×** (≈140) — you reach saturation sooner.
+- bf16 weights + bf16 activations on H100 → `B_crit ≈ 295` tokens (matches the table above: 990e12 / 3.35e12).
+- **int8 weights + bf16 activations → `B_crit` drops 2×** (≈147 on H100; the Scaling Book reports 120 on TPU v5e, anchored to its 240 baseline) — you reach saturation sooner.
 - **int8 weights + int8 activations → `B_crit` unchanged** (more FLOPs available).
 
 > Below `B_crit`, latency stays flat as you add requests (you're paying for weight loads either way). Above `B_crit`, latency grows linearly with batch. This is the single most important inference fact.
@@ -416,6 +416,8 @@ B_crit_compute = (peak_FLOPs / peak_HBM_BW) × (bits_w / bits_act)
               = 120 tokens / step
 ```
 
+(Where **240 is the bf16/bf16 baseline for TPU v5e** from §1's roofline table — the `(8/16)` factor then applies the int8-weight halving on top of that baseline.)
+
 So at batch ≥ 120 decode tokens in flight, matmuls become compute-bound. The Scaling Book recommends serving at **batch 32** (BS=32 × 1 decode token = 32 tokens/step) → still memory-bound → adding more requests *increases throughput at the same per-step latency.*
 
 **Achieved (4×2 TPU v5e, BS=32, int8):**
@@ -516,15 +518,15 @@ Y_max ≈ F / (B · β)
 - `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time (and the per-token throughput-per-chip starts dropping, because the chips spend more time syncing than computing).
 - **`F` is `d_ff`** — a small dimensionless integer (14,336 for Llama-3-8B; 28,672 for Llama-3-70B). **Not "total FLOPs."** This was a common transcription error worth flagging — earlier drafts of this doc had it wrong.
 - **`B`** = current batch size (decode-step concurrency). Y_max is *inversely* proportional to B: small batches let you spread the model thin, big batches force you to concentrate.
-- **`β = W_hbm / W_ici`**, dimensionless, **hardware-specific**:
+- **`β = W_hbm / W_ici`**, dimensionless, **hardware-specific**. Only the **TPU v5e** row is published in the Scaling Book; the GPU rows below are **derived by us** as `HBM_BW ÷ ICI_BW` from the bandwidth numbers in §1 (and vendor specs for ICI/NVLink/PCIe). Treat them as order-of-magnitude estimates, not citations.
 
-| Hardware | HBM BW (GB/s) | ICI BW (GB/s, bidir) | β |
-|---|---|---|---|
-| H100 SXM5 | 3,350 | 900 (NVLink 4.0) | ~3.7 |
-| H200 SXM5 | 4,800 | 900 | ~5.3 |
-| A100 SXM4 | 2,039 | 600 (NVLink 3.0) | ~3.4 |
-| L4 / A10G / T4 | 300–600 | ~32–64 (PCIe Gen3/4) | ~10–20 |
-| TPU v5e | 820 | ~100 | ~8 ✓ (book's example) |
+| Hardware | HBM BW (GB/s) | ICI BW (GB/s, bidir) | β | Source |
+|---|---|---|---|---|
+| H100 SXM5 | 3,350 | 900 (NVLink 4.0) | ~3.7 | derived |
+| H200 SXM5 | 4,800 | 900 | ~5.3 | derived |
+| A100 SXM4 | 2,039 | 600 (NVLink 3.0) | ~3.4 | derived |
+| L4 / A10G / T4 | 300–600 | ~32–64 (PCIe Gen3/4) | ~10–20 | derived |
+| TPU v5e | 820 | ~100 | ~8 | **Scaling Book example** ✓ |
 
 For PCIe-only cards (T4/L4/A10G) β jumps into double digits and TP across PCIe is unviable for decode — the all-reduce floor sits above any reasonable per-step budget.
 
@@ -679,7 +681,7 @@ This is why `max_num_batched_tokens` is "decode-protective" — decodes go first
 **Tuning knobs (V1 defaults):**
 | Knob | Default | Effect |
 |---|---|---|
-| `gpu_memory_utilization` | 0.80 | Fraction of GPU mem for weights+KV pool; bump to 0.90–0.95 if no OOM headroom needed. |
+| `gpu_memory_utilization` | 0.92 | Fraction of GPU mem for weights+KV pool; lower to 0.85–0.88 if you see OOM under burst, or raise toward 0.95 if you've measured headroom. Provenance: `CacheConfig.gpu_memory_utilization` field default in vLLM `vllm/config/cache.py`. Older vLLM releases shipped 0.90 (and earlier drafts of this doc carried 0.80). |
 | `block_size` | 16 | Smaller → more fragmentation; larger → more wasted tail-of-sequence. |
 | `max_num_seqs` | — | Hard cap on concurrent requests; throughput ceiling. |
 | `max_num_batched_tokens` | — | Token budget per step; raise to fit more prefill, lower to protect decode ITL. |

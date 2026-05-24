@@ -5,7 +5,7 @@
       "label": "human-readable display name",
       "hbm_gb": "HBM capacity per GPU in GB",
       "hbm_bw_gbs": "peak HBM bandwidth per GPU in GB/s",
-      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s (NVLink bidir, or PCIe for no-NVLink cards). Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
+      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s. Dual semantics: NVLink bidir on NVLink-capable cards (A100, H100, H200); PCIe bidir on PCIe-only cards (T4, L4, A10G). Each row's `notes` field calls out which one applies. Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
@@ -14,7 +14,7 @@
     "_sources": [
       "NVIDIA datasheets (T4, L4, A10G, A100, H100, H200, all SXM where applicable)",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
-      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — β values: H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8 (book's example)"
+      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book."
     ]
   },
   "hardware": [
@@ -27,7 +27,7 @@
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work."
+      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "L4",
@@ -38,7 +38,7 @@
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
-      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs."
+      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "A10G",
@@ -49,7 +49,7 @@
       "fp16_tflops": 125,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Ampere consumer-class tensor cores; no FP8."
+      "notes": "Ampere consumer-class tensor cores; no FP8. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
     },
     {
       "key": "A100-40GB",
