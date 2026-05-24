@@ -71,35 +71,68 @@ function xForB(chart, B) {
 // Caliper-marker plugin. Draws three full-height vertical lines (b_crit /
 // b_slo / b_kv) with a top-gutter label like an engineering CAD dimension.
 // Reusable across all three channels — markers live on per-chart options.
+//
+// Label placement uses greedy first-fit row assignment: labels are sorted by
+// X and placed in the topmost row that has no horizontal collision with an
+// already-placed label. Common case (markers well-separated): all three land
+// in row 0. Crowded case (e.g., B_crit=296 and B_kv=333 — labels would
+// otherwise overlap into mush): the second label drops into row 1. Up to
+// 2 rows are supported (chart layout pads 26px above chartArea for them);
+// 3-marker pile-ups beyond that fall back to overprint of the topmost row.
 const calipersPlugin = {
   id: "calipers",
   afterDatasetsDraw(chart) {
     const markers = chart.options.plugins?.calipers?.markers ?? [];
     const ctx = chart.ctx;
-    const { top, bottom } = chart.chartArea;
+    const { top, bottom, right } = chart.chartArea;
     ctx.save();
     ctx.font = '500 10px "Martian Mono", ui-monospace, monospace';
     ctx.textBaseline = "alphabetic";
-    for (const m of markers) {
-      const x = xForB(chart, m.B);
-      if (x == null) continue;
+
+    // First pass: project visible markers, measure label width, decide each
+    // label's anchor X (clamped to stay on-canvas at the right edge).
+    const labelGap = 6;
+    const positioned = markers
+      .map((m) => {
+        const x = xForB(chart, m.B);
+        if (x == null) return null;
+        const label = `${m.label} · ${Math.round(m.B)}`;
+        const w = ctx.measureText(label).width;
+        const lx = Math.min(x + 6, right - w - 2);
+        return { ...m, x, label, w, lx };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.lx - b.lx);
+
+    // Greedy first-fit row assignment. rowEdge[i] tracks the right edge of
+    // the rightmost label currently in row i; a new label fits in row i iff
+    // its lx is past that edge.
+    const rowEdge = [];
+    for (const m of positioned) {
+      let row = 0;
+      while (rowEdge[row] != null && m.lx < rowEdge[row]) row++;
+      rowEdge[row] = m.lx + m.w + labelGap;
+      m.row = row;
+    }
+
+    // Second pass: draw drop lines (full height, always at row-0 tick),
+    // top tick caps (at chartArea.top), and labels at their assigned row.
+    const rowH = 11;
+    for (const m of positioned) {
       ctx.strokeStyle = m.color;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+      ctx.moveTo(m.x, top); ctx.lineTo(m.x, bottom);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
       ctx.beginPath();
-      ctx.moveTo(x - 4, top - 1); ctx.lineTo(x + 4, top - 1);
+      ctx.moveTo(m.x - 4, top - 1); ctx.lineTo(m.x + 4, top - 1);
       ctx.stroke();
-      const label = `${m.label} · ${Math.round(m.B)}`;
-      const w = ctx.measureText(label).width;
-      const lx = Math.min(x + 6, chart.chartArea.right - w - 2);
       ctx.fillStyle = m.color;
-      ctx.fillText(label, lx, top - 6);
+      ctx.fillText(m.label, m.lx, top - 6 - m.row * rowH);
     }
     ctx.restore();
   },
@@ -199,6 +232,14 @@ export function createScope(canvas, channel, initial) {
       maintainAspectRatio: false,
       animation: { duration: 600, easing: "easeOutQuart" },
       interaction: { mode: "nearest", intersect: false },
+      // Top padding leaves room for the caliper labels (drawn above
+      // chartArea.top by calipersPlugin, stacked into up to 2 rows when
+      // markers overlap horizontally). Without padding the labels render
+      // above the canvas boundary and get clipped. 26px = 2 rows × 11px + 4
+      // breathing. Right padding deliberately omitted — the rightmost tick
+      // ("1,500") needs the full plot width; the label-position clamp inside
+      // calipersPlugin keeps rightmost labels on-canvas already.
+      layout: { padding: { top: 26 } },
       plugins: {
         legend: { display: false },
         tooltip: { enabled: false },
