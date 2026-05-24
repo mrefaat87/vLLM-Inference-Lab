@@ -1219,26 +1219,46 @@ function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
 
 // ---------- max_num_batched_tokens ----------
 
-// vLLM's max_num_batched_tokens. Combines DJL's α × batch × ISL hint with
-// Sarathi-Serve's strict/relaxed token-budget bands.
-// Source-verified against Sarathi-Serve OSDI '24 (arXiv 2403.02310v3) §5.1:
-//   "We use token budget of 2048 and 512 for all models under the relaxed
-//    and strict settings, respectively, except for the LLaMA2-70B relaxed
-//    configuration where we use token budget of 1536 to reduce the impact
-//    of pipeline bubbles."
-// So: 512 (strict TBT SLO), 2048 (relaxed), 1536 specifically for 70B-class
-// models under pipeline parallelism. Candidate set is powers-of-2 ≥ 1024
-// (kernel tile alignment) plus 1536 as the Sarathi-Serve PP-tuned variant.
-// Caveat: the α=0.15 midpoint is DJL guidance, not source-verified from a
-// primary benchmark — treat as a starting hint, not a tuned constant.
+// Recommends a starting value for vLLM's --max-num-batched-tokens flag (the
+// scheduler's token budget per forward pass — prefill + decode tokens combined,
+// the chunked-prefill knob). Returns { value, band } where `band` is a label
+// for the UI tile.
+//
+// This is a HEURISTIC, not a derived bound. It blends two pieces of guidance:
+//
+//   1. DJL TRT-LLM "sensible band" hint (α × batch × ISL, α∈[0.1, 0.2]):
+//      bigger workloads need a bigger token budget so prefill chunks don't
+//      starve. We use the midpoint α=0.15. The α value itself is rule-of-thumb,
+//      not derived from a primary benchmark — treat as a starting hint.
+//
+//   2. Sarathi-Serve OSDI '24 (arXiv 2403.02310v3) §5.1 — token-budget bands
+//      indexed by SLO strictness, quoted verbatim:
+//        "We use token budget of 2048 and 512 for all models under the relaxed
+//         and strict settings, respectively, except for the LLaMA2-70B relaxed
+//         configuration where we use token budget of 1536 to reduce the impact
+//         of pipeline bubbles."
+//      → 512 strict / 2048 relaxed are the source-verified anchors; 1536 is
+//      the PP-tuned variant. Strict band is triggered by tbt_ms ≤ 30ms (tight
+//      SLOs can't afford fat forward passes; bigger token budgets slow every
+//      decode step).
+//
+// Algorithm:
+//   - Compute `hint = α × maxBatch × isl` (DJL band lower edge).
+//   - Pick the smallest candidate from {512, 1024, 1536, 2048, 4096, 8192}
+//     that is ≥ max(1024, hint). Candidates are powers-of-2 (kernel tile
+//     alignment) with 1536 inserted as the Sarathi 70B-PP variant.
+//   - If TBT is strict (≤30ms), cap at 2048 — Sarathi's relaxed-band ceiling.
+//
+// Not modelled: HBM cost of the token budget (activation memory at the chosen
+// budget); chunked-prefill throughput tradeoff (Sarathi's actual optimization).
+// This is a "what to put in the vLLM flag as a starting point" answer, not a
+// "what's optimal" answer — empirical sweep around the recommendation, then
+// pick the goodput knee.
 function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
   const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
   const sarathiBand = tbt_ms <= 30 ? "strict (~512)" : "relaxed (~2048)";
   const candidates = [512, 1024, 1536, 2048, 4096, 8192];
-  // Prefer the smallest candidate ≥ max(1024, hint) — Sarathi powers-of-2 rule
-  // (with 1536 included for the LLaMA2-70B PP case).
   let pick = candidates.find((c) => c >= Math.max(1024, hint)) ?? 8192;
-  // If the strict TBT band is in play, never exceed 2048.
   if (tbt_ms <= 30 && pick > 2048) pick = 2048;
   return { value: pick, band: sarathiBand };
 }
