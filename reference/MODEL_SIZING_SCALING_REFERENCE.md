@@ -263,6 +263,8 @@ AI = FLOPs / Bytes_moved
 | H100 SXM | 9.9e14 | 3.35e12 | **~295** (bf16) / ~590 (fp8) |
 | H200 | 9.9e14 | 4.8e12 | ~205 (bf16) |
 
+> H200 has the same compute as H100 but ~43% more HBM bandwidth, so its roofline ridge sits *lower* (~205 vs 295). Counter-intuitive at first read — more BW means weight loading clears the bus sooner, so compute saturates at a smaller batch. For decode that's a win: you reach the throughput plateau with less concurrent load.
+
 **Critical batch size** — the batch at which a dense matmul transitions from memory- to compute-bound:
 
 ```
@@ -516,7 +518,7 @@ Y_max ≈ F / (B · β)
 ### Reading the variables
 
 - `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time (and the per-token throughput-per-chip starts dropping, because the chips spend more time syncing than computing).
-- **`F` is `d_ff`** — a small dimensionless integer (14,336 for Llama-3-8B; 28,672 for Llama-3-70B). **Not "total FLOPs."** This was a common transcription error worth flagging — earlier drafts of this doc had it wrong.
+- **`F` is `d_ff`** — a small dimensionless integer (14,336 for Llama-3-8B; 28,672 for Llama-3-70B). **Not "total FLOPs."** Worth flagging because "F" gets used inconsistently across the literature; if it weren't `d_ff` the formula wouldn't even reduce to dimensionless.
 - **`B`** = current batch size (decode-step concurrency). Y_max is *inversely* proportional to B: small batches let you spread the model thin, big batches force you to concentrate.
 - **`β = W_hbm / W_ici`**, dimensionless, **hardware-specific**. Only the **TPU v5e** row is published in the Scaling Book; the GPU rows below are **derived by us** as `HBM_BW ÷ ICI_BW` from the bandwidth numbers in §1 (and vendor specs for ICI/NVLink/PCIe). Treat them as order-of-magnitude estimates, not citations.
 
@@ -681,7 +683,7 @@ This is why `max_num_batched_tokens` is "decode-protective" — decodes go first
 **Tuning knobs (V1 defaults):**
 | Knob | Default | Effect |
 |---|---|---|
-| `gpu_memory_utilization` | 0.92 | Fraction of GPU mem for weights+KV pool; lower to 0.85–0.88 if you see OOM under burst, or raise toward 0.95 if you've measured headroom. Provenance: `CacheConfig.gpu_memory_utilization` field default in vLLM `vllm/config/cache.py`. Older vLLM releases shipped 0.90 (and earlier drafts of this doc carried 0.80). |
+| `gpu_memory_utilization` | 0.92 | Fraction of GPU mem for weights+KV pool; lower to 0.85–0.88 if you see OOM under burst, or raise toward 0.95 if you've measured headroom. Source: `CacheConfig.gpu_memory_utilization` default in vLLM `vllm/config/cache.py` (was 0.90 in older releases). |
 | `block_size` | 16 | Smaller → more fragmentation; larger → more wasted tail-of-sequence. |
 | `max_num_seqs` | — | Hard cap on concurrent requests; throughput ceiling. |
 | `max_num_batched_tokens` | — | Token budget per step; raise to fit more prefill, lower to protect decode ITL. |
