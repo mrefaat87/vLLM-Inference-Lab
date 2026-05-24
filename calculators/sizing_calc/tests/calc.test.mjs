@@ -374,6 +374,39 @@ test("sweepRanges brackets the recommended batch", () => {
   }
 });
 
+test("sweepRanges + recommendMaxBatchedTokens share the same Sarathi bands (no drift)", () => {
+  // Picker recommends 1536 (the LLaMA2-70B PP value) — the sweep MUST include
+  // it. Used to silently drop 1536 because sweepRanges had a hardcoded list
+  // that excluded it.
+  const pick = recommendMaxBatchedTokens({ maxBatch: 10, isl: 1024, tbt_ms: 100 }); // hint=1536 lands here
+  const s = sweepRanges({ recommendedBatch: 10, recommendedMnbt: pick.value, tbt_ms: 100 });
+  assert.ok(s.max_num_batched_tokens.includes(pick.value),
+    `sweep grid ${JSON.stringify(s.max_num_batched_tokens)} must include picker's recommendation ${pick.value}`);
+
+  // Picker can also recommend 8192 for very-large workloads; sweep must
+  // reach that high too (recommendedMnbt*2 = 16384 in this scenario allows it).
+  const pickBig = recommendMaxBatchedTokens({ maxBatch: 1024, isl: 32000, tbt_ms: 100 });
+  const sBig = sweepRanges({ recommendedBatch: 1024, recommendedMnbt: pickBig.value, tbt_ms: 100 });
+  assert.equal(pickBig.value, 8192, "expected the picker to recommend the top band for big workloads");
+  assert.ok(sBig.max_num_batched_tokens.includes(8192),
+    `sweep grid ${JSON.stringify(sBig.max_num_batched_tokens)} must reach 8192 when picker does`);
+});
+
+test("sweepRanges respects the strict-TBT cap (matches picker behavior)", () => {
+  // Strict TBT (≤30ms): picker caps at 2048. Sweep MUST also cap at 2048 —
+  // suggesting the user empirically test 4096 when the picker has already
+  // ruled it out would be misleading.
+  const s = sweepRanges({ recommendedBatch: 64, recommendedMnbt: 2048, tbt_ms: 20 });
+  assert.ok(s.max_num_batched_tokens.every((v) => v <= 2048),
+    `strict-TBT sweep should not exceed 2048, got ${JSON.stringify(s.max_num_batched_tokens)}`);
+
+  // Relaxed TBT (>30ms): cap doesn't apply. With a big recommendedMnbt the
+  // sweep should reach higher.
+  const sRelaxed = sweepRanges({ recommendedBatch: 64, recommendedMnbt: 4096, tbt_ms: 100 });
+  assert.ok(sRelaxed.max_num_batched_tokens.some((v) => v > 2048),
+    `relaxed-TBT sweep should reach beyond 2048, got ${JSON.stringify(sRelaxed.max_num_batched_tokens)}`);
+});
+
 // ---------- Layer 8: property tests (small fuzz) ----------
 
 test("property: every (hw, model, prec) combo produces finite metrics", () => {

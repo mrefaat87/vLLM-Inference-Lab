@@ -1259,12 +1259,29 @@ function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
 // This is a "what to put in the vLLM flag as a starting point" answer, not a
 // "what's optimal" answer — empirical sweep around the recommendation, then
 // pick the goodput knee.
+// Sarathi-Serve token-budget bands. SINGLE SOURCE OF TRUTH for the picker
+// AND the sweep grid — drift between the two used to mean the picker could
+// recommend 1536 or 8192 while the sweep table only showed {512, 1024, 2048,
+// 4096}, hiding the actual recommendation from the user's empirical sweep.
+//   - 512: strict TBT regime (Sarathi-Serve §5.1).
+//   - 1024: default starting point (Sarathi-Serve § passim, also a vLLM
+//           kernel-friendly power of 2).
+//   - 1536: paper-cited LLaMA2-70B PP variant (Sarathi-Serve §5.1 verbatim:
+//           "except for the LLaMA2-70B relaxed configuration where we use
+//           token budget of 1536 to reduce the impact of pipeline bubbles").
+//   - 2048: relaxed TBT regime cap (Sarathi-Serve §5.1).
+//   - 4096 / 8192: large-throughput variants for throughput-only deployments.
+const SARATHI_BANDS = [512, 1024, 1536, 2048, 4096, 8192];
+// Strict TBT regime: when TBT_SLO ≤ this, cap the budget at SARATHI_STRICT_CAP.
+// "Strict ~512" / "relaxed ~2048" framing from Sarathi-Serve §5.2.
+const SARATHI_STRICT_TBT_MS = 30;
+const SARATHI_STRICT_CAP = 2048;
+
 function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
   const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
-  const sarathiBand = tbt_ms <= 30 ? "strict (~512)" : "relaxed (~2048)";
-  const candidates = [512, 1024, 1536, 2048, 4096, 8192];
-  let pick = candidates.find((c) => c >= Math.max(1024, hint)) ?? 8192;
-  if (tbt_ms <= 30 && pick > 2048) pick = 2048;
+  const sarathiBand = tbt_ms <= SARATHI_STRICT_TBT_MS ? "strict (~512)" : "relaxed (~2048)";
+  let pick = SARATHI_BANDS.find((c) => c >= Math.max(1024, hint)) ?? SARATHI_BANDS[SARATHI_BANDS.length - 1];
+  if (tbt_ms <= SARATHI_STRICT_TBT_MS && pick > SARATHI_STRICT_CAP) pick = SARATHI_STRICT_CAP;
   return { value: pick, band: sarathiBand };
 }
 
@@ -1318,10 +1335,17 @@ function powersOf2In(minV, maxV) {
 // recommendedMnbt from recommendMaxBatchedTokens(). The UI's "patchbay"
 // renders the three grids as chip rows for the user to copy into their
 // benchmark harness.
-function sweepRanges({ recommendedBatch, recommendedMnbt }) {
+function sweepRanges({ recommendedBatch, recommendedMnbt, tbt_ms }) {
   const b = Math.max(1, Math.floor(recommendedBatch));
   const seqs = powersOf2In(Math.max(1, Math.floor(b / 4)), Math.max(2, b * 2));
-  const tokens = [512, 1024, 2048, 4096].filter((v) => v <= recommendedMnbt * 2);
+  // Sweep candidates come from the same SARATHI_BANDS the picker uses, so the
+  // sweep table will always include the recommended value (including 1536 for
+  // PP and 8192 for throughput-only). Apply the same strict-TBT cap so we
+  // don't suggest the user empirically test 4096 when the picker already ruled
+  // it out for strict TBT.
+  const strictCap = tbt_ms != null && tbt_ms <= SARATHI_STRICT_TBT_MS ? SARATHI_STRICT_CAP : Infinity;
+  const upper = Math.min(recommendedMnbt * 2, strictCap);
+  const tokens = SARATHI_BANDS.filter((v) => v <= upper);
   const concurrency = [1, Math.max(1, Math.floor(b / 4)), Math.max(1, Math.floor(b / 2)), b, Math.floor(b * 1.5), b * 2]
     .filter((v, i, a) => a.indexOf(v) === i)
     .sort((x, y) => x - y);
@@ -1484,7 +1508,7 @@ function compute(input) {
   }
   const mnbt = recommendMaxBatchedTokens({ maxBatch: recommendedBatch, isl: cleanIsl, tbt_ms: cleanTbt });
   const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl });
-  const sweep = sweepRanges({ recommendedBatch, recommendedMnbt: mnbt.value });
+  const sweep = sweepRanges({ recommendedBatch, recommendedMnbt: mnbt.value, tbt_ms: cleanTbt });
 
   // Chart curve: log-spaced B from 1 to 4× max(bcrit, bkv). UI draws stepTime
   // and throughput from this; sized to comfortably show the ridge and the
