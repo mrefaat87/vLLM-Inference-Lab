@@ -997,12 +997,17 @@ function bCrit(hw, model, weight_prec, act_prec) {
 // compute sparsity DOES reduce 2BN/FLOPs). For dense models both fields are
 // equal and behavior is unchanged vs the original single-N formulation.
 //
-// avgSeq is the mean tokens-of-KV per active sequence during the step we're
-// modelling (≈ ISL + OSL/2 for steady-state decode).
-function stepTime({ B, kv_per_token, avgSeq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
+// seq is tokens-of-KV per active sequence during the step we're modelling. Use
+// PEAK occupancy (ISL+OSL — the last decode step) rather than the mean. Reason:
+// production SLAs (e.g., "TBT p99 < 50ms") bound EVERY step, and the last step
+// is the slowest because KV is largest then. Sizing against the mean fits
+// batches that meet TBT on average but blow SLO at end-of-decode; sizing
+// against peak is the SLO-conservative answer. The asymmetry vs bKv's peak
+// usage is gone — both bounds now agree on what "fits" means.
+function stepTime({ B, kv_per_token, seq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
   // Attention kernel: stream the live KV of every sequence each step. No compute
   // roof — attention's AI is ~1, always memory-bound at decode (reference §0.3).
-  const attnMemTime = (B * kv_per_token * avgSeq) / totalBW;
+  const attnMemTime = (B * kv_per_token * seq) / totalBW;
   // MLP kernel: weight-load vs compute, whichever is slower. W/BW is constant
   // in B (the per-step weight stream is the same regardless of how many
   // tokens share it); 2BN/FLOPs grows linearly in B. N here = active params.
@@ -1057,11 +1062,15 @@ function throughputAtB(args) {
 // correct boundary for this solve. Do NOT replace B_ridge with bCrit() —
 // the two regime expressions below would no longer match the boundary and
 // the solve would silently report falsely-permissive values for FP8/FP8.
-function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
+function bSlo({ tbt_ms, kv_per_token, seq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
   const T = tbt_ms / 1000;
   const W = weight_bytes_total;
   const N = paramCount_active;
-  const KS = kv_per_token * avgSeq;
+  // KS uses PEAK seq (ISL+OSL) — see stepTime() comment for the SLO-vs-mean
+  // rationale. This makes bSlo answer "what's the max B that meets TBT on the
+  // WORST decode step?" rather than "...on the average step", which is the
+  // production-correct framing for any p99-style SLA.
+  const KS = kv_per_token * seq;
 
   const wOverBW = W / totalBW;
   // Regime-(a) candidate: weight-load dominates the MLP kernel.
@@ -1314,12 +1323,14 @@ function compute(input) {
   // arithmetic-intensity threshold; aggregating ngpus would cancel out).
   const bcrit = bCrit(hw, model, weight_prec, act_prec);
 
-  // Sequence-occupancy: ISL+OSL for KV (peak end-of-decode is the OOM risk);
-  // ISL+OSL/2 for stepTime (mean during decode, what TBT actually averages).
+  // Sequence-occupancy: peak (ISL+OSL — end-of-decode) is used for BOTH bounds.
+  // bKv: peak is the OOM risk (must fit the worst step). bSlo / stepTime: peak
+  // is the SLO risk (the worst step is the slowest; "TBT p99 < X" demands every
+  // step meet bound). Using mean for stepTime would fit batches that meet TBT
+  // on average but blow SLO at end-of-decode — wrong answer for a sizing tool.
   const peakSeq = cleanIsl + cleanOsl;
-  const avgSeq = cleanIsl + cleanOsl / 2;
 
-  const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs });
+  const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs });
   const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W_total, kv_bytes: kvBytes, isl: cleanIsl, osl: cleanOsl });
 
   if (bslo.unreachable) {
@@ -1364,14 +1375,14 @@ function compute(input) {
   const curveMax = Math.max(bcrit * 4, (bkv.value || 1) * 2, 64);
   const curve = [];
   for (let B = 1; B <= curveMax; B = Math.max(B + 1, Math.ceil(B * 1.2))) {
-    const t_ms = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
+    const t_ms = stepTime({ B, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
     const tps = (B / (t_ms / 1000));
     curve.push({ B, step_ms: t_ms, tokens_per_sec: tps });
   }
 
   // Throughput at the recommended batch — headline tile number.
   const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
-    ? throughputAtB({ B: recommendedBatch, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
+    ? throughputAtB({ B: recommendedBatch, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
     : 0;
 
   return {

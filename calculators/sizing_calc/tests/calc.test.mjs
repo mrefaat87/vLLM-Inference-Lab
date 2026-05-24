@@ -72,7 +72,7 @@ test("stepTime is monotonic non-decreasing in B", () => {
   const args = (B) => ({
     B,
     kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8),
-    avgSeq: 4096,
+    seq: 4096,
     weight_bytes_total: weightsBytes(m.params_b_total, DTYPE_BYTES.INT8),
     paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
@@ -86,13 +86,49 @@ test("stepTime is monotonic non-decreasing in B", () => {
   }
 });
 
+// SLO-conservatism check: stepTime is monotone non-decreasing in seq, so
+// passing the PEAK (ISL+OSL) sequence produces a stepTime ≥ what the mean
+// (ISL+OSL/2) would. bSlo is therefore monotone non-increasing in seq —
+// asking the SLO question against the worst step gives a smaller-or-equal
+// answer than asking it against the average step. Pins compute() to the
+// SLO-conservative reading; would catch a regression to mean-seq.
+test("stepTime/bSlo monotone in seq: peakSeq ≤ meanSeq answer", () => {
+  const m = MODEL["llama-3-70b"];
+  const hw = HW["H100-80GB"];
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
+  const K = kvPerToken(m, DTYPE_BYTES.INT8);
+  const base = {
+    tbt_ms: 50, kv_per_token: K, weight_bytes_total: W,
+    paramCount_active: m.params_b_active * 1e9,
+    totalBW: hw.hbm_bw_gbs * 1e9,
+    totalFLOPs: hw.fp16_tflops * 1e12,
+  };
+  // Long-generation workload (OSL >> ISL) makes the delta visible — typical
+  // chat shapes have peak ≈ mean and the test would be a no-op.
+  const isl = 1024, osl = 4096;
+  const meanSeq = isl + osl / 2;
+  const peakSeq = isl + osl;
+  // stepTime: peak ≥ mean at any B (more KV to stream).
+  for (const B of [1, 8, 64, 256]) {
+    const tMean = stepTime({ B, ...base, seq: meanSeq });
+    const tPeak = stepTime({ B, ...base, seq: peakSeq });
+    assert.ok(tPeak >= tMean - 1e-12, `stepTime not monotone in seq at B=${B}: peak=${tPeak} < mean=${tMean}`);
+  }
+  // bSlo: peak ≤ mean (smaller batch fits the tighter constraint).
+  const bMean = bSlo({ ...base, seq: meanSeq });
+  const bPeak = bSlo({ ...base, seq: peakSeq });
+  if (!bMean.unreachable && !bPeak.unreachable) {
+    assert.ok(bPeak.value <= bMean.value, `bSlo not monotone in seq: peak=${bPeak.value} > mean=${bMean.value}`);
+  }
+});
+
 test("bSlo self-consistency: stepTime(bSlo) ≤ SLO < stepTime(bSlo+1)", () => {
   const m = MODEL["llama-3-70b"];
   const hw = HW["H100-80GB"];
   const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const K = kvPerToken(m, DTYPE_BYTES.INT8);
   const args = {
-    tbt_ms: 50, kv_per_token: K, avgSeq: 4096, weight_bytes_total: W,
+    tbt_ms: 50, kv_per_token: K, seq: 4096, weight_bytes_total: W,
     paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9,
     totalFLOPs: hw.fp16_tflops * 1e12,
@@ -138,7 +174,7 @@ test("bKv routes MLA models through the MLA kvPerToken formula", () => {
 
 test("throughput tracks stepTime: tps = B / stepTime", () => {
   const args = {
-    B: 32, kv_per_token: 1000, avgSeq: 1024, weight_bytes_total: 1e10,
+    B: 32, kv_per_token: 1000, seq: 1024, weight_bytes_total: 1e10,
     paramCount_active: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
   };
   const t = stepTime(args);
@@ -177,7 +213,7 @@ test("bSlo unreachable when TBT × BW < weight stream time", () => {
   const hw = HW["T4"]; // tiny BW
   const W = weightsBytes(m.params_b_total, DTYPE_BYTES.INT8);
   const r = bSlo({
-    tbt_ms: 10, kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8), avgSeq: 4096,
+    tbt_ms: 10, kv_per_token: kvPerToken(m, DTYPE_BYTES.INT8), seq: 4096,
     weight_bytes_total: W, paramCount_active: m.params_b_active * 1e9,
     totalBW: hw.hbm_bw_gbs * 1e9, totalFLOPs: hw.fp16_tflops * 1e12,
   });
@@ -383,12 +419,12 @@ test("stepTime large-B: per-kernel sum differs from old single-max form", () => 
   const BW = hw.hbm_bw_gbs * 1e9;
   const F = hw.fp16_tflops * 1e12; // INT8 acts use FP16 compute path on H100
   const B = 800;
-  const avgSeq = 8192;
+  const seq = 8192;
 
-  const tNew = stepTime({ B, kv_per_token: K, avgSeq, weight_bytes_total: W, paramCount_active: N, totalBW: BW, totalFLOPs: F });
+  const tNew = stepTime({ B, kv_per_token: K, seq, weight_bytes_total: W, paramCount_active: N, totalBW: BW, totalFLOPs: F });
 
   // Analytical: attn = B·K·S/BW; mlp = max(W/BW, 2BN/F)
-  const attn = (B * K * avgSeq) / BW;
+  const attn = (B * K * seq) / BW;
   const mlpMem = W / BW;
   const compute = (2 * B * N) / F;
   const tExpected = attn + Math.max(mlpMem, compute);
@@ -397,7 +433,7 @@ test("stepTime large-B: per-kernel sum differs from old single-max form", () => 
   // The OLD wrong form: single max((W + B·K·S)/BW, 2BN/F). At B=800 the KV
   // stream dominates the inside-the-max term, so the old form would return
   // (W + B·K·S)/BW alone — missing the additive MLP-compute kernel.
-  const tOldWrong = Math.max((W + B * K * avgSeq) / BW, compute);
+  const tOldWrong = Math.max((W + B * K * seq) / BW, compute);
   // The new (correct) per-kernel sum must be strictly larger than the old
   // single-max once compute is non-trivial — that's the whole bug fix.
   assert.ok(tNew > tOldWrong,
@@ -434,7 +470,7 @@ test("stepTime compute branch reads paramCount_active only", () => {
   // Pick args where compute strictly dominates the memory branch so the
   // max() in the MLP kernel selects compute. Large B + large active params.
   const base = {
-    B: 10000, kv_per_token: 1, avgSeq: 1, weight_bytes_total: 1, // tiny mem terms
+    B: 10000, kv_per_token: 1, seq: 1, weight_bytes_total: 1, // tiny mem terms
     paramCount_active: 1e10, totalBW: 1e12, totalFLOPs: 1e15,
   };
   const t1 = stepTime(base);
@@ -453,7 +489,7 @@ test("stepTime compute branch reads paramCount_active only", () => {
 test("stepTime memory branch reads weight_bytes_total only", () => {
   // Memory-dominated regime: large W, tiny active params so max() picks W/BW.
   const base = {
-    B: 1, kv_per_token: 1, avgSeq: 1, weight_bytes_total: 1e12,
+    B: 1, kv_per_token: 1, seq: 1, weight_bytes_total: 1e12,
     paramCount_active: 1, totalBW: 1e12, totalFLOPs: 1e15,
   };
   const t1 = stepTime(base);
