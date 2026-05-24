@@ -110,11 +110,30 @@ test("bKv self-consistency: used HBM stays under cap", () => {
   const m = MODEL["llama-3-8b"];
   const hw = HW["H100-80GB"];
   const W = weightsBytes(m.params_b_total, DTYPE_BYTES.FP16);
-  const K = kvPerToken(m, DTYPE_BYTES.FP16);
-  const r = bKv({ hw, model: m, ngpus: 1, weight_bytes_total: W, kv_per_token: K, isl: 1024, osl: 256 });
-  const used = W + r.value * K * (1024 + 256);
+  const r = bKv({ hw, model: m, ngpus: 1, weight_bytes_total: W, kv_bytes: DTYPE_BYTES.FP16, isl: 1024, osl: 256 });
+  // Use the kv_per_token bKv returned (avoids drift between the test and the
+  // function's internal MLA-aware derivation).
+  const used = W + r.value * r.kv_per_token * (1024 + 256);
   const cap = hw.hbm_gb * 1e9 * (1 - ACT_OVERHEAD);
   assert.ok(used <= cap, `used ${used/1e9}GB exceeds cap ${cap/1e9}GB`);
+});
+
+test("bKv routes MLA models through the MLA kvPerToken formula", () => {
+  // Regression guard for the API change that surfaced this: previously the
+  // caller had to remember to pre-compute K with the right attention variant,
+  // which made it easy to silently use the MHA formula on MLA. Now bKv owns
+  // the derivation — DeepSeek-V3 bKv must use MLA's much smaller per-token
+  // KV (576 × bytes × n_layers), not the GQA formula.
+  const m = MODEL["deepseek-v3"];
+  const hw = HW["H100-80GB"];
+  const W = weightsBytes(m.params_b_total, DTYPE_BYTES.FP8);
+  const r = bKv({ hw, model: m, ngpus: 16, weight_bytes_total: W, kv_bytes: DTYPE_BYTES.BF16, isl: 1024, osl: 256 });
+  // MLA per-token KV for DeepSeek-V3 BF16: (512 + 64) × 2 × 61 = 70,272 bytes.
+  within(r.kv_per_token, 70272, 0.1);
+  // Sanity: GQA-equivalent formula (2 × n_kv_heads × head_dim × n_layers × bytes)
+  // would give 2 × 128 × 128 × 61 × 2 = ~4 MB/token — ~57× larger. The fact
+  // that bKv returned ~70 kB proves the MLA branch was taken.
+  assert.ok(r.kv_per_token < 100000, `MLA should give KV << GQA, got ${r.kv_per_token}`);
 });
 
 test("throughput tracks stepTime: tps = B / stepTime", () => {

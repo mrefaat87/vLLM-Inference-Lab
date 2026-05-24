@@ -1106,16 +1106,33 @@ function bSlo({ tbt_ms, kv_per_token, avgSeq, weight_bytes_total, paramCount_act
 // Largest B that fits the KV cache in HBM after weights + activation headroom
 // (reference §3, §5). Uses peak occupancy ISL+OSL — end-of-decode is when KV
 // is largest, so this is the conservative bound that won't OOM mid-generation.
-function bKv({ hw, model, ngpus, weight_bytes_total, kv_per_token, isl, osl }) {
-  // weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all experts sit in HBM regardless of routing. Compute sparsity does NOT shrink HBM footprint.
+//
+// Owns the KV-per-token derivation: calls kvPerToken(model, kv_bytes)
+// internally so the right per-attention-variant formula (MHA / GQA / MQA / MLA)
+// is always used. Earlier shape accepted a pre-computed kv_per_token from the
+// caller, which made it possible for a caller to silently pass a wrong number
+// (e.g., the MHA formula on an MLA model). Returns the K it derived so callers
+// that also need it (chart curve, stepTime) don't recompute.
+//
+// weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all
+// experts sit in HBM regardless of routing. Compute sparsity does NOT shrink
+// HBM footprint.
+function bKv({ hw, model, ngpus, weight_bytes_total, kv_bytes, isl, osl }) {
   const totalHBM = hw.hbm_gb * ngpus * 1e9;
   const usable = totalHBM * (1 - ACT_OVERHEAD) - weight_bytes_total;
+  const kv_per_token = kvPerToken(model, kv_bytes);
   if (usable <= 0) {
-    return { value: 0, weights_overflow: true };
+    return { value: 0, weights_overflow: true, kv_per_token };
   }
   const peakSeq = isl + osl;
-  if (peakSeq <= 0 || kv_per_token <= 0) return { value: 0 };
-  return { value: Math.floor(usable / (kv_per_token * peakSeq)), weights_overflow: false };
+  if (peakSeq <= 0 || kv_per_token <= 0) {
+    return { value: 0, weights_overflow: false, kv_per_token };
+  }
+  return {
+    value: Math.floor(usable / (kv_per_token * peakSeq)),
+    weights_overflow: false,
+    kv_per_token,
+  };
 }
 
 // ---------- TP usefulness ceiling (Scaling Book Y_max) ----------
@@ -1303,7 +1320,7 @@ function compute(input) {
   const avgSeq = cleanIsl + cleanOsl / 2;
 
   const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, avgSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs });
-  const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W_total, kv_per_token: K, isl: cleanIsl, osl: cleanOsl });
+  const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W_total, kv_bytes: kvBytes, isl: cleanIsl, osl: cleanOsl });
 
   if (bslo.unreachable) {
     warnings.push({ level: "error", msg: `b_slo unreachable: TBT=${cleanTbt}ms × BW < weight stream time. Raise TP or relax TBT.` });
