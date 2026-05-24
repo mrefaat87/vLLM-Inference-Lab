@@ -73,11 +73,15 @@ def test_required_form_ids_present(html: str) -> None:
         "tbt", "ttft", "ngpus", "sizing-form",
         # Readout tiles
         "m-bcrit", "m-bslo", "m-bkv", "m-mns", "m-mnbt", "m-mnbt-band",
-        "m-tps", "m-tps-pg", "m-pd", "m-par", "m-par-sub", "m-weights", "m-kv",
+        "m-tps", "m-tps-pg", "m-cost", "m-pd", "m-par", "m-par-sub", "m-weights", "m-kv",
+        # Cost wiring: price input + scope sections (one per channel) + canvases.
+        "price-per-hour",
+        "scope-latency", "scope-throughput", "scope-cost",
+        "scope-latency-canvas", "scope-throughput-canvas", "scope-cost-canvas",
         # Sparklines
         "spark-bcrit", "spark-bslo", "spark-bkv",
         # Chart + sweep + snippet + diagnostics
-        "scope-canvas", "patchbay", "snippet-body", "copy-btn", "diagnostics",
+        "patchbay", "snippet-body", "copy-btn", "diagnostics",
         # Custom-mode fields
         "c-hbm-gb", "c-hbm-bw", "c-fp16", "c-fp8", "c-nvlink",
         "c-params-total", "c-params-active", "c-layers", "c-dmodel", "c-heads", "c-kvheads",
@@ -118,6 +122,19 @@ def test_exactly_one_module_script_open_and_close(html: str) -> None:
     # for parser-correctness. 1 chart.js CDN + 2 JSON blocks + 1 module = 4.
     closes = len(re.findall(r"</script\s*>", html))
     assert closes == 4, f"unexpected </script tag count: {closes} (a literal </script> probably leaked from a source comment)"
+
+
+def test_three_scope_canvases_no_duplicate_ids(html: str) -> None:
+    """Each scope must have its own canvas with a unique id. Chart.js binds to
+    a canvas by element reference, but duplicate IDs let two charts attach to
+    the same DOM node and silently overwrite each other's draw state — a real
+    bug class. This guards against accidental copy-paste duplication."""
+    for canvas_id in ("scope-latency-canvas", "scope-throughput-canvas", "scope-cost-canvas"):
+        occurrences = html.count(f'id="{canvas_id}"')
+        assert occurrences == 1, f"canvas id {canvas_id!r} appears {occurrences} times (must be exactly 1)"
+    # And the count of <canvas …id="scope-…-canvas"> markers must equal 3.
+    canvases = re.findall(r'<canvas\s+id="scope-(latency|throughput|cost)-canvas"', html)
+    assert len(canvases) == 3, f"expected 3 scope canvases, found {len(canvases)}: {canvases}"
 
 
 def test_no_obvious_secrets_or_pii(html: str) -> None:

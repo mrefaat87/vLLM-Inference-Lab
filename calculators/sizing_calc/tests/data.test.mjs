@@ -37,6 +37,19 @@ test("hardware: required fields present + plausibility ranges", () => {
       assert.ok(h.fp8_tflops >= h.fp16_tflops,
         `${h.key} fp8_tflops (${h.fp8_tflops}) < fp16_tflops (${h.fp16_tflops})`);
     }
+    // price_per_hour_usd: AWS on-demand list per GPU. Required for the cost
+    // chart + $/Mtok tile (see calc.mjs costPerMtok). Range [0.05, 200] is
+    // wide enough to cover T4 (~$0.5) and H200-class (~$15) on-demand while
+    // catching obvious typos like 122.9 instead of 12.29 or a missing decimal.
+    assert.ok(isPosNum(h.price_per_hour_usd) && h.price_per_hour_usd >= 0.05 && h.price_per_hour_usd <= 200,
+      `${h.key} price_per_hour_usd out of [0.05, 200]: ${h.price_per_hour_usd}`);
+    // Sanity ratio: $/TFLOP/hr should land in [0.001, 0.05] across all rows.
+    // Catches a future row where price is order-of-magnitude wrong relative to
+    // compute (e.g., $/hr column copied from $/day, or per-instance price not
+    // divided by GPU count).
+    const dollarsPerTflopHr = h.price_per_hour_usd / h.fp16_tflops;
+    assert.ok(dollarsPerTflopHr >= 0.001 && dollarsPerTflopHr <= 0.05,
+      `${h.key} $/TFLOP/hr = ${dollarsPerTflopHr.toFixed(4)} out of [0.001, 0.05]`);
   }
 });
 

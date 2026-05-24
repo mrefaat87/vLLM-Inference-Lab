@@ -305,9 +305,14 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 .scope-head .channels .sw { width: 10px; height: 2px; display: inline-block; }
 .scope-head .ch-step { color: var(--accent); }       .scope-head .ch-step .sw { background: var(--accent); }
 .scope-head .ch-tps  { color: var(--b-kv); }         .scope-head .ch-tps .sw { background: var(--b-kv); }
+.scope-head .ch-cost { color: var(--b-slo); }        .scope-head .ch-cost .sw { background: var(--b-slo); }
 .scope-head .ch-slo  { color: var(--muted); }        .scope-head .ch-slo .sw { background: var(--muted); border-top: 1px dashed var(--muted); height: 0; }
 
-.scope-canvas-wrap { position: relative; height: 380px; }
+/* Three scope panels stacked vertically. Per-panel height reduced from 380px
+   to 260px since each one shows a single curve and three of them shouldn't
+   dominate the page. */
+.scope-stack { display: flex; flex-direction: column; gap: 18px; }
+.scope-canvas-wrap { position: relative; height: 260px; }
 .scope-canvas-wrap canvas { cursor: none; }       /* crosshair plugin draws its own */
 
 .scope-foot {

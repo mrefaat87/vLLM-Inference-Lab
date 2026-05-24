@@ -47,6 +47,25 @@ function populatePresets() {
   // Sensible defaults: H100 + Llama-3-8B — the most common starting point.
   hwSel.value = "H100-80GB";
   modelSel.value = "llama-3-8b";
+  // Seed price input from the default hardware row.
+  syncPriceToHardware();
+}
+
+// Sync the price-per-hour input to the currently-selected hardware row's
+// default. Called on initial paint and on every hw row swap — within-row
+// edits leave the user's override alone. Plan Layer 6 test #12.
+function syncPriceToHardware() {
+  const hwKey = document.getElementById("hw").value;
+  const priceEl = document.getElementById("price-per-hour");
+  if (!priceEl) return;
+  if (hwKey === "__custom") {
+    priceEl.value = ""; // custom row → blank → propagates null cost
+    return;
+  }
+  const hw = HW_BY_KEY[hwKey];
+  if (hw && hw.price_per_hour_usd != null) {
+    priceEl.value = hw.price_per_hour_usd;
+  }
 }
 
 function readForm() {
@@ -92,6 +111,15 @@ function readForm() {
   });
   })() : MODEL_BY_KEY[modelKey];
 
+  // Price override: blank input → fall back to hw.price_per_hour_usd; for
+  // custom hardware with no default this propagates as null and the cost tile
+  // renders "—". Anything > 0 wins over the row default.
+  const priceRaw = document.getElementById("price-per-hour")?.value;
+  const priceParsed = priceRaw === "" || priceRaw == null ? null : +priceRaw;
+  const price_per_hour_usd = (priceParsed != null && Number.isFinite(priceParsed) && priceParsed > 0)
+    ? priceParsed
+    : (hw?.price_per_hour_usd ?? null);
+
   return {
     hw, model,
     isl: +document.getElementById("isl").value,
@@ -102,12 +130,17 @@ function readForm() {
     tbt_ms: +document.getElementById("tbt").value,
     ttft_ms: +document.getElementById("ttft").value,
     ngpus: +document.getElementById("ngpus").value,
+    price_per_hour_usd,
   };
 }
 
 // ---------- recompute pipeline ----------
 
-let scope = null;
+// Three independent Chart.js instances, one per channel. Lazy-init on first
+// recompute so the page doesn't pay chart construction cost before the first
+// computed data is available. Exposed on window.__sizingScopes for E2E tests
+// and manual debugging (convention from prior dashboards).
+let scopes = null;
 
 function recompute(skipPulse = false) {
   const input = readForm();
@@ -130,6 +163,12 @@ function paintMetrics(out, input) {
   setText("m-mnbt-band", m.max_num_batched_tokens_band);
   setText("m-tps",   fmt(m.throughput_tps));
   setText("m-tps-pg", `${fmt(m.throughput_tps_per_gpu)} per GPU`);
+  // Cost tile. null (custom HW with blank price) → "—"; Infinity (tps=0) → "—".
+  // Two-decimal format reads as currency; vendor list comparisons need cents.
+  const costTxt = (m.cost_per_mtok == null || !Number.isFinite(m.cost_per_mtok))
+    ? "—"
+    : `$${m.cost_per_mtok.toFixed(2)}`;
+  setText("m-cost", costTxt);
   setText("m-pd",    m.pd_ratio == null ? "—" : `${fmt(m.pd_ratio)} : 1`);
   const p = m.parallelism;
   setText("m-par",   p.fits ? `TP=${p.tp} · PP=${p.pp}` : "—");
@@ -162,10 +201,45 @@ function drawSparkline(id, curve, markB, color) {
 }
 
 function paintChart(out) {
-  if (!scope) {
-    scope = createScope(document.getElementById("scope-canvas"), out.chart);
+  if (!scopes) {
+    // First paint: stagger scope construction by 120ms each so the three
+    // panels reveal in top-down reading order. Each scope's own marker
+    // stagger (80ms apart) layers on top of this. Skip the stagger entirely
+    // under prefers-reduced-motion — construct all three immediately.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const canvases = {
+      latency:    document.getElementById("scope-latency-canvas"),
+      throughput: document.getElementById("scope-throughput-canvas"),
+      cost:       document.getElementById("scope-cost-canvas"),
+    };
+    scopes = {};
+    const order = ["latency", "throughput", "cost"];
+    const mount = (ch) => {
+      if (!canvases[ch]) return;
+      scopes[ch] = createScope(canvases[ch], ch, out.chart);
+    };
+    if (reduceMotion) {
+      for (const ch of order) mount(ch);
+    } else {
+      // Mount latency immediately so the first scope is visible at t=0; the
+      // other two stagger in. Avoids a 240ms blank-canvas flash on slow GPUs.
+      mount("latency");
+      setTimeout(() => mount("throughput"), 120);
+      setTimeout(() => mount("cost"),       240);
+    }
+    if (typeof window !== "undefined") {
+      window.__sizingScopes = scopes;
+      // Back-compat alias for older E2E tests that read window.__sizingChart.
+      // Points at the latency scope's chart (the panel that previously *was*
+      // "the chart"). Set lazily once latency mounts so the test wait works.
+      const setAlias = () => {
+        if (scopes.latency) window.__sizingChart = scopes.latency.chart;
+        else setTimeout(setAlias, 50);
+      };
+      setAlias();
+    }
   } else {
-    scope.update(out.chart);
+    for (const s of Object.values(scopes)) s.update(out.chart);
   }
 }
 
@@ -263,6 +337,16 @@ export function bootstrap() {
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
+  // Hardware row swap → reset price input to the new row's default. Within-row
+  // edits leave the user's override alone (the change event only fires on
+  // <select> changes, not on price input edits). Fire an `input` event after
+  // setting the value so the form-level input listener picks up the new price
+  // and recomputes — plan Layer 6 test #12 anchor.
+  document.getElementById("hw").addEventListener("change", () => {
+    syncPriceToHardware();
+    const priceEl = document.getElementById("price-per-hour");
+    if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   wireCopyButton();
   // Skip the pulse on first paint — pulse should signal change, not arrival.
   recompute(true);

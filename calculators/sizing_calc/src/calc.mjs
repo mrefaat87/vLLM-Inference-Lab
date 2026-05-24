@@ -166,6 +166,25 @@ export function throughputAtB(args) {
   return args.B / t;
 }
 
+// $/Mtok output at the given throughput. Pure unit conversion — no new physics.
+//
+//   fleet cost rate = price_per_hour_usd × ngpus               $/hr
+//   fleet emits     = tps × 3600                                tokens/hr
+//   $/token         = (price × ngpus) / (tps × 3600)            $/tok
+//   $/Mtok          = (price × ngpus × 1e6) / (3600 × tps)
+//
+// Reference §0.1 Pareto framing (latency × throughput × $/Mtok) — closes the
+// third axis of the cost surface the calculator was previously missing.
+//
+// Edge cases: price=null returns null (custom hardware with blank price → UI
+// renders the m-cost tile as "—"); tps=0 returns Infinity (caller masks before
+// display); price=0 returns 0 (free hardware = free tokens).
+export function costPerMtok({ price_per_hour_usd, ngpus, tps }) {
+  if (price_per_hour_usd === null || price_per_hour_usd === undefined) return null;
+  if (tps === 0) return Infinity;
+  return (price_per_hour_usd * ngpus * 1e6) / (3600 * tps);
+}
+
 // ---------- batch-size bounds ----------
 
 // Largest B that keeps a decode step under TBT_SLO. Solves the per-kernel
@@ -497,6 +516,13 @@ export function sweepRanges({ recommendedBatch, recommendedMnbt, tbt_ms }) {
 export function compute(input) {
   const warnings = [];
   const { hw, model, isl, osl, weight_prec, kv_prec, act_prec, tbt_ms, ttft_ms, ngpus } = input;
+  // Cost defaults to the hardware row's per-GPU on-demand list price; the UI
+  // override (price-per-hour input) takes precedence by passing it in `input`.
+  // null/undefined are both allowed and propagate to a "—" tile + gapped cost
+  // curve in the chart (see costPerMtok's null guard).
+  const price_per_hour_usd = input.price_per_hour_usd !== undefined
+    ? input.price_per_hour_usd
+    : (hw.price_per_hour_usd ?? null);
 
   // Input sanitation. Clamp to safe minima; never propagate NaN/Infinity.
   const cleanIsl = Math.max(1, Math.floor(isl || 0));
@@ -655,13 +681,21 @@ export function compute(input) {
   for (let B = 1; B <= curveMax; B = Math.max(B + 1, Math.ceil(B * 1.2))) {
     const t_ms = stepTime({ B, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
     const tps = (B / (t_ms / 1000));
-    curve.push({ B, step_ms: t_ms, tokens_per_sec: tps });
+    // Cost overlay on throughput — unit conversion only (see costPerMtok).
+    // Propagates null when price is unset so the chart can render gaps cleanly.
+    const cost = costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps });
+    curve.push({ B, step_ms: t_ms, tokens_per_sec: tps, cost_per_mtok: cost });
   }
 
   // Throughput at the recommended batch — headline tile number.
   const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
     ? throughputAtB({ B: recommendedBatch, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
     : 0;
+  // $/Mtok at the recommended batch — headline tile number. null if price
+  // unset; the UI renders that as "—".
+  const cost_per_mtok = throughput > 0
+    ? costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps: throughput })
+    : null;
 
   return {
     metrics: {
@@ -674,6 +708,8 @@ export function compute(input) {
       max_num_batched_tokens_band: mnbt.band,
       throughput_tps: throughput,
       throughput_tps_per_gpu: throughput / cleanNgpus,
+      cost_per_mtok,
+      price_per_hour_usd,
       parallelism,
       pd_ratio: pd,
       weights_gb: W_total / 1e9,

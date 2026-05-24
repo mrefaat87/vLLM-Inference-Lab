@@ -148,5 +148,29 @@
       "tolerance_pct": 0.1,
       "source": "Scaling Book inference chapter: 'if F is 16,384 and B is 32, we can in theory do model parallelism up to 16384/(32*8) = 64 ways'"
     }
+  ],
+  "cost": [
+    {
+      "name": "H100 $12.29/hr × 1 GPU × Llama-3-8B FP16 defaults",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-8b",
+      "weight_prec": "FP16", "kv_prec": "FP16", "act_prec": "FP16",
+      "isl": 1024, "osl": 256, "tbt_ms": 50, "ngpus": 1,
+      "price_per_hour_usd": 12.29,
+      "expected_cost_per_mtok_usd": 0.2264,
+      "tolerance_pct": 1,
+      "source": "Derived numerically on 2026-05-23: compute() returned throughput_tps=15082.17 at the recommended batch for these inputs; (12.29 × 1 × 1e6) / (3600 × 15082.17) = 0.22635. Tolerance ±1% guards against floating-point and rounding drift only — the cost formula itself is locked to 10-decimal precision by the closed-form unit test in calc.test.mjs."
+    },
+    {
+      "name": "T4 $0.526/hr × 1 GPU × Llama-3-8B INT4 (cheap+slow analytical band)",
+      "hw_key": "T4",
+      "model_key": "llama-3-8b",
+      "weight_prec": "INT4", "kv_prec": "INT8", "act_prec": "INT8",
+      "isl": 1024, "osl": 256, "tbt_ms": 100, "ngpus": 1,
+      "price_per_hour_usd": 0.526,
+      "expected_cost_per_mtok_usd": 0.0744,
+      "tolerance_pct": 1,
+      "source": "Derived numerically on 2026-05-23: throughput_tps=1963.78; (0.526 × 1 × 1e6) / (3600 × 1963.78) = 0.07440. Note: analytical model doesn't penalize quantization-induced kernel inefficiencies on Turing, so the realised $/Mtok at this scenario in production will likely be 2–4× this value. This golden locks the formula composition, not the workload realism."
+    }
   ]
 }

@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 
 import {
   ACT_OVERHEAD, DTYPE_BYTES,
-  weightsBytes, kvPerToken, bCrit, stepTime, throughputAtB,
+  weightsBytes, kvPerToken, bCrit, stepTime, throughputAtB, costPerMtok,
   bSlo, bKv, yMax, recommendParallelism, recommendMaxBatchedTokens,
   pdRatio, sweepRanges, compute,
 } from "../src/calc.mjs";
@@ -536,6 +536,114 @@ test("stepTime memory branch reads weight_bytes_total only", () => {
   // stays well below W/BW).
   const t3 = stepTime({ ...base, paramCount_active: 2 });
   assert.equal(t3, t1, `memory-dominated regime: doubling active must not change stepTime`);
+});
+
+// ---------- Layer 11: costPerMtok (cost overlay on throughput) ----------
+
+// Closed-form identity to 10-decimal precision. Locks the formula constants —
+// any future drift in the 1e6 (Mtok) or 3600 (sec/hr) factors will fail here
+// before any golden-tolerance test would catch it.
+test("costPerMtok: closed-form identity to 10-decimal precision", () => {
+  const got = costPerMtok({ price_per_hour_usd: 10, ngpus: 4, tps: 20_000 });
+  const expected = (10 * 4 * 1e6) / (3600 * 20_000); // 0.5555555555...
+  assert.ok(Math.abs(got - expected) < 1e-10, `${got} !== ${expected}`);
+});
+
+test("costPerMtok: inverse-proportional in throughput", () => {
+  const base = costPerMtok({ price_per_hour_usd: 7.5, ngpus: 2, tps: 5000 });
+  const doubled = costPerMtok({ price_per_hour_usd: 7.5, ngpus: 2, tps: 10000 });
+  // Doubling tps halves cost exactly.
+  assert.ok(Math.abs(doubled - base / 2) < 1e-12, `${doubled} !== ${base / 2}`);
+});
+
+test("costPerMtok: linear in (price × ngpus)", () => {
+  const base = costPerMtok({ price_per_hour_usd: 3, ngpus: 4, tps: 1000 });
+  const both = costPerMtok({ price_per_hour_usd: 6, ngpus: 8, tps: 1000 });
+  // 2× price × 2× ngpus = 4× cost.
+  assert.ok(Math.abs(both - 4 * base) < 1e-12, `${both} !== ${4 * base}`);
+});
+
+test("costPerMtok: edge — free hardware returns 0", () => {
+  assert.equal(costPerMtok({ price_per_hour_usd: 0, ngpus: 4, tps: 5000 }), 0);
+});
+
+test("costPerMtok: edge — zero throughput returns Infinity", () => {
+  // Caller (UI) is responsible for masking Infinity before display.
+  assert.equal(costPerMtok({ price_per_hour_usd: 10, ngpus: 1, tps: 0 }), Infinity);
+});
+
+test("costPerMtok: edge — null price returns null (not NaN, not 0)", () => {
+  // Custom hardware with blank price field — compute() propagates null and
+  // paintMetrics renders the m-cost tile as "—".
+  assert.equal(costPerMtok({ price_per_hour_usd: null, ngpus: 4, tps: 5000 }), null);
+  assert.equal(costPerMtok({ price_per_hour_usd: undefined, ngpus: 4, tps: 5000 }), null);
+});
+
+// ---------- Layer 12: compute() integration of cost ----------
+
+test("compute: cost lands at the recommended batch (H100 + Llama-3-8B defaults)", () => {
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-8b"],
+    isl: 1024, osl: 256, weight_prec: "FP16", kv_prec: "FP16", act_prec: "FP16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+    price_per_hour_usd: 12.29,
+  });
+  // Closed form: $/Mtok = (price × ngpus × 1e6) / (3600 × tps).
+  const expected = (12.29 * 1 * 1e6) / (3600 * out.metrics.throughput_tps);
+  within(out.metrics.cost_per_mtok, expected, 0.5);
+});
+
+test("compute: chart curve carries cost on every point with tps > 0", () => {
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-8b"],
+    isl: 1024, osl: 256, weight_prec: "FP16", kv_prec: "FP16", act_prec: "FP16",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 1,
+    price_per_hour_usd: 12.29,
+  });
+  for (const pt of out.chart.curve) {
+    assert.ok("cost_per_mtok" in pt, `curve point at B=${pt.B} missing cost_per_mtok`);
+    if (pt.tokens_per_sec > 0) {
+      assert.ok(Number.isFinite(pt.cost_per_mtok) && pt.cost_per_mtok > 0,
+        `B=${pt.B}: tps=${pt.tokens_per_sec} but cost=${pt.cost_per_mtok}`);
+    }
+  }
+});
+
+test("compute: cost is monotone non-increasing in B over the curve", () => {
+  // Each additional sequence in the batch amortizes the same per-step weight-
+  // stream cost across more tokens → $/Mtok must fall (or stay flat) as B
+  // rises. Holds across the whole sweep, including past B_crit.
+  const out = compute({
+    hw: HW["H100-80GB"], model: MODEL["llama-3-70b"],
+    isl: 1024, osl: 256, weight_prec: "INT8", kv_prec: "INT8", act_prec: "INT8",
+    tbt_ms: 50, ttft_ms: 2000, ngpus: 8,
+    price_per_hour_usd: 6.88,
+  });
+  const curve = out.chart.curve;
+  for (let i = 1; i < curve.length; i++) {
+    const prev = curve[i - 1].cost_per_mtok;
+    const next = curve[i].cost_per_mtok;
+    if (Number.isFinite(prev) && Number.isFinite(next)) {
+      // Allow tiny float drift; the curve is hyperbolic-decay in shape.
+      assert.ok(next <= prev + 1e-9,
+        `cost not monotone non-increasing at B=${curve[i].B}: ${prev} → ${next}`);
+    }
+  }
+});
+
+// ---------- Layer 13: cost golden (composed throughput × cost formula) ----------
+
+test("cost goldens: composed throughput × cost formula matches recorded values", () => {
+  for (const g of golden.cost) {
+    const out = compute({
+      hw: HW[g.hw_key], model: MODEL[g.model_key],
+      isl: g.isl, osl: g.osl,
+      weight_prec: g.weight_prec, kv_prec: g.kv_prec, act_prec: g.act_prec,
+      tbt_ms: g.tbt_ms, ttft_ms: 2000, ngpus: g.ngpus,
+      price_per_hour_usd: g.price_per_hour_usd,
+    });
+    within(out.metrics.cost_per_mtok, g.expected_cost_per_mtok_usd, g.tolerance_pct);
+  }
 });
 
 test("DSv3 sanity: single-H100 fires weights_overflow, 16-H100 produces sane bKv", () => {

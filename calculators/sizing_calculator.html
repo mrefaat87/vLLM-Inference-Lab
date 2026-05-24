@@ -316,9 +316,14 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 .scope-head .channels .sw { width: 10px; height: 2px; display: inline-block; }
 .scope-head .ch-step { color: var(--accent); }       .scope-head .ch-step .sw { background: var(--accent); }
 .scope-head .ch-tps  { color: var(--b-kv); }         .scope-head .ch-tps .sw { background: var(--b-kv); }
+.scope-head .ch-cost { color: var(--b-slo); }        .scope-head .ch-cost .sw { background: var(--b-slo); }
 .scope-head .ch-slo  { color: var(--muted); }        .scope-head .ch-slo .sw { background: var(--muted); border-top: 1px dashed var(--muted); height: 0; }
 
-.scope-canvas-wrap { position: relative; height: 380px; }
+/* Three scope panels stacked vertically. Per-panel height reduced from 380px
+   to 260px since each one shows a single curve and three of them shouldn't
+   dominate the page. */
+.scope-stack { display: flex; flex-direction: column; gap: 18px; }
+.scope-canvas-wrap { position: relative; height: 260px; }
 .scope-canvas-wrap canvas { cursor: none; }       /* crosshair plugin draws its own */
 
 .scope-foot {
@@ -532,6 +537,11 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
         <div class="field"><label>TTFT SLO <span class="unit">ms</span></label><input id="ttft" type="number" value="2000" min="1"></div>
         <div class="field"><label>TBT SLO <span class="unit">ms</span></label><input id="tbt" type="number" value="50" min="1"></div>
       </div>
+
+      <div class="field">
+        <label>$ / GPU / hr <span class="unit">on-demand</span></label>
+        <input id="price-per-hour" type="number" step="0.01" min="0" placeholder="default: hardware row">
+      </div>
     </form>
   </aside>
 
@@ -584,6 +594,11 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
         <p class="readout-sub" id="m-tps-pg">—</p>
       </div>
       <div class="readout">
+        <p class="readout-label"><span>$ / Mtok</span><span class="hint">output</span></p>
+        <span class="readout-value" id="m-cost">—</span>
+        <p class="readout-sub">single replica · on-demand list · override for spot/contract</p>
+      </div>
+      <div class="readout">
         <p class="readout-label"><span>P : D ratio</span><span class="hint">disaggregation hint</span></p>
         <span class="readout-value" id="m-pd">—</span>
         <p class="readout-sub">(ISL/OSL) × MFU<sub>p</sub>/MFU<sub>d</sub></p>
@@ -594,24 +609,59 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       Weights: <span id="m-weights">—</span>  ·  KV: <span id="m-kv">—</span>
     </p>
 
-    <h2>Latency curve</h2>
-    <section class="scope" aria-label="step-time vs batch oscilloscope">
-      <div class="scope-head">
-        <span>STEP TIME · LOG B</span>
-        <div class="channels">
-          <span class="ch-step"><span class="sw"></span>STEP MS</span>
-          <span class="ch-tps"><span class="sw"></span>TOK/S</span>
-          <span class="ch-slo"><span class="sw"></span>TBT SLO</span>
+    <h2>Pareto scopes</h2>
+    <p class="lede">Latency · Throughput · Cost — three views of the same B sweep,
+    sharing the calipers at B_crit / B_slo / B_kv. Hover each panel independently.</p>
+    <div class="scope-stack">
+      <section class="scope" id="scope-latency" aria-label="step-time vs batch oscilloscope">
+        <div class="scope-head">
+          <span>STEP TIME · LOG B</span>
+          <div class="channels">
+            <span class="ch-step"><span class="sw"></span>STEP MS</span>
+            <span class="ch-slo"><span class="sw"></span>TBT SLO</span>
+          </div>
         </div>
-      </div>
-      <div class="scope-canvas-wrap">
-        <canvas id="scope-canvas"></canvas>
-      </div>
-      <div class="scope-foot">
-        <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
-        <span>hover for crosshair readout</span>
-      </div>
-    </section>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-latency-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hover for crosshair readout</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-throughput" aria-label="throughput vs batch oscilloscope">
+        <div class="scope-head">
+          <span>THROUGHPUT · LOG B</span>
+          <div class="channels">
+            <span class="ch-tps"><span class="sw"></span>TOK/S</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-throughput-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>saturates at compute roof past B_crit</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-cost" aria-label="cost vs batch oscilloscope">
+        <div class="scope-head">
+          <span>$ / MTOK · LOG B</span>
+          <div class="channels">
+            <span class="ch-cost"><span class="sw"></span>$ / MTOK</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-cost-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hyperbolic decay — flattens past B_crit</span>
+        </div>
+      </section>
+    </div>
 
     <h2>Sweep grid</h2>
     <p class="lede">Empirical bracket around the analytical bound. Paste into your benchmark runner.</p>
@@ -646,12 +696,14 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
+      "price_per_hour_usd": "AWS on-demand list price per GPU per hour. Derived from the canonical EC2 instance price for this card (us-east-1 list) divided by GPU count on that instance. Default; the UI accepts overrides for spot / reserved / contract pricing.",
       "notes": "free-form provenance / caveat string"
     },
     "_sources": [
       "NVIDIA datasheets (T4, L4, A100, H100, H200, all SXM where applicable). A10G specifically: official AWS/NVIDIA A10G datasheet PDF at https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf (verified 2026-05-23) — A10G is AWS-custom and differs from the regular A10 (dense FP16 ≈ 70 TF on A10G vs 125 TF on A10).",
       "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
-      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book."
+      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book.",
+      "AWS EC2 on-demand pricing (us-east-1, list) cross-checked via instances.vantage.sh on 2026-05-23. T4 g4dn.xlarge $0.526/hr, L4 g6.xlarge $0.805/hr, A10G g5.xlarge $1.006/hr, A100-40GB p4d.24xlarge $21.958/hr (÷8 = $2.745), A100-80GB p4de.24xlarge $27.447/hr (÷8 = $3.431), H100-80GB p5.48xlarge $55.04/hr (÷8 = $6.88). H200 p5e.48xlarge defaulted to $13.12/GPU (no reliable list source on 2026-05-23 — Vantage table appeared corrupted; override in UI for accurate rate)."
     ]
   },
   "hardware": [
@@ -664,7 +716,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
+      "price_per_hour_usd": 0.526,
+      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g4dn.xlarge on-demand list; override in UI for spot / contract."
     },
     {
       "key": "L4",
@@ -675,7 +728,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
-      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card)."
+      "price_per_hour_usd": 0.805,
+      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g6.xlarge on-demand list; override in UI for spot / contract."
     },
     {
       "key": "A10G",
@@ -686,7 +740,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 70,
       "fp8_tflops": null,
       "nvlink": false,
-      "notes": "Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
+      "price_per_hour_usd": 1.006,
+      "notes": "Price: g5.xlarge on-demand list; override in UI for spot / contract. Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
     },
     {
       "key": "A100-40GB",
@@ -697,7 +752,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
-      "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8."
+      "price_per_hour_usd": 2.745,
+      "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8. Price: p4d.24xlarge on-demand list ($21.958/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
     {
       "key": "A100-80GB",
@@ -708,7 +764,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
-      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir."
+      "price_per_hour_usd": 3.431,
+      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir. Price: p4de.24xlarge on-demand list ($27.447/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
     {
       "key": "H100-80GB",
@@ -719,7 +776,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
-      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7."
+      "price_per_hour_usd": 6.88,
+      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7. Price: p5.48xlarge on-demand list ($55.04/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
     {
       "key": "H200",
@@ -730,7 +788,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
-      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3."
+      "price_per_hour_usd": 13.12,
+      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: p5e.48xlarge on-demand list approx ($104.93/hr ÷ 8 GPUs); override in UI — exact list rate not confirmed at edit time."
     }
   ]
 }
@@ -1027,6 +1086,25 @@ function stepTime({ B, kv_per_token, seq, weight_bytes_total, paramCount_active,
 function throughputAtB(args) {
   const t = stepTime(args);
   return args.B / t;
+}
+
+// $/Mtok output at the given throughput. Pure unit conversion — no new physics.
+//
+//   fleet cost rate = price_per_hour_usd × ngpus               $/hr
+//   fleet emits     = tps × 3600                                tokens/hr
+//   $/token         = (price × ngpus) / (tps × 3600)            $/tok
+//   $/Mtok          = (price × ngpus × 1e6) / (3600 × tps)
+//
+// Reference §0.1 Pareto framing (latency × throughput × $/Mtok) — closes the
+// third axis of the cost surface the calculator was previously missing.
+//
+// Edge cases: price=null returns null (custom hardware with blank price → UI
+// renders the m-cost tile as "—"); tps=0 returns Infinity (caller masks before
+// display); price=0 returns 0 (free hardware = free tokens).
+function costPerMtok({ price_per_hour_usd, ngpus, tps }) {
+  if (price_per_hour_usd === null || price_per_hour_usd === undefined) return null;
+  if (tps === 0) return Infinity;
+  return (price_per_hour_usd * ngpus * 1e6) / (3600 * tps);
 }
 
 // ---------- batch-size bounds ----------
@@ -1360,6 +1438,13 @@ function sweepRanges({ recommendedBatch, recommendedMnbt, tbt_ms }) {
 function compute(input) {
   const warnings = [];
   const { hw, model, isl, osl, weight_prec, kv_prec, act_prec, tbt_ms, ttft_ms, ngpus } = input;
+  // Cost defaults to the hardware row's per-GPU on-demand list price; the UI
+  // override (price-per-hour input) takes precedence by passing it in `input`.
+  // null/undefined are both allowed and propagate to a "—" tile + gapped cost
+  // curve in the chart (see costPerMtok's null guard).
+  const price_per_hour_usd = input.price_per_hour_usd !== undefined
+    ? input.price_per_hour_usd
+    : (hw.price_per_hour_usd ?? null);
 
   // Input sanitation. Clamp to safe minima; never propagate NaN/Infinity.
   const cleanIsl = Math.max(1, Math.floor(isl || 0));
@@ -1518,13 +1603,21 @@ function compute(input) {
   for (let B = 1; B <= curveMax; B = Math.max(B + 1, Math.ceil(B * 1.2))) {
     const t_ms = stepTime({ B, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
     const tps = (B / (t_ms / 1000));
-    curve.push({ B, step_ms: t_ms, tokens_per_sec: tps });
+    // Cost overlay on throughput — unit conversion only (see costPerMtok).
+    // Propagates null when price is unset so the chart can render gaps cleanly.
+    const cost = costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps });
+    curve.push({ B, step_ms: t_ms, tokens_per_sec: tps, cost_per_mtok: cost });
   }
 
   // Throughput at the recommended batch — headline tile number.
   const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
     ? throughputAtB({ B: recommendedBatch, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
     : 0;
+  // $/Mtok at the recommended batch — headline tile number. null if price
+  // unset; the UI renders that as "—".
+  const cost_per_mtok = throughput > 0
+    ? costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps: throughput })
+    : null;
 
   return {
     metrics: {
@@ -1537,6 +1630,8 @@ function compute(input) {
       max_num_batched_tokens_band: mnbt.band,
       throughput_tps: throughput,
       throughput_tps_per_gpu: throughput / cleanNgpus,
+      cost_per_mtok,
+      price_per_hour_usd,
       parallelism,
       pd_ratio: pd,
       weights_gb: W_total / 1e9,
@@ -1550,28 +1645,64 @@ function compute(input) {
 }
 
 // ===== chart.mjs =====
-// Chart layer: oscilloscope-styled latency/throughput curve with caliper
-// markers for the three batch bounds, a dashed TBT SLO line, and a hover
-// crosshair. Assumes window.Chart (Chart.js v4) is loaded via CDN.
+// Chart layer: three vertically-stacked oscilloscope panels — Latency,
+// Throughput, Cost — each a single Chart.js instance sharing the same log-B
+// X axis and caliper markers (b_crit / b_slo / b_kv). The single-canvas dual-
+// axis version this replaced visually buried throughput under latency; one
+// canvas per channel means each curve gets its full vertical reading.
 //
-// Exports a single createScope() that owns the Chart instance and exposes
-// .update() for the UI's recompute handler. All visual decisions live here;
-// ui.mjs only feeds data in.
+// Exports createScope(canvas, channel, initial) — UI calls it three times
+// (one per channel) and stores the returned handles in window.__sizingScopes.
+// Assumes window.Chart (Chart.js v4) is loaded via CDN.
 
 const COLOR = {
-  bg:     "#0a0e14",
-  text:   "#e6edf3",
-  muted:  "#8b949e",
-  dim:    "#6e7681",
-  grid:   "#1a1f29",
-  border: "#30363d",
-  step:   "#58a6ff",
-  tps:    "#3fb950",
-  slo:    "#8b949e",
-  bcrit:  "#58a6ff",
-  bslo:   "#d29922",
-  bkv:    "#3fb950",
-  glow:   "rgba(88, 166, 255, 0.18)",
+  bg:        "#0a0e14",
+  text:      "#e6edf3",
+  muted:     "#8b949e",
+  dim:       "#6e7681",
+  grid:      "#1a1f29",
+  border:    "#30363d",
+  // Per-channel line + caliper colors. Calipers always match the metric
+  // they mark (b_crit blue, b_slo yellow, b_kv green) regardless of which
+  // panel they sit in — keeps the three-panel reading visually consistent.
+  latency:   "#58a6ff",
+  throughput:"#3fb950",
+  cost:      "#d29922",
+  slo:       "#8b949e",
+  bcrit:     "#58a6ff",
+  bslo:      "#d29922",
+  bkv:       "#3fb950",
+};
+
+// Per-channel config. Picking the right `dataKey` from the curve points and
+// the right Y-axis title/formatter keeps createScope() generic — adding a
+// fourth channel later would just be a new entry here.
+const CHANNELS = {
+  latency: {
+    dataKey:  "step_ms",
+    color:    COLOR.latency,
+    glow:     "rgba(88, 166, 255, 0.18)",
+    yLabel:   "STEP TIME  (ms)",
+    yFormat:  (v) => `${v.toFixed(1)} ms`,
+    showSlo:  true,   // dashed TBT line on latency panel only
+  },
+  throughput: {
+    dataKey:  "tokens_per_sec",
+    color:    COLOR.throughput,
+    glow:     "rgba(63, 185, 80, 0.18)",
+    yLabel:   "THROUGHPUT  (tok/s)",
+    yFormat:  (v) => `${Math.round(v).toLocaleString("en-US")} tok/s`,
+    showSlo:  false,
+  },
+  cost: {
+    dataKey:  "cost_per_mtok",
+    color:    COLOR.cost,
+    glow:     "rgba(210, 153, 34, 0.18)",
+    yLabel:   "$ / Mtok",
+    // Cost curve carries nulls when price is unset → Chart.js renders gaps.
+    yFormat:  (v) => `$${v.toFixed(2)} / Mtok`,
+    showSlo:  false,
+  },
 };
 
 // Find the chart-area X pixel for a given B value (log scale). Returns null if
@@ -1586,8 +1717,7 @@ function xForB(chart, B) {
 
 // Caliper-marker plugin. Draws three full-height vertical lines (b_crit /
 // b_slo / b_kv) with a top-gutter label like an engineering CAD dimension.
-// Markers live on the chart's `options.plugins.calipers.markers` array so
-// they're trivially updated from outside.
+// Reusable across all three channels — markers live on per-chart options.
 const calipersPlugin = {
   id: "calipers",
   afterDatasetsDraw(chart) {
@@ -1600,26 +1730,20 @@ const calipersPlugin = {
     for (const m of markers) {
       const x = xForB(chart, m.B);
       if (x == null) continue;
-      // Drop line.
       ctx.strokeStyle = m.color;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bottom);
+      ctx.moveTo(x, top); ctx.lineTo(x, bottom);
       ctx.stroke();
       ctx.setLineDash([]);
-      // Top tick (6px horizontal cap, like a dimension caliper).
       ctx.globalAlpha = 1;
       ctx.beginPath();
-      ctx.moveTo(x - 4, top - 1);
-      ctx.lineTo(x + 4, top - 1);
+      ctx.moveTo(x - 4, top - 1); ctx.lineTo(x + 4, top - 1);
       ctx.stroke();
-      // Top-gutter label: "B_crit · 295"
       const label = `${m.label} · ${Math.round(m.B)}`;
       const w = ctx.measureText(label).width;
-      // Shift left for the rightmost marker so labels never clip the canvas.
       const lx = Math.min(x + 6, chart.chartArea.right - w - 2);
       ctx.fillStyle = m.color;
       ctx.fillText(label, lx, top - 6);
@@ -1628,8 +1752,10 @@ const calipersPlugin = {
   },
 };
 
-// Crosshair plugin: thin cyan vertical line + coordinate badge that follows
-// the mouse. Reads chart._cursor (set by the canvas mousemove handler below).
+// Crosshair plugin: thin vertical+horizontal line + coordinate badge that
+// follows the mouse. Per-chart (each scope gets its own crosshair). The Y
+// formatter comes from the channel config so the badge reads "ms" on the
+// latency panel, "tok/s" on throughput, "$X.XX/Mtok" on cost.
 const crosshairPlugin = {
   id: "crosshair",
   afterDatasetsDraw(chart) {
@@ -1638,18 +1764,19 @@ const crosshairPlugin = {
     const { top, bottom, left, right } = chart.chartArea;
     if (cur.x < left || cur.x > right || cur.y < top || cur.y > bottom) return;
     const ctx = chart.ctx;
+    const yFormat = chart._yFormat || ((v) => v.toFixed(1));
+    const channelColor = chart._channelColor || COLOR.latency;
     ctx.save();
-    ctx.strokeStyle = COLOR.step;
+    ctx.strokeStyle = channelColor;
     ctx.lineWidth = 0.5;
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
     ctx.moveTo(cur.x, top); ctx.lineTo(cur.x, bottom);
     ctx.moveTo(left, cur.y); ctx.lineTo(right, cur.y);
     ctx.stroke();
-    // Coordinate badge — reads the scale to invert pixel→value.
     const B = chart.scales.x.getValueForPixel(cur.x);
-    const tMs = chart.scales.y.getValueForPixel(cur.y);
-    const label = `B=${B < 10 ? B.toFixed(1) : Math.round(B)} · t=${tMs.toFixed(1)} ms`;
+    const yVal = chart.scales.y.getValueForPixel(cur.y);
+    const label = `B=${B < 10 ? B.toFixed(1) : Math.round(B)} · ${yFormat(yVal)}`;
     ctx.font = '500 10px "Martian Mono", ui-monospace, monospace';
     ctx.textBaseline = "top";
     const w = ctx.measureText(label).width;
@@ -1668,9 +1795,9 @@ const crosshairPlugin = {
   },
 };
 
-// First-paint marker stagger: fades the three caliper labels in one by one
-// after the curve draw finishes. Handled outside Chart.js's animation engine
-// because we're rendering markers in afterDatasetsDraw, not as datasets.
+// First-paint marker stagger: hide the caliper labels then fade them in one
+// by one after the curve draw finishes. Per-chart — each scope animates
+// independently of the others (UI staggers scope starts on top of this).
 function staggerMarkerReveal(chart, durations = [0, 80, 160]) {
   const markers = chart.options.plugins?.calipers?.markers ?? [];
   const original = markers.map((m) => ({ ...m }));
@@ -1680,45 +1807,48 @@ function staggerMarkerReveal(chart, durations = [0, 80, 160]) {
     markers.forEach((m, i) => {
       setTimeout(() => { m.color = original[i].color; chart.update("none"); }, durations[i] ?? 0);
     });
-  }, 600); // wait for the curve animation
+  }, 600);
 }
 
-function createScope(canvas, initial) {
-  // Build the two-dataset structure: glow halo (drawn first), bright stroke
-  // (drawn on top). Same data; the visual layering is what creates the CRT
-  // effect without any pixel-shader trickery.
+// Build one oscilloscope scope (canvas + Chart instance + update API).
+// `channel` is "latency" | "throughput" | "cost". Returns { chart, update }.
+function createScope(canvas, channel, initial) {
+  const cfg = CHANNELS[channel];
+  if (!cfg) throw new Error(`createScope: unknown channel "${channel}"`);
   const labels = initial.curve.map((p) => p.B);
-  const stepData = initial.curve.map((p) => p.step_ms);
-  const tpsData = initial.curve.map((p) => p.tokens_per_sec);
+  const data = initial.curve.map((p) => p[cfg.dataKey]);
+
+  // Build datasets: glow halo (drawn first, low opacity, fat stroke) + bright
+  // line (drawn on top, narrow). Same data; layering creates the CRT effect.
+  // Latency panel also gets a TBT-SLO horizontal as a dataset (avoids needing
+  // chartjs-plugin-annotation — keeps the page on one CDN script).
+  const datasets = [
+    { label: `${channel}_glow`, data, yAxisID: "y", borderColor: cfg.glow,
+      borderWidth: 6, pointRadius: 0, tension: 0.3, fill: false, order: 3,
+      spanGaps: false /* cost curve has nulls — render as gaps */ },
+    { label: channel, data, yAxisID: "y", borderColor: cfg.color,
+      borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, order: 1,
+      spanGaps: false },
+  ];
+  if (cfg.showSlo) {
+    datasets.push({
+      label: "tbt_slo", data: labels.map(() => initial.tbt_ms), yAxisID: "y",
+      borderColor: COLOR.slo, borderWidth: 1, borderDash: [4, 4],
+      pointRadius: 0, fill: false, order: 4,
+    });
+  }
 
   const chart = new window.Chart(canvas, {
     type: "line",
-    data: {
-      labels,
-      datasets: [
-        // Glow halo — wide low-opacity stroke behind the bright line.
-        { label: "step_ms_glow", data: stepData, yAxisID: "y", borderColor: COLOR.glow,
-          borderWidth: 6, pointRadius: 0, tension: 0.3, fill: false, order: 3 },
-        // Bright line — the actual readable curve.
-        { label: "step_ms", data: stepData, yAxisID: "y", borderColor: COLOR.step,
-          borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, order: 1 },
-        // Throughput on the secondary axis — same B grid.
-        { label: "tokens_per_sec", data: tpsData, yAxisID: "y1", borderColor: COLOR.tps,
-          borderWidth: 1.2, borderDash: [2, 3], pointRadius: 0, tension: 0.3, fill: false, order: 2 },
-        // TBT SLO horizontal — a constant-y line. Implemented as a dataset
-        // (rather than annotation) so we stay on a single CDN script.
-        { label: "tbt_slo", data: labels.map(() => initial.tbt_ms), yAxisID: "y",
-          borderColor: COLOR.slo, borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: false, order: 4 },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 600, easing: "easeOutQuart" },
       interaction: { mode: "nearest", intersect: false },
       plugins: {
-        legend: { display: false },           // legend rendered in HTML scope-head
-        tooltip: { enabled: false },          // crosshair plugin replaces it
+        legend: { display: false },
+        tooltip: { enabled: false },
         calipers: { markers: [
           { B: initial.bcrit, color: COLOR.bcrit, label: "B_crit" },
           { B: initial.bslo,  color: COLOR.bslo,  label: "B_slo"  },
@@ -1735,30 +1865,22 @@ function createScope(canvas, initial) {
         },
         y: {
           position: "left",
-          title: { display: true, text: "STEP TIME  (ms)", color: COLOR.muted,
+          title: { display: true, text: cfg.yLabel, color: COLOR.muted,
                    font: { family: '"Martian Mono", monospace', size: 10, weight: "500" } },
           ticks: { color: COLOR.dim, font: { family: '"Martian Mono", monospace', size: 10 } },
           grid:  { color: COLOR.grid, drawBorder: false },
-          beginAtZero: true,
-        },
-        y1: {
-          position: "right",
-          title: { display: true, text: "THROUGHPUT  (tok/s)", color: COLOR.muted,
-                   font: { family: '"Martian Mono", monospace', size: 10, weight: "500" } },
-          ticks: { color: COLOR.dim, font: { family: '"Martian Mono", monospace', size: 10 } },
-          grid:  { display: false },
           beginAtZero: true,
         },
       },
     },
     plugins: [calipersPlugin, crosshairPlugin],
   });
+  // Stash channel-specific formatter + color where the crosshair plugin
+  // (which is shared across all scopes) can read them per-chart.
+  chart._yFormat = cfg.yFormat;
+  chart._channelColor = cfg.color;
 
-  // Expose to global for E2E + manual debugging — convention from Phase 3/4
-  // dashboards. NOT used by app code.
-  if (typeof window !== "undefined") window.__sizingChart = chart;
-
-  // Crosshair tracking — set a cursor field that the plugin reads.
+  // Crosshair tracking — independent per canvas/chart.
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();
     chart._cursor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -1766,20 +1888,31 @@ function createScope(canvas, initial) {
   });
   canvas.addEventListener("mouseleave", () => { chart._cursor = null; chart.draw(); });
 
-  // First-paint stagger (skipped under reduced-motion).
-  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  // First-paint stagger per-scope (skipped under reduced-motion). UI staggers
+  // scope construction itself ~120ms apart so the three panels reveal in
+  // top-down reading order.
+  if (typeof window !== "undefined" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     staggerMarkerReveal(chart);
   }
 
   return {
     chart,
+    channel,
     update(data) {
       const labels = data.curve.map((p) => p.B);
+      const next = data.curve.map((p) => p[cfg.dataKey]);
       chart.data.labels = labels;
-      chart.data.datasets[0].data = data.curve.map((p) => p.step_ms); // glow
-      chart.data.datasets[1].data = data.curve.map((p) => p.step_ms); // bright
-      chart.data.datasets[2].data = data.curve.map((p) => p.tokens_per_sec);
-      chart.data.datasets[3].data = labels.map(() => data.tbt_ms);
+      chart.data.datasets[0].data = next; // glow
+      chart.data.datasets[1].data = next; // bright
+      if (cfg.showSlo) {
+        chart.data.datasets[2].data = labels.map(() => data.tbt_ms);
+        // Keep the hidden legacy tps dataset in sync so its length matches
+        // labels (Chart.js complains about ragged datasets on resize).
+        if (chart.data.datasets[3]) {
+          chart.data.datasets[3].data = data.curve.map((p) => p.tokens_per_sec);
+        }
+      }
       const m = chart.options.plugins.calipers.markers;
       m[0].B = data.bcrit; m[1].B = data.bslo; m[2].B = data.bkv;
       chart.update();
@@ -1836,6 +1969,25 @@ function populatePresets() {
   // Sensible defaults: H100 + Llama-3-8B — the most common starting point.
   hwSel.value = "H100-80GB";
   modelSel.value = "llama-3-8b";
+  // Seed price input from the default hardware row.
+  syncPriceToHardware();
+}
+
+// Sync the price-per-hour input to the currently-selected hardware row's
+// default. Called on initial paint and on every hw row swap — within-row
+// edits leave the user's override alone. Plan Layer 6 test #12.
+function syncPriceToHardware() {
+  const hwKey = document.getElementById("hw").value;
+  const priceEl = document.getElementById("price-per-hour");
+  if (!priceEl) return;
+  if (hwKey === "__custom") {
+    priceEl.value = ""; // custom row → blank → propagates null cost
+    return;
+  }
+  const hw = HW_BY_KEY[hwKey];
+  if (hw && hw.price_per_hour_usd != null) {
+    priceEl.value = hw.price_per_hour_usd;
+  }
 }
 
 function readForm() {
@@ -1881,6 +2033,15 @@ function readForm() {
   });
   })() : MODEL_BY_KEY[modelKey];
 
+  // Price override: blank input → fall back to hw.price_per_hour_usd; for
+  // custom hardware with no default this propagates as null and the cost tile
+  // renders "—". Anything > 0 wins over the row default.
+  const priceRaw = document.getElementById("price-per-hour")?.value;
+  const priceParsed = priceRaw === "" || priceRaw == null ? null : +priceRaw;
+  const price_per_hour_usd = (priceParsed != null && Number.isFinite(priceParsed) && priceParsed > 0)
+    ? priceParsed
+    : (hw?.price_per_hour_usd ?? null);
+
   return {
     hw, model,
     isl: +document.getElementById("isl").value,
@@ -1891,12 +2052,17 @@ function readForm() {
     tbt_ms: +document.getElementById("tbt").value,
     ttft_ms: +document.getElementById("ttft").value,
     ngpus: +document.getElementById("ngpus").value,
+    price_per_hour_usd,
   };
 }
 
 // ---------- recompute pipeline ----------
 
-let scope = null;
+// Three independent Chart.js instances, one per channel. Lazy-init on first
+// recompute so the page doesn't pay chart construction cost before the first
+// computed data is available. Exposed on window.__sizingScopes for E2E tests
+// and manual debugging (convention from prior dashboards).
+let scopes = null;
 
 function recompute(skipPulse = false) {
   const input = readForm();
@@ -1919,6 +2085,12 @@ function paintMetrics(out, input) {
   setText("m-mnbt-band", m.max_num_batched_tokens_band);
   setText("m-tps",   fmt(m.throughput_tps));
   setText("m-tps-pg", `${fmt(m.throughput_tps_per_gpu)} per GPU`);
+  // Cost tile. null (custom HW with blank price) → "—"; Infinity (tps=0) → "—".
+  // Two-decimal format reads as currency; vendor list comparisons need cents.
+  const costTxt = (m.cost_per_mtok == null || !Number.isFinite(m.cost_per_mtok))
+    ? "—"
+    : `$${m.cost_per_mtok.toFixed(2)}`;
+  setText("m-cost", costTxt);
   setText("m-pd",    m.pd_ratio == null ? "—" : `${fmt(m.pd_ratio)} : 1`);
   const p = m.parallelism;
   setText("m-par",   p.fits ? `TP=${p.tp} · PP=${p.pp}` : "—");
@@ -1951,10 +2123,45 @@ function drawSparkline(id, curve, markB, color) {
 }
 
 function paintChart(out) {
-  if (!scope) {
-    scope = createScope(document.getElementById("scope-canvas"), out.chart);
+  if (!scopes) {
+    // First paint: stagger scope construction by 120ms each so the three
+    // panels reveal in top-down reading order. Each scope's own marker
+    // stagger (80ms apart) layers on top of this. Skip the stagger entirely
+    // under prefers-reduced-motion — construct all three immediately.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const canvases = {
+      latency:    document.getElementById("scope-latency-canvas"),
+      throughput: document.getElementById("scope-throughput-canvas"),
+      cost:       document.getElementById("scope-cost-canvas"),
+    };
+    scopes = {};
+    const order = ["latency", "throughput", "cost"];
+    const mount = (ch) => {
+      if (!canvases[ch]) return;
+      scopes[ch] = createScope(canvases[ch], ch, out.chart);
+    };
+    if (reduceMotion) {
+      for (const ch of order) mount(ch);
+    } else {
+      // Mount latency immediately so the first scope is visible at t=0; the
+      // other two stagger in. Avoids a 240ms blank-canvas flash on slow GPUs.
+      mount("latency");
+      setTimeout(() => mount("throughput"), 120);
+      setTimeout(() => mount("cost"),       240);
+    }
+    if (typeof window !== "undefined") {
+      window.__sizingScopes = scopes;
+      // Back-compat alias for older E2E tests that read window.__sizingChart.
+      // Points at the latency scope's chart (the panel that previously *was*
+      // "the chart"). Set lazily once latency mounts so the test wait works.
+      const setAlias = () => {
+        if (scopes.latency) window.__sizingChart = scopes.latency.chart;
+        else setTimeout(setAlias, 50);
+      };
+      setAlias();
+    }
   } else {
-    scope.update(out.chart);
+    for (const s of Object.values(scopes)) s.update(out.chart);
   }
 }
 
@@ -2052,6 +2259,16 @@ function bootstrap() {
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
+  // Hardware row swap → reset price input to the new row's default. Within-row
+  // edits leave the user's override alone (the change event only fires on
+  // <select> changes, not on price input edits). Fire an `input` event after
+  // setting the value so the form-level input listener picks up the new price
+  // and recomputes — plan Layer 6 test #12 anchor.
+  document.getElementById("hw").addEventListener("change", () => {
+    syncPriceToHardware();
+    const priceEl = document.getElementById("price-per-hour");
+    if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   wireCopyButton();
   // Skip the pulse on first paint — pulse should signal change, not arrival.
   recompute(true);

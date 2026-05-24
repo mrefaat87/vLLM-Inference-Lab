@@ -146,6 +146,11 @@ def body_html() -> str:
         <div class="field"><label>TTFT SLO <span class="unit">ms</span></label><input id="ttft" type="number" value="2000" min="1"></div>
         <div class="field"><label>TBT SLO <span class="unit">ms</span></label><input id="tbt" type="number" value="50" min="1"></div>
       </div>
+
+      <div class="field">
+        <label>$ / GPU / hr <span class="unit">on-demand</span></label>
+        <input id="price-per-hour" type="number" step="0.01" min="0" placeholder="default: hardware row">
+      </div>
     </form>
   </aside>
 
@@ -198,6 +203,11 @@ def body_html() -> str:
         <p class="readout-sub" id="m-tps-pg">—</p>
       </div>
       <div class="readout">
+        <p class="readout-label"><span>$ / Mtok</span><span class="hint">output</span></p>
+        <span class="readout-value" id="m-cost">—</span>
+        <p class="readout-sub">single replica · on-demand list · override for spot/contract</p>
+      </div>
+      <div class="readout">
         <p class="readout-label"><span>P : D ratio</span><span class="hint">disaggregation hint</span></p>
         <span class="readout-value" id="m-pd">—</span>
         <p class="readout-sub">(ISL/OSL) × MFU<sub>p</sub>/MFU<sub>d</sub></p>
@@ -208,24 +218,59 @@ def body_html() -> str:
       Weights: <span id="m-weights">—</span>  ·  KV: <span id="m-kv">—</span>
     </p>
 
-    <h2>Latency curve</h2>
-    <section class="scope" aria-label="step-time vs batch oscilloscope">
-      <div class="scope-head">
-        <span>STEP TIME · LOG B</span>
-        <div class="channels">
-          <span class="ch-step"><span class="sw"></span>STEP MS</span>
-          <span class="ch-tps"><span class="sw"></span>TOK/S</span>
-          <span class="ch-slo"><span class="sw"></span>TBT SLO</span>
+    <h2>Pareto scopes</h2>
+    <p class="lede">Latency · Throughput · Cost — three views of the same B sweep,
+    sharing the calipers at B_crit / B_slo / B_kv. Hover each panel independently.</p>
+    <div class="scope-stack">
+      <section class="scope" id="scope-latency" aria-label="step-time vs batch oscilloscope">
+        <div class="scope-head">
+          <span>STEP TIME · LOG B</span>
+          <div class="channels">
+            <span class="ch-step"><span class="sw"></span>STEP MS</span>
+            <span class="ch-slo"><span class="sw"></span>TBT SLO</span>
+          </div>
         </div>
-      </div>
-      <div class="scope-canvas-wrap">
-        <canvas id="scope-canvas"></canvas>
-      </div>
-      <div class="scope-foot">
-        <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
-        <span>hover for crosshair readout</span>
-      </div>
-    </section>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-latency-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hover for crosshair readout</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-throughput" aria-label="throughput vs batch oscilloscope">
+        <div class="scope-head">
+          <span>THROUGHPUT · LOG B</span>
+          <div class="channels">
+            <span class="ch-tps"><span class="sw"></span>TOK/S</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-throughput-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>saturates at compute roof past B_crit</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-cost" aria-label="cost vs batch oscilloscope">
+        <div class="scope-head">
+          <span>$ / MTOK · LOG B</span>
+          <div class="channels">
+            <span class="ch-cost"><span class="sw"></span>$ / MTOK</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-cost-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hyperbolic decay — flattens past B_crit</span>
+        </div>
+      </section>
+    </div>
 
     <h2>Sweep grid</h2>
     <p class="lede">Empirical bracket around the analytical bound. Paste into your benchmark runner.</p>
