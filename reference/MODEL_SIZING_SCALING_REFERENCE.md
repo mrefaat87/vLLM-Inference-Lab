@@ -276,6 +276,13 @@ AI = FLOPs / Bytes_moved
 
 > H200 has the same compute as H100 but ~43% more HBM bandwidth, so its roofline ridge sits *lower* (~205 vs 295). Counter-intuitive at first read — more BW means weight loading clears the bus sooner, so compute saturates at a smaller batch. For decode that's a win: you reach the throughput plateau with less concurrent load.
 
+> **Sidebar — HBM-saturation TBT (the operating point, not a floor).**
+> Reiner Pope's framing (Dwarkesh, 2026): *"in the time of doing a forward pass, we want to read all of the memory capacity into the chip. That is capacity divided by bandwidth."* So:
+>
+> **`T* ≈ HBM_capacity / HBM_BW`** — H100: 80 / 3.35 ≈ **24 ms**; H200: 141 / 4.8 ≈ **29 ms**; Rubin: ~288 / 20 ≈ **15 ms**.
+>
+> Read this as the per-step time *when HBM is fully loaded and bandwidth is saturated* — neither a hard floor nor a hard ceiling. **Smaller** than `T*` means you haven't filled HBM yet (room for more batch or longer context). **Larger** means you've crossed `B_crit` into compute-bound, or your kernel isn't saturating BW. It's the latency target an operator can actually reach for when sizing TBT SLOs — the latency-side complement to the roofline ridge above.
+
 **Critical batch size** — the batch at which a dense matmul transitions from memory- to compute-bound:
 
 ```
@@ -461,11 +468,13 @@ The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, p
 | Strategy | Shards | Helps prefill? | Helps decode? | Limit |
 |---|---|---|---|---|
 | **TP** (Megatron) | Hidden dim of each matmul | Yes | Yes | ICI bandwidth — practical limit ~8 way within node, falls off across nodes |
-| **PP** | Layer groups | Yes (throughput) | Marginal (pipeline bubbles hurt latency) | Bubble overhead; needs many micro-batches |
+| **PP** | Layer groups | Yes (throughput) | **No — doesn't relieve per-replica KV BW** (bubbles are secondary) | Bubble overhead; needs many micro-batches |
 | **EP** | Experts (MoE only) | Yes | Yes | All-to-all bandwidth; raises B_crit by `E/k` |
 | **SP** | Sequence dim | Yes (long context) | No | Ring-attention comm |
 | **DP** | Whole replicas | Yes | No (replicates weights, doesn't help BW) | — |
 | **FSDP** | Weights gathered per layer | Marginal | **Unviable** for decode (param loading dominates) | — |
+
+> **Why PP is a dead end for decode latency (Pope, Dwarkesh 2026).** PP shards *weights* across nodes, but every pipeline stage still streams the **full per-replica KV** out of its own HBM each step. Decode latency is set by HBM bandwidth pressure on KV, not by where the weights live — so splitting layers across stages doesn't move the bottleneck. The pipeline-bubble cost is real but secondary; the load-bearing reason frontier labs prefer EP + TP over PP at inference is that only EP/TP actually relieve the per-replica BW pressure that defines TBT.
 
 **TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book ([jax-ml.github.io/scaling-book/inference](https://jax-ml.github.io/scaling-book/inference/#distributing-inference-over-multiple-accelerators)) derives the ceiling from the FFW block's HBM-vs-ICI competition. The derivation is short but every byte-count term matters; here it is end-to-end.
 
@@ -542,6 +551,20 @@ Y_max ≈ F / (B · β)
 | TPU v5e | 820 | ~100 | ~8 | **Scaling Book example** ✓ |
 
 For PCIe-only cards (T4/L4/A10G) β jumps into double digits and TP across PCIe is unviable for decode — the all-reduce floor sits above any reasonable per-step budget.
+
+> **Sidebar — three fabrics, two β's (both right, different questions).**
+> Pope (Dwarkesh, 2026) quotes β ≈ 8 as a universal "scale-up is 8× faster than scale-out" rule. Our table above shows β ≈ 3.7 on H100. Not a contradiction — they're ratios across *different* tiers of the memory/network hierarchy:
+>
+> | Tier | Bandwidth (H100) | Used for |
+> |---|---|---|
+> | **HBM** (chip memory) | ~3,350 GB/s | weight + KV streaming per decode step |
+> | **NVLink** (intra-node scale-up) | ~900 GB/s | all-reduce within a TP group |
+> | **InfiniBand / RoCE** (inter-node scale-out) | ~50–100 GB/s | pipeline / EP across racks |
+>
+> - **`β_calc = HBM_BW / NVLink_BW ≈ 3.7` on H100** — drives `Y_max` (when intra-NVLink TP stops cutting decode step time). This is the β the table above and the calculator use.
+> - **`β_rack = NVLink_BW / InfiniBand_BW ≈ 8–9`** — Pope's universal "scale-up is 8× scale-out" ratio, the one that governs cross-rack pipeline / EP decisions.
+>
+> Both numbers are correct. The calculator only models `β_calc` because the doc's scope is single-rack sizing; once you cross a rack boundary, `β_rack` is what binds.
 
 ### Worked example (book's, reproduced)
 
