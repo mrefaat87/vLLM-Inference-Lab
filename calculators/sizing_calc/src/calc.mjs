@@ -425,11 +425,40 @@ function powersOf2In(minV, maxV) {
   return out;
 }
 
+// Build the empirical sweep grid that hands the analytical recommendation
+// off to a benchmark runner. The whole point of the calculator (reference §0.5
+// "two-stage methodology"): use analytical bounds to rule out ~80% of the
+// search space, then sweep a tight band around the recommendation instead of
+// a wide blind grid. Output is the three vLLM-shaped knobs a runner needs.
+//
+//   max_num_seqs:           powers of 2 in [b/4, 2b]. The vLLM "concurrent
+//                           request cap." Powers of 2 because vLLM's
+//                           scheduler prefers them and Sarathi-Serve §4
+//                           recommends the family. Brackets the analytical
+//                           batch by ½ decade either side so a sweep can
+//                           empirically locate the knee.
+//   max_num_batched_tokens: Sarathi-Serve verified bands (512 / 1024 / 2048 /
+//                           4096) truncated to ≤ 2× the recommended value.
+//                           Token budget per step — controls how much prefill
+//                           can backfill alongside decode. Smaller protects
+//                           TBT; larger raises prefill throughput.
+//   concurrency:            request-level load. Fractional steps around b
+//                           ([1, b/4, b/2, b, 1.5b, 2b]) — deliberately NOT
+//                           powers of 2 because the goal is to land exactly
+//                           at sub-saturation (b/4, b/2: confirms the system
+//                           doesn't saturate prematurely), at the analytical
+//                           knee (b: confirms it matches reality), and at
+//                           super-saturation (1.5b, 2b: confirms SLO breaks
+//                           where the math says it should).
+//
+// Caller (compute()) feeds in recommendedBatch = min(b_slo, b_kv) and
+// recommendedMnbt from recommendMaxBatchedTokens(). The UI's "patchbay"
+// renders the three grids as chip rows for the user to copy into their
+// benchmark harness.
 export function sweepRanges({ recommendedBatch, recommendedMnbt }) {
   const b = Math.max(1, Math.floor(recommendedBatch));
   const seqs = powersOf2In(Math.max(1, Math.floor(b / 4)), Math.max(2, b * 2));
   const tokens = [512, 1024, 2048, 4096].filter((v) => v <= recommendedMnbt * 2);
-  // Concurrency uses fractional steps around b to capture sub-/super-saturation.
   const concurrency = [1, Math.max(1, Math.floor(b / 4)), Math.max(1, Math.floor(b / 2)), b, Math.floor(b * 1.5), b * 2]
     .filter((v, i, a) => a.indexOf(v) === i)
     .sort((x, y) => x - y);
