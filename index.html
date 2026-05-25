@@ -120,6 +120,15 @@
     <p class="card-detail">Includes a 9-step sizing workflow, an engine-parameter taxonomy, and worked production data from DeepSeek-V3 and Character.AI.</p>
   </a>
 
+  <a class="card" href="calculators/sizing_calculator.html">
+    <div class="card-head">
+      <span class="card-title">LLM Inference Sizing Calculator</span>
+      <span class="card-tag">Interactive Tool</span>
+    </div>
+    <p class="card-desc">Pick GPU, model, ISL/OSL, precisions, and SLOs to get recommended parallelism, the three batch caps (b_crit, b_slo, b_kv), max_num_batched_tokens, throughput, and the empirical sweep grids — before any benchmark run.</p>
+    <p class="card-detail">Roofline / latency-vs-batch chart marks where each batch-size bound lands. Companion to the Model Sizing &amp; Scaling reference above.</p>
+  </a>
+
   <div class="section-title">Production Inference Platform on EKS</div>
 
   <a class="card" href="phase1/tests/stage3_results_dashboard.html">
@@ -174,6 +183,24 @@
     </div>
     <p class="card-desc">An exploratory spike on NVIDIA Dynamo for disaggregated inference. Headline finding: prefill/decode disaggregation regresses TTFT without RDMA, while KV-aware routing gives a modest p99 win on bursty traffic.</p>
     <p class="card-detail">Documents the operator quirks that consumed the most time — namespace mismatches, the NIXL connector flag, and stale ReplicaSet pile-up.</p>
+  </a>
+
+  <a class="card" href="experiments/_site/command_center.html">
+    <div class="card-head">
+      <span class="card-title">Empirical Lab — Command Center</span>
+      <span class="card-tag">Lab · Live</span>
+    </div>
+    <p class="card-desc">Static command center for empirical inference runs across vLLM, SGLang, and TensorRT-LLM. Lists every planned/running/done run from filesystem manifests.</p>
+    <p class="card-detail">Companion to the roofline calculator: each run JSON carries a join key that lets the Results Explorer overlay measured TTFT and throughput on the predicted curves.</p>
+  </a>
+
+  <a class="card" href="experiments/_site/results_explorer.html">
+    <div class="card-head">
+      <span class="card-title">Empirical Lab — Results Explorer</span>
+      <span class="card-tag">Lab · Charts</span>
+    </div>
+    <p class="card-desc">Pick a run, compare engines and workloads, see TTFT distributions, inter-token latency, throughput vs roofline, and the request timeline. Build with <code>exp build-portal</code>.</p>
+    <p class="card-detail">Pure static HTML + Chart.js. No backend. Reads JSON files written by the CLI into <code>experiments/results/</code>.</p>
   </a>
 
   <footer>

@@ -100,9 +100,20 @@ A single request stitches together **two completely different physics regimes**:
 | Tokens / step | hundreds–thousands (chunk size) | 1 × num_running_seqs |
 | Arithmetic intensity | high (T/2 for attention) | ~1 (one new token streams full KV) |
 | Bottleneck | FLOPs | HBM bandwidth |
-| MFU (typical) | **40–60%** | **5–15%** |
+| MFU (typical) | **~30–50%** [†](#mfu-bands) | **~5–15%** [†](#mfu-bands) |
+| Better efficiency metric | MFU (compute is the limiter) | **MBU** (Model Bandwidth Utilization — see §2) |
 | Latency metric | TTFT | TBT / ITL |
 | Saturated at | batch = 1 with long prompt | needs many concurrent seqs |
+
+<a id="mfu-bands"></a>
+> **† On the MFU bands.** No single primary source publishes these as canonical bands; they are *synthesized* from a handful of public production data points and the structural roofline argument (§1). The numbers most reviewers will cite if asked:
+>
+> - **Prefill ~30–50%.** DeepSeek-V3 production inference (Feb 2025 system overview) reports ~73.7k tok/s prefill per H800 node with ~37B active params/token → back-calculated **~34% of FP8 peak** (~69% of BF16 peak, but inflated by ~56% disk KV-cache hits, so the true compute MFU is lower). [Investigation of FP8 Across Accelerators (arXiv:2502.01070), Table 1] measured ~**59% of FP8 peak** on H100 for square (prefill-shaped) GEMMs. MosaicML reports ~40% MFU training on H100 — training is prefill-shaped, so this is a reasonable upper anchor.
+> - **Decode ~5–15%.** Same DeepSeek-V3 data: 14.8k tok/s/node decode → **~7% of FP8 peak (~14% of BF16 peak)**. [Investigation of FP8, Table 4] shows thin-GEMM throughput collapses to ~15 TFLOPs on H100 (<1% of 1979 TFLOPs FP8 peak) at batch 64 — i.e., the band's *floor* is much lower than 5% in adversarial cases. The structural argument: decode arithmetic intensity ~1 vs H100 ridge ~280 ⇒ memory-bound by ~280×, so MFU is bounded above by roughly `(bw_util × AI / ridge)` ≈ low-teens % even with good batching.
+>
+> Sources: [DeepSeek-V3/R1 Inference System Overview](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md); [Investigation of FP8 Across Accelerators (arXiv:2502.01070)](https://arxiv.org/abs/2502.01070); [Sarathi-Serve (OSDI '24)](https://arxiv.org/abs/2403.02310) (qualitative: "decode batches are memory-bound, low MFU"); [Databricks LLM Inference Best Practices](https://www.databricks.com/blog/llm-inference-performance-engineering-best-practices) (publishes **MBU** for decode — A100-40GB 55%, H100-80GB 60% at batch 1 — not MFU, deliberately; MFU is the wrong axis for a memory-bound workload).
+>
+> **Caveat that matters for any P:D sizing decision built on these:** post-refactor (commit `4c5e222`), the calculator's `pdRatio` is **no longer a direct function of the MFU ratio**. It computes `P:D = (ISL/OSL) × (decode_tput_per_chip / prefill_tput_per_chip)` per [DistServe](https://arxiv.org/abs/2401.09670) (OSDI '24) §4. The prefill side still depends on `MFU_p` (closed-form, compute-bound matmul); the decode side comes from `stepTime` and is memory-bound for typical operating points (so `MFU_d` doesn't appear directly — the limit is HBM BW × KV-budget-set batch). The MFU asymmetry's effect on P:D is now indirect, mediated by stepTime; expect the calculator's pdRatio to land 1.5–3× *above* production deployments (DistServe / Splitwise / Mooncake sizers use SLO-bound simulators, not closed form). See §5.2 for the worked Llama-3-70B example with the three empirical anchors.
 
 **Implication for sizing:** every decision must ask "which phase?" first. The same GPU can be compute-bound for prefill and memory-bound for decode *in the same second*. Mixing them on one server means prefill bursts crater decode TBT — which is why disaggregation (Splitwise / DistServe / Mooncake) became table stakes for TTFT-sensitive products. (See §2 for the deeper comparison.)
 
@@ -263,14 +274,23 @@ AI = FLOPs / Bytes_moved
 | H100 SXM | 9.9e14 | 3.35e12 | **~295** (bf16) / ~590 (fp8) |
 | H200 | 9.9e14 | 4.8e12 | ~205 (bf16) |
 
+> H200 has the same compute as H100 but ~43% more HBM bandwidth, so its roofline ridge sits *lower* (~205 vs 295). Counter-intuitive at first read — more BW means weight loading clears the bus sooner, so compute saturates at a smaller batch. For decode that's a win: you reach the throughput plateau with less concurrent load.
+
+> **Sidebar — HBM-saturation TBT (the operating point, not a floor).**
+> Reiner Pope's framing (Dwarkesh, 2026): *"in the time of doing a forward pass, we want to read all of the memory capacity into the chip. That is capacity divided by bandwidth."* So:
+>
+> **`T* ≈ HBM_capacity / HBM_BW`** — H100: 80 / 3.35 ≈ **24 ms**; H200: 141 / 4.8 ≈ **29 ms**; Rubin: ~288 / 20 ≈ **15 ms**.
+>
+> Read this as the per-step time *when HBM is fully loaded and bandwidth is saturated* — neither a hard floor nor a hard ceiling. **Smaller** than `T*` means you haven't filled HBM yet (room for more batch or longer context). **Larger** means you've crossed `B_crit` into compute-bound, or your kernel isn't saturating BW. It's the latency target an operator can actually reach for when sizing TBT SLOs — the latency-side complement to the roofline ridge above.
+
 **Critical batch size** — the batch at which a dense matmul transitions from memory- to compute-bound:
 
 ```
 B_crit ≈ (peak_FLOPs / peak_HBM_BW) × (bits_per_param / bits_per_activation)
 ```
 
-- bf16 weights + bf16 activations on H100 → `B_crit ≈ 280` tokens
-- **int8 weights + bf16 activations → `B_crit` drops 2×** (≈140) — you reach saturation sooner.
+- bf16 weights + bf16 activations on H100 → `B_crit ≈ 295` tokens (matches the table above: 990e12 / 3.35e12).
+- **int8 weights + bf16 activations → `B_crit` drops 2×** (≈147 on H100; the Scaling Book reports 120 on TPU v5e, anchored to its 240 baseline) — you reach saturation sooner.
 - **int8 weights + int8 activations → `B_crit` unchanged** (more FLOPs available).
 
 > Below `B_crit`, latency stays flat as you add requests (you're paying for weight loads either way). Above `B_crit`, latency grows linearly with batch. This is the single most important inference fact.
@@ -287,7 +307,7 @@ B_crit ≈ (peak_FLOPs / peak_HBM_BW) × (bits_per_param / bits_per_activation)
 | Tokens per step | hundreds-thousands | 1 per request |
 | Attention AI | `T/2` (≥480 → compute-bound) | `≈1` (always memory-bound) |
 | Bottleneck | FLOPs | HBM bandwidth (loading weights + KV) |
-| MFU (typical) | **40–60%** | **5–15%** |
+| MFU (typical) | **~30–50%** | **~5–15%** (decode is better characterized by MBU — see §0.3 footnote for sources) |
 | Latency metric | TTFT | TBT / ITL |
 | Batching | Natural (tokens within one prompt) | Requires multiple requests |
 | Sharding that helps | TP, SP, FSDP | TP only (FSDP/DP useless) |
@@ -416,6 +436,8 @@ B_crit_compute = (peak_FLOPs / peak_HBM_BW) × (bits_w / bits_act)
               = 120 tokens / step
 ```
 
+(Where **240 is the bf16/bf16 baseline for TPU v5e** from §1's roofline table — the `(8/16)` factor then applies the int8-weight halving on top of that baseline.)
+
 So at batch ≥ 120 decode tokens in flight, matmuls become compute-bound. The Scaling Book recommends serving at **batch 32** (BS=32 × 1 decode token = 32 tokens/step) → still memory-bound → adding more requests *increases throughput at the same per-step latency.*
 
 **Achieved (4×2 TPU v5e, BS=32, int8):**
@@ -433,9 +455,28 @@ So at batch ≥ 120 decode tokens in flight, matmuls become compute-bound. The S
 | Per-step decode latency | 17 ms @ BS=32 on 4×2 |
 | Throughput | 235 tok/s/chip |
 | Prefill cost | 0.91 s for 8k @ 40% FLOPs util on 16 chips |
-| Disagg ratio | **~3× prefill servers per decode server** (8k prompt / 512 output) |
+| Disagg ratio (P:D) | **~6–7 prefill chips per decode chip** (8k prompt / 512 output) |
 
-The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, prefill compute per request is ~16× decode compute per request, but decode runs 512 steps per request, so steady-state P:D ratio = (16/512) × (QPS_p / QPS_d) ≈ 3:1.
+The **disagg ratio** drops out of the [DistServe](https://arxiv.org/abs/2401.09670) (OSDI '24) sizing formula. At steady state, `n_prefill = ⌈R / prefill_goodput⌉` and `n_decode = ⌈R / decode_goodput⌉`, so:
+
+```
+P:D = decode_goodput / prefill_goodput
+    = (ISL / OSL) × (decode_tput_per_chip / prefill_tput_per_chip)
+```
+
+For the §5.1 operating point above:
+- `decode_tput = 235 tok/s/chip` (at BS=32 on 4×2 TPU v5e)
+- `prefill_tput = 8192 / 0.91s / 16 chips ≈ 562 tok/s/chip` (the "0.91 s for 8k" line)
+- P:D = (8192/512) × (235/562) ≈ **6.7**
+
+Direction note: prefill is more compute-efficient per chip, so each prefill chip absorbs more tokens/sec, so you need *fewer* prefill chips per decode chip than the raw ISL/OSL = 16 would suggest. Higher prefill MFU damps P:D; doesn't grow it. [Splitwise](https://arxiv.org/abs/2311.18677) (ISCA '24) directly confirms this via its A100→H100 controlled experiment — same workload, faster prefill chips, 55→35 prefill machines deployed.
+
+Production sizers (DistServe simulator, Splitwise event-driven sim) use SLO-bound search and typically land 1.5–3× *below* this analytical ratio. Empirical anchors from Splitwise + Mooncake:
+- Splitwise conversation HH (Llama-13B, ISL≈1500/OSL≈129): deployed **P:D = 1.67**
+- Splitwise coding HH (ISL≈1500/OSL≈13 median): deployed **P:D = 7.0**
+- Mooncake 3P:1D test config: deployed **P:D = 3.0**
+
+The calculator's `pdRatio` output is an order-of-magnitude hint for "is this workload disagg-shaped?" — not a tuned capacity ratio. Real deployments tune through SLO-feasibility simulators.
 
 ---
 
@@ -446,28 +487,142 @@ The **disagg ratio** drops out of the P:D load math: at 8k input / 512 output, p
 | Strategy | Shards | Helps prefill? | Helps decode? | Limit |
 |---|---|---|---|---|
 | **TP** (Megatron) | Hidden dim of each matmul | Yes | Yes | ICI bandwidth — practical limit ~8 way within node, falls off across nodes |
-| **PP** | Layer groups | Yes (throughput) | Marginal (pipeline bubbles hurt latency) | Bubble overhead; needs many micro-batches |
+| **PP** | Layer groups | Yes (throughput) | **No — doesn't relieve per-replica KV BW** (bubbles are secondary) | Bubble overhead; needs many micro-batches |
 | **EP** | Experts (MoE only) | Yes | Yes | All-to-all bandwidth; raises B_crit by `E/k` |
 | **SP** | Sequence dim | Yes (long context) | No | Ring-attention comm |
 | **DP** | Whole replicas | Yes | No (replicates weights, doesn't help BW) | — |
 | **FSDP** | Weights gathered per layer | Marginal | **Unviable** for decode (param loading dominates) | — |
 
-**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book formalizes this as:
-```
-Y_max = F / (B_crit × β)
-```
-- `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time.
-- `F` = total FLOPs available across the chips in the replica.
-- `β = W_hbm / W_ici` ≈ **8** for typical NVLink / TPU ICI setups — the ratio of HBM bandwidth to inter-chip bandwidth. (HBM is ~8× faster than ICI; below `Y_max` chips you're bottlenecked on HBM, above it on ICI.)
+> **Why PP is a dead end for decode latency (Pope, Dwarkesh 2026).** PP shards *weights* across nodes, but every pipeline stage still streams the **full per-replica KV** out of its own HBM each step. Decode latency is set by HBM bandwidth pressure on KV, not by where the weights live — so splitting layers across stages doesn't move the bottleneck. The pipeline-bubble cost is real but secondary; the load-bearing reason frontier labs prefer EP + TP over PP at inference is that only EP/TP actually relieve the per-replica BW pressure that defines TBT.
 
-Plain-English read: you trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). **Decode wants TP wide; throughput-only prefill wants TP narrow.**
+**TP sweet spot for decode:** push TP *beyond* the FLOP-utilization optimum to reduce per-step latency. The Scaling Book ([jax-ml.github.io/scaling-book/inference](https://jax-ml.github.io/scaling-book/inference/#distributing-inference-over-multiple-accelerators)) derives the ceiling from the FFW block's HBM-vs-ICI competition. The derivation is short but every byte-count term matters; here it is end-to-end.
+
+### Setup — the FFW block under TP
+
+A transformer block's FFW (a.k.a. MLP) takes the residual stream through two matmuls:
+
+```
+input  [B × D]  ──Wup──►  hidden [B × F]  ──Wdown──►  output [B × D]
+                weight                       weight
+              [D × F]                       [F × D]
+```
+
+where `D = d_model` (residual width, e.g. 4,096 for Llama-3-8B), `F = d_ff` (FFW intermediate, e.g. 14,336), `B` = tokens in the current decode step.
+
+Megatron-LM TP shards the **`F` dimension** of both weights across `Y` chips, using the classic "column-then-row parallel" pattern:
+- **`Wup` (column-parallel):** weight sliced along F → each chip produces a slice of the hidden activations `[B × F/Y]`. **No comm needed** because each chip's slice is self-contained.
+- **`Wdown` (row-parallel):** weight sliced along F → each chip computes a *partial sum* of the output `[B × D]`. To get the final answer, the Y chips must **all-reduce** their partial `[B × D]` outputs.
+
+That column→row choice is what makes TP work without per-matmul comm; the only price is one all-reduce per FFW layer.
+
+### Where `2DF` comes from — the HBM weight-load term
+
+Per FFW layer there are two weight matrices: `Wup` (D×F params) + `Wdown` (F×D params) = **2DF params**. At 1 byte per parameter (a unit-less convention the book uses so byte conversions cancel cleanly later), that's `2DF` bytes the chip must stream out of HBM to do one forward pass through this layer's FFW.
+
+With TP=Y, both matrices are sliced along F, so each chip owns `2DF/Y` of those bytes. Streaming time per chip per layer:
+```
+T_HBM = (2DF / Y) / W_hbm
+```
+This term **falls as 1/Y** — slice the matrix across more chips, each chip's load shrinks linearly. *Auto Scaling analogy: like cold-loading half the routing rules onto each of Y instances; per-instance load time drops as you add instances.*
+
+### Where `2BD` comes from — the ICI all-reduce term
+
+The all-reduce after `Wdown` moves the partial output tensor `[B × D]` — `B × D` elements per chip. Ring all-reduce, the canonical efficient pattern, moves roughly `2 × (Y-1)/Y × message_size` of data through each link, which simplifies to **`2 × message_size`** for large `Y`. With `message_size = B × D`:
+```
+T_ICI ≈ (2BD) / W_ici
+```
+This term is **constant in Y** for large Y — the ring saturates. Adding more chips to the ring doesn't shrink the total traffic, it just rearranges it. *Auto Scaling analogy: every layer demands a cross-AZ state sync of fixed size `B × D`; the round-trip doesn't shrink as you add instances, because it's a fixed amount of data going around a ring regardless of fleet size.*
+
+### The crossover — why `D` and `n_layers` cancel
+
+Setting the all-reduce floor against the now-tiny weight-load time:
+```
+T_ICI > T_HBM
+   2BD / W_ici   >   2DF / (Y · W_hbm)
+              │ both sides have factor (2 · D) — cancel
+   B / W_ici     >   F / (Y · W_hbm)
+   B · Y · W_hbm  >  F · W_ici
+   Y > F · W_ici / (B · W_hbm)
+   Y > F / (B · β)                with β = W_hbm / W_ici
+```
+
+So:
+```
+Y_max ≈ F / (B · β)
+```
+- **`d_model` cancels** because it scales weight bytes *and* activation bytes equally (both terms have a `D` factor). The residual width is invisible to the crossover.
+- **`n_layers` cancels** if you sum both sides over layers — each layer adds the same multiplier.
+- The only model-shape number that survives is **`d_ff`** (= `F`), because that's the dimension the weights span but the activations don't.
+
+### Reading the variables
+
+- `Y_max` = **maximum useful TP degree per replica** for decode latency. Past this, ICI comm dominates and adding TP no longer cuts step time (and the per-token throughput-per-chip starts dropping, because the chips spend more time syncing than computing).
+- **`F` is `d_ff`** — a small dimensionless integer (14,336 for Llama-3-8B; 28,672 for Llama-3-70B). **Not "total FLOPs."** Worth flagging because "F" gets used inconsistently across the literature; if it weren't `d_ff` the formula wouldn't even reduce to dimensionless.
+- **`B`** = current batch size (decode-step concurrency). Y_max is *inversely* proportional to B: small batches let you spread the model thin, big batches force you to concentrate.
+- **`β = W_hbm / W_ici`**, dimensionless, **hardware-specific**. Only the **TPU v5e** row is published in the Scaling Book; the GPU rows below are **derived by us** as `HBM_BW ÷ ICI_BW` from the bandwidth numbers in §1 (and vendor specs for ICI/NVLink/PCIe). Treat them as order-of-magnitude estimates, not citations.
+
+| Hardware | HBM BW (GB/s) | ICI BW (GB/s, bidir) | β | Source |
+|---|---|---|---|---|
+| H100 SXM5 | 3,350 | 900 (NVLink 4.0) | ~3.7 | derived |
+| H200 SXM5 | 4,800 | 900 | ~5.3 | derived |
+| A100 SXM4 | 2,039 | 600 (NVLink 3.0) | ~3.4 | derived |
+| L4 / A10G / T4 | 300–600 | ~32–64 (PCIe Gen3/4) | ~10–20 | derived |
+| TPU v5e | 820 | ~100 | ~8 | **Scaling Book example** ✓ |
+
+For PCIe-only cards (T4/L4/A10G) β jumps into double digits and TP across PCIe is unviable for decode — the all-reduce floor sits above any reasonable per-step budget.
+
+> **Sidebar — three fabrics, two β's (both right, different questions).**
+> Pope (Dwarkesh, 2026) quotes β ≈ 8 as a universal "scale-up is 8× faster than scale-out" rule. Our table above shows β ≈ 3.7 on H100. Not a contradiction — they're ratios across *different* tiers of the memory/network hierarchy:
+>
+> | Tier | Bandwidth (H100) | Used for |
+> |---|---|---|
+> | **HBM** (chip memory) | ~3,350 GB/s | weight + KV streaming per decode step |
+> | **NVLink** (intra-node scale-up) | ~900 GB/s | all-reduce within a TP group |
+> | **InfiniBand / RoCE** (inter-node scale-out) | ~50–100 GB/s | pipeline / EP across racks |
+>
+> - **`β_calc = HBM_BW / NVLink_BW ≈ 3.7` on H100** — drives `Y_max` (when intra-NVLink TP stops cutting decode step time). This is the β the table above and the calculator use.
+> - **`β_rack = NVLink_BW / InfiniBand_BW ≈ 8–9`** — Pope's universal "scale-up is 8× scale-out" ratio, the one that governs cross-rack pipeline / EP decisions.
+>
+> Both numbers are correct. The calculator only models `β_calc` because the doc's scope is single-rack sizing; once you cross a rack boundary, `β_rack` is what binds.
+
+### Worked example (book's, reproduced)
+
+`F = 16,384`, `B = 32`, `β = 8` (TPU v5e):
+```
+Y_max = 16,384 / (32 × 8) = 64
+```
+So on TPU v5e with this workload you can in theory shard up to 64-way before ICI binds.
+
+For Llama-3-8B (`d_ff = 14,336`) on H100 (`β ≈ 3.7`):
+
+| Regime | B | Y_max | What binds first? |
+|---|---|---|---|
+| Small-batch decode | 8 | ~485 | NVLink fanout (8) |
+| Typical decode | 32 | ~121 | NVLink fanout (8) |
+| Heavy decode | 128 | ~30 | NVLink fanout (8) |
+| Prefill burst | 512 | ~7.6 | **Y_max binds — don't go past TP=8** |
+| Big prefill | 2,048 | ~1.9 | **Y_max says TP=1; even 2-way is wasteful** |
+
+The takeaway: for *small-batch decode* on NVLink hardware, Y_max is huge and the physical NVLink fanout (~8) is what binds; the formula doesn't change the recommendation. For *large-batch prefill* or *PCIe-only* hardware, Y_max actually binds and stops you from over-sharding.
+
+### Caveat — SwiGLU FFW
+
+Modern open models (Llama, Mistral, Qwen) use SwiGLU FFW with **three** matrices (`Wgate`, `Wup`, `Wdown`), so the per-layer weight bytes are `3DF`, not `2DF`. The constant cancels on both sides of the inequality and `Y_max` is unchanged — but if you're plugging the formula into a memory budget rather than a Y_max calculation, use the correct constant for your architecture.
+
+### Plain-English summary
+
+You trade FLOP utilization for time-to-token. The smaller your batch, the more aggressively you can push TP (you weren't using all the FLOPs anyway). **Decode wants TP wide; throughput-only prefill wants TP narrow.** Y_max tells you how wide is too wide before the cross-chip sync becomes the floor.
 
 **Sub-GPU partitioning (MIG)** — the dual to TP. When the model is small enough that a whole GPU is wasted (e.g., <3B params on H100), **Multi-Instance GPU** *splits* a single GPU into up to 7 isolated slices, each with its own SM and memory partition. Lets you serve several small replicas on one card with hard performance isolation. Pairs with horizontal autoscaling; irrelevant for large models that already use ≥1 GPU.
 
-**MoE detail (DeepSeek-V3 in SGLang prod):**
-- Prefill: TP16 + EP32 over 4×H100 nodes
-- Decode: EP72 over 9×H100 nodes
-- All-to-all (DeepEP): **~0.17 ms/layer**, optimizable to 0.06 ms
+**MoE detail (DeepSeek-V3):**
+- **Production** (DeepSeek's own deployment, per [Open-Infra-Index Day 6](https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md), Feb 2025):
+  - Prefill: EP32 routed + DP32 (with TP for shared/MLA) over **4×H800** nodes; 9 routed + 1 shared experts per GPU.
+  - Decode: **EP144** routed + DP144 over **18×H800** nodes; 2 routed + 1 shared experts per GPU.
+- **SGLang open-source replication** (LMSYS, May 2025, runs at half DeepSeek's decode scale on H100):
+  - Prefill: TP16 + EP32 over 4×H100 nodes.
+  - Decode: EP72 over 9×H100 nodes.
+- All-to-all (DeepEP): **~0.17 ms/layer**, optimizable to 0.06 ms.
 
 ---
 
@@ -486,11 +641,11 @@ Plain-English read: you trade FLOP utilization for time-to-token. The smaller yo
 ```mermaid
 flowchart LR
     LB[Load balancer<br/>+ admission control]
-    LB --> P1[Prefill replica<br/>TP16 + EP32<br/>4×H100]
-    LB --> P2[Prefill replica<br/>TP16 + EP32<br/>4×H100]
+    LB --> P1[Prefill replica<br/>EP32 + DP32<br/>4×H800]
+    LB --> P2[Prefill replica<br/>EP32 + DP32<br/>4×H800]
     LB -.short or<br/>prefix-cached.-> D1
-    P1 -.KV via RDMA.-> D1[Decode replica<br/>EP72<br/>9×H100]
-    P2 -.KV via RDMA.-> D2[Decode replica<br/>EP72<br/>9×H100]
+    P1 -.KV via RDMA.-> D1[Decode replica<br/>EP144<br/>18×H800]
+    P2 -.KV via RDMA.-> D2[Decode replica<br/>EP144<br/>18×H800]
     D1 --> Client[Token stream]
     D2 --> Client
 
@@ -585,7 +740,7 @@ This is why `max_num_batched_tokens` is "decode-protective" — decodes go first
 **Tuning knobs (V1 defaults):**
 | Knob | Default | Effect |
 |---|---|---|
-| `gpu_memory_utilization` | 0.80 | Fraction of GPU mem for weights+KV pool; bump to 0.90–0.95 if no OOM headroom needed. |
+| `gpu_memory_utilization` | 0.92 | Fraction of GPU mem for weights+KV pool; lower to 0.85–0.88 if you see OOM under burst, or raise toward 0.95 if you've measured headroom. Source: `CacheConfig.gpu_memory_utilization` default in vLLM `vllm/config/cache.py` (was 0.90 in older releases). |
 | `block_size` | 16 | Smaller → more fragmentation; larger → more wasted tail-of-sequence. |
 | `max_num_seqs` | — | Hard cap on concurrent requests; throughput ceiling. |
 | `max_num_batched_tokens` | — | Token budget per step; raise to fit more prefill, lower to protect decode ITL. |

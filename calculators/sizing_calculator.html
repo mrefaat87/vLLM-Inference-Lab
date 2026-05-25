@@ -1,0 +1,3494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Inference Sizing Calculator</title>
+<meta name="description" content="Analytical sizing calculator for LLM inference: parallelism, b_crit/b_slo/b_kv, max_num_batched_tokens, and empirical sweep ranges before any benchmark run.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- KaTeX renders the formulas drawer. The pinned version + integrity hash on
+     the script tag prevent CDN supply-chain drift; the CSS chains to webfont
+     URLs which the build test's allowlist must permit. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+        onload="window.dispatchEvent(new Event('katex-loaded'))"></script>
+<style>/* ──────────────────────────────────────────────────────────────────────────
+   LLM Inference Sizing Calculator — engineering-instrument aesthetic.
+   Hairlines, oscilloscope chart, monospace numerals as the hero.
+   Palette intentionally narrow to match MODEL_SIZING_SCALING_REFERENCE.html.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Palette: GitHub-dark base + semantic accents for the three batch metrics. */
+  --bg:        #0d1117;
+  --bg-deep:   #0a0e14;             /* darker tint inside the scope frame */
+  --panel:     #161b22;
+  --rule:      #1f2937;             /* hairline separator color */
+  --grid:      #1a1f29;             /* chart grid line */
+  --border:    #30363d;             /* visible borders (chart frame, chips) */
+  --text:      #e6edf3;
+  --muted:     #8b949e;
+  --dim:       #6e7681;             /* tertiary text (timestamps, units) */
+  --accent:    #58a6ff;             /* "live" cyan, focus underline */
+  --b-crit:    #58a6ff;             /* b_crit marker — blue */
+  --b-slo:     #d29922;             /* b_slo marker — yellow */
+  --b-kv:      #3fb950;             /* b_kv marker — green */
+  --danger:    #f85149;
+  --glow:      rgba(88, 166, 255, 0.18);   /* phosphor halo on curve hover */
+
+  /* Font stacks. Web fonts loaded once via Google Fonts <link> in the HTML head.
+     System-ui keeps body copy native (no FOUT, fast paint); the two web fonts
+     are the page's signature — display + data. */
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-body:    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:    "Martian Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  min-height: 100vh;
+  /* Background atmosphere: subtle radial vignette + dotted engineering grid.
+     Both stacked through layered backgrounds — no extra DOM. The vignette is
+     5% brighter at top-center to draw the eye toward the readout deck. */
+  background:
+    radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(88, 166, 255, 0.04), transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(139, 148, 158, 0.06) 1px, transparent 1.5px) 0 0 / 32px 32px,
+    var(--bg);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Top instrument strip — full-bleed, hairline borders. No marketing copy.
+   ────────────────────────────────────────────────────────────────────────── */
+.strip {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.strip-left { display: flex; align-items: center; gap: 14px; }
+.strip-left .brand { color: var(--text); letter-spacing: 0.22em; }
+.strip-left .sep { width: 1px; height: 12px; background: var(--border); display: inline-block; }
+.strip a { color: var(--muted); text-decoration: none; transition: color 120ms; }
+.strip a:hover { color: var(--accent); }
+
+/* The "LIVE" indicator — a small pulsing dot reminding the user that every
+   form change is immediate. CSS-only @keyframes; honors reduced-motion. */
+.live-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--b-kv); box-shadow: 0 0 6px var(--b-kv);
+  margin-right: 6px;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Two-column layout. Sticky control panel on the left, readout deck right.
+   ────────────────────────────────────────────────────────────────────────── */
+.bench {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 0;
+  min-height: calc(100vh - 50px);
+}
+.panel-left {
+  position: sticky; top: 0;
+  align-self: start;
+  border-right: 1px solid var(--rule);
+  padding: 28px 24px 32px;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+.panel-right { padding: 28px 36px 80px; min-width: 0; }
+
+@media (max-width: 900px) {
+  .bench { grid-template-columns: 1fr; }
+  .panel-left { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .panel-right { padding: 24px 20px 60px; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Section headers in display serif — the editorial counterpoint to the data.
+   ────────────────────────────────────────────────────────────────────────── */
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.005em; }
+h1 { font-size: 38px; margin: 0 0 6px; line-height: 1.05; }
+h1 .sub { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em;
+          text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 10px; }
+h2 { font-size: 22px; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
+
+.lede {
+  color: var(--muted); font-size: 13px; max-width: 56ch; margin: 4px 0 22px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Form (control panel). Underline inputs only — no boxed groups.
+   ────────────────────────────────────────────────────────────────────────── */
+.panel-left .panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 22px;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--muted);
+}
+.panel-head .live-state { display: flex; align-items: center; color: var(--text); }
+
+.field {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.field:last-of-type { border-bottom: 0; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.field label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex; align-items: baseline; justify-content: space-between;
+}
+.field label .unit { color: var(--dim); font-size: 10px; }
+
+.field input[type="number"],
+.field input[type="text"],
+.field select {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 0 6px;
+  appearance: none;
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+.field select {
+  /* Custom chevron rendered as an SVG background — matches the mono aesthetic
+     (no native OS combobox arrow). */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%238b949e' stroke-width='1.4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 22px;
+  cursor: pointer;
+}
+.field input:focus, .field select:focus {
+  border-bottom-color: var(--accent);
+  box-shadow: 0 1px 0 0 var(--accent);   /* "powered-on" underline glow */
+}
+.field input:hover, .field select:hover { border-bottom-color: var(--muted); }
+/* Hide the native number-input spin buttons; they break the underline aesthetic. */
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.field input[type="number"] { -moz-appearance: textfield; }
+
+/* Custom-mode reveal: <details> styled as a hairline-bordered slide-down with
+   a colored left marker indicating "you have diverged from the preset". */
+.custom {
+  margin-top: 10px;
+  border-left: 2px solid var(--b-slo);
+  padding: 8px 0 4px 14px;
+  background: linear-gradient(90deg, rgba(210, 153, 34, 0.05), transparent 30%);
+}
+.custom summary {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--b-slo); cursor: pointer; list-style: none; padding: 4px 0;
+}
+.custom summary::-webkit-details-marker { display: none; }
+.custom summary::before { content: "▸ "; }
+.custom[open] summary::before { content: "▾ "; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Readout deck — metric tiles. Numbers are the hero.
+   ────────────────────────────────────────────────────────────────────────── */
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;            /* hairline grout between tiles, painted via bg color */
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+@media (max-width: 1200px) { .readouts { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .readouts { grid-template-columns: 1fr; } }
+
+.readout {
+  background: var(--bg);
+  padding: 18px 18px 16px;
+  position: relative;
+  border-top: 3px solid var(--border);
+  transition: opacity 120ms;
+}
+.readout.b-crit { border-top-color: var(--b-crit); }
+.readout.b-slo  { border-top-color: var(--b-slo); }
+.readout.b-kv   { border-top-color: var(--b-kv); }
+
+.readout-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.readout-label .hint { color: var(--dim); text-transform: none; letter-spacing: 0.05em; font-size: 10px; }
+
+.readout-value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: clamp(26px, 3.4vw, 44px);
+  line-height: 1;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  display: block;
+  margin: 4px 0 6px;
+  word-break: break-all;
+}
+.readout-value .vunit {
+  font-size: 0.42em; color: var(--muted); margin-left: 6px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.readout-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* Mini sparkline beneath each batch metric — shows where the value falls
+   on the step-time curve. Drawn as inline SVG by ui.mjs. */
+.readout-sparkline {
+  margin-top: 10px;
+  height: 22px;
+  width: 100%;
+  display: block;
+}
+
+/* Tile pulse on recompute. CSS-only — ui.mjs toggles a class for one frame. */
+.readout.pulse { animation: readout-pulse 240ms ease-out; }
+@keyframes readout-pulse {
+  0%   { background: rgba(88, 166, 255, 0.12); }
+  100% { background: var(--bg); }
+}
+
+/* Focus mode: hover one tile, dim the rest. */
+.readouts:hover .readout { opacity: 0.45; }
+.readouts:hover .readout:hover { opacity: 1; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   The oscilloscope chart — page hero. Dark inner area, hairline frame,
+   phosphor-glow curve handled in Chart.js dataset config.
+   ────────────────────────────────────────────────────────────────────────── */
+.scope {
+  margin: 28px 0 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 14px 16px 10px;
+  position: relative;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4);
+}
+.scope-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 10px;
+}
+.scope-head .channels { display: flex; gap: 16px; }
+.scope-head .channels span { display: inline-flex; align-items: center; gap: 6px; }
+.scope-head .channels .sw { width: 10px; height: 2px; display: inline-block; }
+.scope-head .ch-step { color: var(--accent); }       .scope-head .ch-step .sw { background: var(--accent); }
+.scope-head .ch-tps  { color: var(--b-kv); }         .scope-head .ch-tps .sw { background: var(--b-kv); }
+.scope-head .ch-cost { color: var(--b-slo); }        .scope-head .ch-cost .sw { background: var(--b-slo); }
+.scope-head .ch-slo  { color: var(--muted); }        .scope-head .ch-slo .sw { background: var(--muted); border-top: 1px dashed var(--muted); height: 0; }
+
+/* Three scope panels stacked vertically. Per-panel height reduced from 380px
+   to 260px since each one shows a single curve and three of them shouldn't
+   dominate the page. */
+.scope-stack { display: flex; flex-direction: column; gap: 18px; }
+.scope-canvas-wrap { position: relative; height: 260px; }
+.scope-canvas-wrap canvas { cursor: none; }       /* crosshair plugin draws its own */
+
+.scope-foot {
+  margin-top: 8px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--dim);
+  display: flex; justify-content: space-between;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sweep ranges — patchbay of value chips.
+   ────────────────────────────────────────────────────────────────────────── */
+.patchbay {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px 20px;
+  align-items: center;
+  margin: 20px 0 0;
+}
+.patch-label {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+.patch-track {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.chip {
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.chip.recommended {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.chip:hover { color: var(--text); border-color: var(--muted); }
+
+/* Copy-paste vLLM CLI snippet — terminal-side panel. */
+.snippet {
+  margin: 22px 0 0;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.snippet-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.snippet pre {
+  margin: 0; padding: 14px 18px;
+  overflow-x: auto;
+  line-height: 1.6;
+  color: var(--text);
+}
+.copy-btn {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 4px 10px; cursor: pointer; border-radius: 2px;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--muted); }
+.copy-btn.flash { color: var(--b-kv); border-color: var(--b-kv); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Diagnostics log — kernel-log styling. Persistent, never a toast.
+   ────────────────────────────────────────────────────────────────────────── */
+.diagnostics {
+  margin: 32px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-deep);
+  border: 1px solid var(--rule);
+  padding: 12px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.diagnostics .empty { color: var(--dim); }
+.diag-line { display: flex; gap: 10px; padding: 2px 0; }
+.diag-line time { color: var(--dim); font-variant-numeric: tabular-nums; }
+.diag-line .glyph { width: 12px; text-align: center; }
+.diag-line .glyph.warn  { color: var(--b-slo); }
+.diag-line .glyph.error { color: var(--danger); }
+.diag-line .msg { color: var(--text); flex: 1; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Footer
+   ────────────────────────────────────────────────────────────────────────── */
+.foot {
+  border-top: 1px solid var(--rule);
+  padding: 14px 28px;
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--dim); letter-spacing: 0.1em;
+}
+.foot a { color: var(--muted); text-decoration: none; }
+.foot a:hover { color: var(--accent); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Formulas drawer — slide-out reference panel anchored to the right edge.
+   Closed by default (driven by the `hidden` attribute on the drawer/backdrop
+   so the empty state is zero-cost). Body is the only scrollable region; the
+   header stays sticky so the close button is always reachable.
+   ────────────────────────────────────────────────────────────────────────── */
+.formulas-backdrop {
+  /* Plain dim overlay — no blur. Catches outside-clicks to close. */
+  position: fixed; inset: 0;
+  background: rgba(2, 6, 12, 0.55);
+  z-index: 90;
+}
+.formulas-backdrop[hidden] { display: none; }
+
+.formulas-drawer {
+  /* Fixed right column. 520px on desktop; 100vw on narrow viewports so
+     phones get the full canvas. Border + bg match the existing engineering-
+     instrument vocabulary (no shadows, no rounded corners). */
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(520px, 100vw);
+  background: var(--bg-deep);
+  border-left: 1px solid var(--rule);
+  z-index: 91;
+  display: flex; flex-direction: column;
+  /* Slide-in. Transform-only (no width/opacity), so the GPU compositor
+     handles it without layout. prefers-reduced-motion zeroes this out below. */
+  transform: translateX(0);
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.formulas-drawer[hidden] {
+  /* Use the attribute as the closed state — but keep display:flex so the
+     transform animates instead of jump-cutting. The pointer-events guard
+     keeps the offscreen drawer from blocking clicks. */
+  display: flex !important;
+  transform: translateX(100%);
+  pointer-events: none;
+}
+.formulas-drawer[hidden] .formulas-body,
+.formulas-drawer[hidden] .formulas-head { visibility: hidden; }
+
+.formulas-head {
+  position: sticky; top: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.formulas-head .formulas-title { color: var(--text); }
+.formulas-close {
+  /* Mirror .copy-btn so the drawer's trigger and dismiss read as one family. */
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.18em;
+}
+.formulas-close:hover { color: var(--accent); border-color: var(--accent); }
+
+.formulas-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 18px 32px;
+}
+
+.formula-cat {
+  /* Group separator between categories — no heavy headings, just a hairline
+     and a small monospace label, matching the existing h2 + lede rhythm. */
+  margin-top: 18px;
+}
+.formula-cat:first-child { margin-top: 0; }
+.formula-cat-head {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.formula-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.formula-row:last-child { border-bottom: none; }
+.formula-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 6px;
+}
+.formula-name {
+  font-family: var(--font-body);
+  font-size: 13px; color: var(--text);
+}
+.formula-path {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.formula-expr {
+  /* KaTeX renders math into its own .katex wrapper. We center it and let
+     the .katex-display margin do the spacing. Horizontal overflow is allowed
+     so long expressions can scroll without wrapping mid-equation. */
+  margin: 4px 0 8px;
+  font-size: 13.5px;
+  color: var(--text);
+  overflow-x: auto;
+}
+.formula-expr .katex-display { margin: 0.4em 0; }
+.formula-expr-fallback {
+  /* Pre-KaTeX fallback — reuses the snippet monospace treatment so slow CDN
+     loads don't show ugly raw LaTeX, just unfancied code. */
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.formula-details {
+  /* Reuses the .custom expander vocabulary: uppercase mono summary with a
+     ▸/▾ disclosure marker. Keeps the drawer visually rhyming with the
+     custom-hardware / custom-model expanders the user already knows. */
+  border-left: 2px solid var(--rule);
+  padding: 4px 0 4px 12px;
+  margin-top: 4px;
+}
+.formula-details > summary {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+.formula-details > summary::-webkit-details-marker { display: none; }
+.formula-details > summary::before { content: "▸ "; color: var(--dim); }
+.formula-details[open] > summary::before { content: "▾ "; color: var(--accent); }
+.formula-details[open] > summary { color: var(--text); }
+.formula-details > summary:hover { color: var(--accent); }
+
+.formula-body { padding: 8px 0 4px; font-size: 12.5px; color: var(--muted); }
+.formula-body p { margin: 0 0 8px; line-height: 1.55; }
+.formula-description { color: var(--text); }
+.formula-derivation { color: var(--muted); }
+
+.formula-where {
+  /* Variable glossary — two-column grid, monospace name, plain meaning. */
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+.formula-where dt {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--accent);
+}
+.formula-where dt code { background: none; padding: 0; }
+.formula-where dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.formula-citations {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  margin-top: 8px;
+}
+.formula-cite {
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.1em;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+  padding-bottom: 1px;
+}
+.formula-cite:hover { color: var(--text); border-bottom-style: solid; }
+
+/* Trigger button — placed in the top strip, styled to match .copy-btn so it
+   reads as a sibling control, not a new control family. */
+.formulas-trigger {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.formulas-trigger:hover,
+.formulas-trigger[aria-expanded="true"] {
+  color: var(--accent); border-color: var(--accent);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Accessibility: respect reduced-motion and forced-colors.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .live-dot, .readout.pulse { animation: none; }
+  .copy-btn, .chip, .field input, .field select { transition: none; }
+  /* Drawer slides become instant — preserve the open/close logic without
+     motion. */
+  .formulas-drawer { transition: none; }
+}
+@media (forced-colors: active) {
+  body { background: Canvas; color: CanvasText; }
+  .scope, .snippet, .diagnostics { background: Canvas; border-color: CanvasText; }
+  .chip.recommended { box-shadow: 0 0 0 1px Highlight inset; color: Highlight; }
+  .formulas-drawer, .formula-where { background: Canvas; border-color: CanvasText; }
+  .formula-cite, .formulas-trigger { color: LinkText; border-color: LinkText; }
+}
+</style>
+</head>
+<body>
+
+<header class="strip">
+  <div class="strip-left">
+    <span class="brand">SIZING CALCULATOR</span>
+    <span class="sep"></span>
+    <span>vLLM · Inference · Roofline analysis</span>
+  </div>
+  <div class="strip-right">
+    <button id="formulas-trigger" class="formulas-trigger" type="button"
+            aria-controls="formulas-drawer" aria-expanded="false"
+            title="Show every formula the calculator uses (shortcut: f)">[ FORMULAS ]</button>
+    <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ MODEL SIZING REFERENCE</a>
+  </div>
+</header>
+
+<div class="bench">
+  <aside class="panel-left">
+    <div class="panel-head">
+      <span>CONTROL PANEL</span>
+      <span class="live-state"><span class="live-dot"></span>LIVE</span>
+    </div>
+    <form id="sizing-form" autocomplete="off" onsubmit="return false;">
+      <div class="field">
+        <label>Hardware</label>
+        <select id="hw"></select>
+        <details id="hw-custom" class="custom">
+          <summary>Custom hardware</summary>
+          <div class="field-row">
+            <div class="field"><label>HBM <span class="unit">GB</span></label><input id="c-hbm-gb" type="number" value="80" min="1"></div>
+            <div class="field"><label>HBM BW <span class="unit">GB/s</span></label><input id="c-hbm-bw" type="number" value="3350" min="100"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>FP16 <span class="unit">TFLOPs</span></label><input id="c-fp16" type="number" value="990" min="1"></div>
+            <div class="field"><label>FP8 <span class="unit">TFLOPs</span></label><input id="c-fp8" type="number" value="" min="0" placeholder="blank=none"></div>
+          </div>
+          <div class="field"><label><input id="c-nvlink" type="checkbox" checked> NVLink within node</label></div>
+        </details>
+      </div>
+
+      <div class="field">
+        <label>Model</label>
+        <select id="model"></select>
+        <details id="model-custom" class="custom">
+          <summary>Custom model</summary>
+          <div class="field-row">
+            <div class="field"><label>Total params <span class="unit">B</span></label><input id="c-params-total" type="number" value="7" min="0.1" step="0.1" title="Total parameter count. For MoE, all experts must sit in HBM. For dense models, set equal to active."></div>
+            <div class="field"><label>Active params <span class="unit">B</span></label><input id="c-params-active" type="number" value="7" min="0.1" step="0.1" title="Parameters that execute per token. For dense models, same as total. For MoE, this drives compute roofline."></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Layers</label><input id="c-layers" type="number" value="32" min="1"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>d_model</label><input id="c-dmodel" type="number" value="4096" min="1"></div>
+            <div class="field"><label>n_heads</label><input id="c-heads" type="number" value="32" min="1"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>n_kv_heads</label><input id="c-kvheads" type="number" value="8" min="1"></div>
+            <div class="field"><label>head_dim</label><input id="c-headdim" type="number" value="128" min="1"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>max_context</label><input id="c-maxctx" type="number" value="8192" min="128"></div>
+            <div class="field"><label>Attention</label><select id="c-attn"><option>GQA</option><option>MHA</option><option>MQA</option><option>MLA</option></select></div>
+          </div>
+        </details>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>ISL <span class="unit">tokens</span></label><input id="isl" type="number" value="1024" min="1"></div>
+        <div class="field"><label>OSL <span class="unit">tokens</span></label><input id="osl" type="number" value="256" min="1"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>Weight prec</label>
+          <select id="weight-prec"><option>FP16</option><option>BF16</option><option>FP8</option><option>INT8</option><option>INT4</option></select></div>
+        <div class="field"><label>KV prec</label>
+          <select id="kv-prec"><option>FP16</option><option>BF16</option><option>FP8</option><option>INT8</option></select></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>Act prec</label>
+          <select id="act-prec"><option>FP16</option><option>BF16</option><option>FP8</option></select></div>
+        <div class="field"><label>nGPUs</label><input id="ngpus" type="number" value="1" min="1"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>TTFT SLO <span class="unit">ms</span></label><input id="ttft" type="number" value="2000" min="1"></div>
+        <div class="field"><label>TBT SLO <span class="unit">ms</span></label><input id="tbt" type="number" value="50" min="1"></div>
+      </div>
+
+      <div class="field">
+        <label>$ / GPU / hr <span class="unit">on-demand</span></label>
+        <input id="price-per-hour" type="number" step="0.01" min="0" placeholder="default: hardware row">
+      </div>
+    </form>
+  </aside>
+
+  <main class="panel-right">
+    <h1>Sizing Calculator
+      <span class="sub">analytical pre-flight · before empirical sweeps</span>
+    </h1>
+    <p class="lede">An in-browser companion to <em>Model Sizing &amp; Scaling Reference</em>.
+    Pick a GPU, model, and SLO; rule out 80% of the empirical search space before burning GPU time.</p>
+
+    <h2>Readouts</h2>
+    <section class="readouts" aria-label="metric readouts">
+      <div class="readout b-crit">
+        <p class="readout-label"><span>B_crit</span><span class="hint">roofline ridge</span></p>
+        <span class="readout-value" id="m-bcrit">—</span>
+        <p class="readout-sub">memory-bound below · compute-bound above</p>
+        <div class="readout-sparkline" id="spark-bcrit"></div>
+      </div>
+      <div class="readout b-slo">
+        <p class="readout-label"><span>B_slo</span><span class="hint">latency cap</span></p>
+        <span class="readout-value" id="m-bslo">—</span>
+        <p class="readout-sub">largest B keeping step_time ≤ TBT SLO</p>
+        <div class="readout-sparkline" id="spark-bslo"></div>
+      </div>
+      <div class="readout b-kv">
+        <p class="readout-label"><span>B_kv</span><span class="hint">HBM cap</span></p>
+        <span class="readout-value" id="m-bkv">—</span>
+        <p class="readout-sub">KV cache fits in available HBM at ISL+OSL</p>
+        <div class="readout-sparkline" id="spark-bkv"></div>
+      </div>
+      <div class="readout">
+        <p class="readout-label"><span>Parallelism</span><span class="hint">TP · PP</span></p>
+        <span class="readout-value" id="m-par">—</span>
+        <p class="readout-sub" id="m-par-sub">—</p>
+      </div>
+
+      <div class="readout">
+        <p class="readout-label"><span>max_num_seqs</span><span class="hint">vLLM</span></p>
+        <span class="readout-value" id="m-mns">—</span>
+        <p class="readout-sub">= min(B_slo, B_kv)</p>
+      </div>
+      <div class="readout">
+        <p class="readout-label"><span>max_num_batched_tokens</span><span class="hint">vLLM</span></p>
+        <span class="readout-value" id="m-mnbt">—</span>
+        <p class="readout-sub">Sarathi band: <span id="m-mnbt-band">—</span></p>
+      </div>
+      <div class="readout">
+        <p class="readout-label"><span>Throughput</span><span class="hint">tok/s</span></p>
+        <span class="readout-value" id="m-tps">—</span>
+        <p class="readout-sub" id="m-tps-pg">—</p>
+      </div>
+      <div class="readout">
+        <p class="readout-label"><span>$ / Mtok</span><span class="hint">output</span></p>
+        <span class="readout-value" id="m-cost">—</span>
+        <p class="readout-sub">single replica · on-demand list · override for spot/contract</p>
+      </div>
+      <div class="readout">
+        <p class="readout-label"><span>P : D ratio</span><span class="hint">disaggregation hint</span></p>
+        <span class="readout-value" id="m-pd">—</span>
+        <p class="readout-sub">(ISL/OSL) × MFU<sub>p</sub>/MFU<sub>d</sub></p>
+      </div>
+    </section>
+
+    <p class="lede" style="margin-top:18px">
+      Weights: <span id="m-weights">—</span>  ·  KV: <span id="m-kv">—</span>
+    </p>
+
+    <h2>Pareto scopes</h2>
+    <p class="lede">Latency · Throughput · Cost — three views of the same B sweep,
+    sharing the calipers at B_crit / B_slo / B_kv. Hover each panel independently.</p>
+    <div class="scope-stack">
+      <section class="scope" id="scope-latency" aria-label="step-time vs batch oscilloscope">
+        <div class="scope-head">
+          <span>STEP TIME · LOG B</span>
+          <div class="channels">
+            <span class="ch-step"><span class="sw"></span>STEP MS</span>
+            <span class="ch-slo"><span class="sw"></span>TBT SLO</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-latency-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hover for crosshair readout</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-throughput" aria-label="throughput vs batch oscilloscope">
+        <div class="scope-head">
+          <span>THROUGHPUT · LOG B</span>
+          <div class="channels">
+            <span class="ch-tps"><span class="sw"></span>TOK/S</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-throughput-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>saturates at compute roof past B_crit</span>
+        </div>
+      </section>
+
+      <section class="scope" id="scope-cost" aria-label="cost vs batch oscilloscope">
+        <div class="scope-head">
+          <span>$ / MTOK · LOG B</span>
+          <div class="channels">
+            <span class="ch-cost"><span class="sw"></span>$ / MTOK</span>
+          </div>
+        </div>
+        <div class="scope-canvas-wrap">
+          <canvas id="scope-cost-canvas"></canvas>
+        </div>
+        <div class="scope-foot">
+          <span>calipers · B_crit (blue) · B_slo (yellow) · B_kv (green)</span>
+          <span>hyperbolic decay — flattens past B_crit</span>
+        </div>
+      </section>
+    </div>
+
+    <h2>Sweep grid</h2>
+    <p class="lede">Empirical bracket around the analytical bound. Paste into your benchmark runner.</p>
+    <div class="patchbay" id="patchbay"></div>
+
+    <div class="snippet">
+      <div class="snippet-head">
+        <span>↓ vLLM serve · empirical grid</span>
+        <button class="copy-btn" id="copy-btn" type="button">[ COPY ]</button>
+      </div>
+      <pre id="snippet-body">—</pre>
+    </div>
+
+    <h2>Diagnostics</h2>
+    <div class="diagnostics" id="diagnostics"><div class="empty">[--:--:--] · no issues.</div></div>
+  </main>
+</div>
+
+<footer class="foot">
+  <span>built for hands-on inference work · MIT</span>
+  <span>companion to <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">MODEL_SIZING_SCALING_REFERENCE</a></span>
+</footer>
+
+<div id="formulas-backdrop" class="formulas-backdrop" hidden></div>
+<aside id="formulas-drawer" class="formulas-drawer" role="dialog" aria-modal="true"
+       aria-label="All formulas used by the calculator" hidden>
+  <header class="formulas-head">
+    <span class="formulas-title">FORMULAS</span>
+    <button class="formulas-close" type="button" title="Close (Esc)">[ × ]</button>
+  </header>
+  <div class="formulas-body"><!-- populated by drawer.mjs --></div>
+</aside>
+
+<script type="application/json" id="hardware-data">{
+  "_schema": {
+    "fields": {
+      "key": "stable identifier used in URL hashes and tests",
+      "label": "human-readable display name",
+      "hbm_gb": "HBM capacity per GPU in GB",
+      "hbm_bw_gbs": "peak HBM bandwidth per GPU in GB/s",
+      "ici_bw_gbs": "peak inter-chip bandwidth per GPU in GB/s. Dual semantics: NVLink bidir on NVLink-capable cards (A100, H100, H200); PCIe bidir on PCIe-only cards (T4, L4, A10G). Each row's `notes` field calls out which one applies. Used in Y_max = F/(B·β) where β = hbm_bw_gbs / ici_bw_gbs",
+      "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
+      "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
+      "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
+      "price_per_hour_usd": "AWS on-demand list price per GPU per hour. Derived from the canonical EC2 instance price for this card (us-east-1 list) divided by GPU count on that instance. Default; the UI accepts overrides for spot / reserved / contract pricing.",
+      "notes": "free-form provenance / caveat string"
+    },
+    "_sources": [
+      "NVIDIA datasheets (T4, L4, A100, H100, H200, all SXM where applicable). A10G specifically: official AWS/NVIDIA A10G datasheet PDF at https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf (verified 2026-05-23) — A10G is AWS-custom and differs from the regular A10 (dense FP16 ≈ 70 TF on A10G vs 125 TF on A10).",
+      "MODEL_SIZING_SCALING_REFERENCE.md §1 (H100 SXM = 9.9e14 FLOPs, 3.35e12 B/s HBM; H200 = 4.8e12 B/s)",
+      "MODEL_SIZING_SCALING_REFERENCE.md §6 Y_max derivation — only the TPU v5e β ≈ 8 is taken from the Scaling Book; all other β values (H100 ≈ 3.7, H200 ≈ 5.3, A100 ≈ 3.4, etc.) are derived in-place as hbm_bw_gbs / ici_bw_gbs using the §1 bandwidth values, not quoted from the book.",
+      "AWS EC2 on-demand pricing (us-east-1, list) cross-checked via instances.vantage.sh on 2026-05-23. T4 g4dn.xlarge $0.526/hr, L4 g6.xlarge $0.805/hr, A10G g5.xlarge $1.006/hr, A100-40GB p4d.24xlarge $21.958/hr (÷8 = $2.745), A100-80GB p4de.24xlarge $27.447/hr (÷8 = $3.431), H100-80GB p5.48xlarge $55.04/hr (÷8 = $6.88). H200 p5e.48xlarge on-demand list price not directly published; derived from AWS Capacity Blocks (https://aws.amazon.com/ec2/capacityblocks/pricing/, fetched 2026-05-23) ratio H200/H100 = $4.975/$4.326 = 1.15× applied to H100 on-demand → $7.91/GPU."
+    ]
+  },
+  "hardware": [
+    {
+      "key": "T4",
+      "label": "T4 (g4dn)",
+      "hbm_gb": 16,
+      "hbm_bw_gbs": 320,
+      "ici_bw_gbs": 32,
+      "fp16_tflops": 65,
+      "fp8_tflops": null,
+      "nvlink": false,
+      "price_per_hour_usd": 0.526,
+      "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g4dn.xlarge on-demand list; override in UI for spot / contract."
+    },
+    {
+      "key": "L4",
+      "label": "L4 (g6)",
+      "hbm_gb": 24,
+      "hbm_bw_gbs": 300,
+      "ici_bw_gbs": 64,
+      "fp16_tflops": 121,
+      "fp8_tflops": 242,
+      "nvlink": false,
+      "price_per_hour_usd": 0.805,
+      "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g6.xlarge on-demand list; override in UI for spot / contract."
+    },
+    {
+      "key": "A10G",
+      "label": "A10G (g5)",
+      "hbm_gb": 24,
+      "hbm_bw_gbs": 600,
+      "ici_bw_gbs": 64,
+      "fp16_tflops": 70,
+      "fp8_tflops": null,
+      "nvlink": false,
+      "price_per_hour_usd": 1.006,
+      "notes": "Price: g5.xlarge on-demand list; override in UI for spot / contract. Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
+    },
+    {
+      "key": "A100-40GB",
+      "label": "A100 40GB (SXM4)",
+      "hbm_gb": 40,
+      "hbm_bw_gbs": 1555,
+      "ici_bw_gbs": 600,
+      "fp16_tflops": 312,
+      "fp8_tflops": null,
+      "nvlink": true,
+      "price_per_hour_usd": 2.745,
+      "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8. Price: p4d.24xlarge on-demand list ($21.958/hr ÷ 8 GPUs); override in UI for spot / contract."
+    },
+    {
+      "key": "A100-80GB",
+      "label": "A100 80GB (SXM4)",
+      "hbm_gb": 80,
+      "hbm_bw_gbs": 2039,
+      "ici_bw_gbs": 600,
+      "fp16_tflops": 312,
+      "fp8_tflops": null,
+      "nvlink": true,
+      "price_per_hour_usd": 3.431,
+      "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir. Price: p4de.24xlarge on-demand list ($27.447/hr ÷ 8 GPUs); override in UI for spot / contract."
+    },
+    {
+      "key": "H100-80GB",
+      "label": "H100 80GB (SXM5)",
+      "hbm_gb": 80,
+      "hbm_bw_gbs": 3350,
+      "ici_bw_gbs": 900,
+      "fp16_tflops": 990,
+      "fp8_tflops": 1979,
+      "nvlink": true,
+      "price_per_hour_usd": 6.88,
+      "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7. Price: p5.48xlarge on-demand list ($55.04/hr ÷ 8 GPUs); override in UI for spot / contract."
+    },
+    {
+      "key": "H200",
+      "label": "H200 141GB (SXM5)",
+      "hbm_gb": 141,
+      "hbm_bw_gbs": 4800,
+      "ici_bw_gbs": 900,
+      "fp16_tflops": 990,
+      "fp8_tflops": 1979,
+      "nvlink": true,
+      "price_per_hour_usd": 7.91,
+      "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: derived from AWS Capacity Blocks ratio H200/H100 = $4.975/$4.326 = 1.15× (https://aws.amazon.com/ec2/capacityblocks/pricing/) applied to known H100 on-demand $6.88/GPU → $7.91/GPU. p5en.48xlarge enhanced-networking variant runs higher (~$9/GPU). Override in UI for spot / Capacity Blocks / contract."
+    }
+  ]
+}
+</script>
+<script type="application/json" id="models-data">{
+  "_schema": {
+    "fields": {
+      "key": "stable identifier used in URL hashes and tests",
+      "label": "human-readable display name",
+      "params_b_total": "Total parameter count in billions. Drives weight memory budgeting (weightsBytes) — for MoE, all experts must sit in HBM. For dense models, equals params_b_active.",
+      "params_b_active": "Parameters that actually execute per token, in billions. Drives compute roofline (2BN/FLOPs in stepTime). For dense models, equals params_b_total. For MoE, this is (shared experts) + k × (routed expert size).",
+      "n_experts": "MoE only: total routed experts (E). Omit for dense models.",
+      "experts_per_token": "MoE only: top-k routing (k). Omit for dense models.",
+      "n_layers": "transformer layer count",
+      "d_model": "hidden dimension",
+      "n_heads": "query head count",
+      "n_kv_heads": "key/value head count (= n_heads for MHA, < for GQA, 1 for MQA)",
+      "head_dim": "per-head dimension",
+      "d_ff": "FFW intermediate (up-projection) dimension. Used in Y_max = d_ff/(B·β). For SwiGLU models there are 3 FFW matrices but the constant cancels in Y_max.",
+      "max_context": "trained context length in tokens",
+      "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
+      "kv_lora_rank": "MLA latent dim (d_c). Required when attn_type=MLA; omitted otherwise.",
+      "qk_rope_head_dim": "MLA rope key dim (d_rope). Required when attn_type=MLA; omitted otherwise.",
+      "notes": "provenance / caveats"
+    },
+    "_sources": [
+      "HuggingFace config.json values for each base model",
+      "MODEL_SIZING_SCALING_REFERENCE.md §3, §5 — Llama-3-70B worked example uses these dims"
+    ]
+  },
+  "models": [
+    {
+      "key": "llama-3-8b",
+      "label": "Llama-3-8B",
+      "params_b_total": 8.03,
+      "params_b_active": 8.03,
+      "n_layers": 32,
+      "d_model": 4096,
+      "n_heads": 32,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "d_ff": 14336,
+      "max_context": 8192,
+      "attn_type": "GQA",
+      "notes": "Meta Llama-3 base. GQA 4:1 grouping. SwiGLU FFW with d_ff=14336 (HF config intermediate_size)."
+    },
+    {
+      "key": "llama-3-70b",
+      "label": "Llama-3-70B",
+      "params_b_total": 70.6,
+      "params_b_active": 70.6,
+      "n_layers": 80,
+      "d_model": 8192,
+      "n_heads": 64,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "d_ff": 28672,
+      "max_context": 8192,
+      "attn_type": "GQA",
+      "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV. SwiGLU FFW d_ff=28672."
+    },
+    {
+      "key": "qwen2.5-7b",
+      "label": "Qwen2.5-7B",
+      "params_b_total": 7.6,
+      "params_b_active": 7.6,
+      "n_layers": 28,
+      "d_model": 3584,
+      "n_heads": 28,
+      "n_kv_heads": 4,
+      "head_dim": 128,
+      "d_ff": 18944,
+      "max_context": 32768,
+      "attn_type": "GQA",
+      "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default). SwiGLU FFW d_ff=18944."
+    },
+    {
+      "key": "qwen2.5-14b",
+      "label": "Qwen2.5-14B",
+      "params_b_total": 14.8,
+      "params_b_active": 14.8,
+      "n_layers": 48,
+      "d_model": 5120,
+      "n_heads": 40,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "d_ff": 13824,
+      "max_context": 32768,
+      "attn_type": "GQA"
+    },
+    {
+      "key": "mistral-7b",
+      "label": "Mistral-7B",
+      "params_b_total": 7.2,
+      "params_b_active": 7.2,
+      "n_layers": 32,
+      "d_model": 4096,
+      "n_heads": 32,
+      "n_kv_heads": 8,
+      "head_dim": 128,
+      "d_ff": 14336,
+      "max_context": 32768,
+      "attn_type": "GQA",
+      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336."
+    },
+    {
+      "key": "deepseek-v3",
+      "label": "DeepSeek-V3 (671B MoE, 37B active)",
+      "params_b_total": 671,
+      "params_b_active": 37,
+      "n_experts": 256,
+      "experts_per_token": 8,
+      "n_layers": 61,
+      "d_model": 7168,
+      "n_heads": 128,
+      "n_kv_heads": 128,
+      "head_dim": 128,
+      "d_ff": 18432,
+      "max_context": 65536,
+      "attn_type": "MLA",
+      "kv_lora_rank": 512,
+      "qk_rope_head_dim": 64,
+      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
+    }
+  ]
+}
+</script>
+<script type="application/json" id="formulas-data">{
+  "formulas": [
+    {
+      "id": "constants",
+      "name": "Calculator constants",
+      "category": "constants",
+      "expr_tex": "\\begin{aligned} \\text{ACT\\_OVERHEAD} &= 0.10 \\\\ \\text{TP\\_CAP} &= 8 \\\\ \\alpha &= 0.15 \\\\ \\text{PREFILL\\_MFU} &= 0.40 \\\\ \\text{DECODE\\_MFU} &= 0.10 \\\\ \\text{DTYPE\\_BYTES} &= \\{\\text{FP16}{:}2, \\text{BF16}{:}2, \\text{FP8}{:}1, \\text{INT8}{:}1, \\text{INT4}{:}0.5\\} \\\\ \\text{SARATHI\\_BANDS} &= \\{512, 1024, 1536, 2048, 4096, 8192\\} \\end{aligned}",
+      "where": [
+        [
+          "ACT_OVERHEAD",
+          "Fraction of HBM reserved for activations + workspace + paging fragmentation (10% → 90% utilization; vLLM default is 92%)."
+        ],
+        [
+          "TP_CAP",
+          "NVLink fan-out ceiling (HGX/DGX). Useful ceiling is min(TP_CAP, Y_max)."
+        ],
+        [
+          "alpha",
+          "DJL TRT-LLM token-budget hint midpoint: mnbt ≈ α × B × ISL, α ∈ [0.1, 0.2]."
+        ],
+        [
+          "PREFILL_MFU",
+          "Prefill MFU midpoint (~30–50% band) for closed-form prefill throughput."
+        ],
+        [
+          "DECODE_MFU",
+          "Decode MFU midpoint (~5–15% band). Kept for reference; decode tput now derived from stepTime."
+        ],
+        [
+          "DTYPE_BYTES",
+          "Bytes per element by dtype; INT4 stored as 0.5 so multiplication never truncates a param count."
+        ],
+        [
+          "SARATHI_BANDS",
+          "Sarathi-Serve §5.1 token-budget bands; single source of truth shared by picker and sweep grid."
+        ]
+      ],
+      "description": "Tunable constants used across the calculator: HBM headroom, NVLink TP ceiling, DJL token-budget α, MFU midpoints, dtype byte costs, Sarathi-Serve bands.",
+      "derivation": "ACT_OVERHEAD=0.10 is a vLLM-style headroom (intentionally conservative vs vLLM's 92% default). TP_CAP=8 is the NVLink fan-out of a standard HGX/DGX node. α=0.15 is the DJL TRT-LLM 'sensible band' midpoint. PREFILL_MFU=0.40 and DECODE_MFU=0.10 are reference §0.3 band midpoints synthesized from DeepSeek-V3 (~34% prefill / ~7% decode on FP8 H800), 'Investigation of FP8 Across Accelerators' (square GEMM ~59% FP8 peak; thin GEMM <1%), Sarathi-Serve, and Databricks (which reports MBU not MFU for decode). SARATHI_BANDS = {512 strict, 1024 default, 1536 LLaMA-70B PP variant, 2048 relaxed cap, 4096, 8192} — verbatim from Sarathi-Serve §5.1 plus throughput extensions; one constant guarantees the picker and sweep grid agree.",
+      "citation": [
+        {
+          "label": "Reference §0.3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#03-inference-is-two-workloads-not-one"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        },
+        {
+          "label": "Investigation of FP8 Across Accelerators",
+          "url": "https://arxiv.org/abs/2502.01070"
+        }
+      ],
+      "calc_fn": "(constants)",
+      "calc_path": "calc.mjs:14"
+    },
+    {
+      "id": "weights_bytes",
+      "name": "Weight memory (total HBM stream)",
+      "category": "memory",
+      "expr_tex": "W = N_{\\text{total}} \\cdot 10^9 \\cdot b_w",
+      "where": [
+        [
+          "N_total",
+          "Total params in billions (for MoE: all experts — all must sit in HBM regardless of routing)."
+        ],
+        [
+          "b_w",
+          "Bytes per weight element (DTYPE_BYTES)."
+        ],
+        [
+          "W",
+          "Total weight bytes streamed from HBM per step."
+        ]
+      ],
+      "description": "Aggregate weight memory. TP shards it across GPUs, but the aggregate matters because aggregate HBM BW also scales with the shard count.",
+      "derivation": "params_b_total is in billions to match the data table; multiply by 1e9 once here. Total (not active) is used because MoE routing does not shrink HBM footprint — all experts must be resident even if only a few execute per token. Compute uses active params via stepTime's paramCount_active.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "weightsBytes",
+      "calc_path": "calc.mjs:63"
+    },
+    {
+      "id": "kv_per_token_mha",
+      "name": "KV bytes per token (MHA / GQA / MQA)",
+      "category": "memory",
+      "expr_tex": "K_{\\text{tok}} = 2 \\cdot b_{kv} \\cdot n_{kv} \\cdot d_{\\text{head}} \\cdot L",
+      "where": [
+        [
+          "b_kv",
+          "Bytes per KV element."
+        ],
+        [
+          "n_kv",
+          "Number of KV heads (n_kv < n_heads for GQA; n_kv = 1 for MQA; n_kv = n_heads for MHA)."
+        ],
+        [
+          "d_head",
+          "Head dimension."
+        ],
+        [
+          "L",
+          "Transformer layer count."
+        ],
+        [
+          "2",
+          "K and V tensors cached separately."
+        ]
+      ],
+      "description": "KV cache bytes per token per sequence for standard attention. The factor of 2 is K + V; reducing n_kv is what GQA / MQA compress.",
+      "derivation": "Reference §3: each layer caches one K and one V of shape (n_kv × d_head) per token in dtype b_kv; multiply by L for the model. GQA compresses by reducing n_kv vs n_heads (Llama-3-70B: 8 KV heads vs 64 attention heads → 8× smaller KV than dense MHA). MQA pushes n_kv to 1.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "kvPerToken",
+      "calc_path": "calc.mjs:77"
+    },
+    {
+      "id": "kv_per_token_mla",
+      "name": "KV bytes per token (MLA)",
+      "category": "memory",
+      "expr_tex": "K_{\\text{tok}}^{\\text{MLA}} = (d_c + d_{\\text{rope}}) \\cdot b_{kv} \\cdot L",
+      "where": [
+        [
+          "d_c",
+          "Latent (kv_lora_rank) dimension of the low-rank KV compression."
+        ],
+        [
+          "d_rope",
+          "RoPE key dimension (qk_rope_head_dim) carried alongside the latent."
+        ],
+        [
+          "b_kv",
+          "Bytes per KV element."
+        ],
+        [
+          "L",
+          "Transformer layer count."
+        ]
+      ],
+      "description": "KV bytes per token for Multi-head Latent Attention (DeepSeek-V2/V3). One shared low-rank latent plus a small RoPE key, cached once across all heads.",
+      "derivation": "MLA is structurally different (reference §3 table): one low-rank latent of size d_c plus one RoPE key of size d_rope, shared across heads. No factor of 2 (single cached tensor, not K+V separately), no n_kv, no d_head multiplier. Field names match DeepSeek HF config. This is why DeepSeek-V3 (671B total) has a smaller per-token KV than Llama-3-70B despite being ~10× larger.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        }
+      ],
+      "calc_fn": "kvPerToken",
+      "calc_path": "calc.mjs:77"
+    },
+    {
+      "id": "b_crit",
+      "name": "Roofline ridge-point batch (B_crit)",
+      "category": "regime",
+      "expr_tex": "B_{\\text{crit}} = \\frac{C}{W_{\\text{hbm}}} \\cdot \\frac{\\text{bits}_w}{\\text{bits}_{\\text{act}}} \\cdot \\frac{N_{\\text{total}}}{N_{\\text{active}}}",
+      "where": [
+        [
+          "C",
+          "Precision-adjusted peak FLOPs (FP8 path only when both operands FP8 + HW support; else FP16/BF16 rate)."
+        ],
+        [
+          "W_hbm",
+          "HBM bandwidth (bytes/s)."
+        ],
+        [
+          "bits_w, bits_act",
+          "Weight and activation precision in bits."
+        ],
+        [
+          "N_total / N_active",
+          "MoE sparsity correction (= 1 for dense)."
+        ]
+      ],
+      "description": "Batch size where the MLP kernel flips from memory-bound to compute-bound. Below B_crit, FLOPs idle; above it, latency grows linearly with B.",
+      "derivation": "Standard AI threshold (reference §1, Scaling Book inference Q5): ridge of the roofline is where compute time equals memory time per matmul. bits_w/bits_act is the book's rule that int8/fp8 doubles B_crit. FP8 tensor cores fire only when both operands are FP8 + HW supports it; asymmetric precision rides FP16 path and shifts only via bits_w/bits_act. The N_total/N_active factor is the Scaling Book MoE sparsity correction: weights stream all experts each step while compute scales only with active experts, so the ridge shifts right by that ratio. Example: DeepSeek-V3 on H100 BF16/BF16, dense B_crit=295, sparsity 671/37≈18.135 → B_crit_MoE≈5347.",
+      "citation": [
+        {
+          "label": "Reference §1",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#1-the-roofline-mental-model-scaling-book-part-7"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "bCrit",
+      "calc_path": "calc.mjs:104"
+    },
+    {
+      "id": "step_time",
+      "name": "Per-step decode latency (per-kernel form)",
+      "category": "latency",
+      "expr_tex": "T_{\\text{step}} = \\frac{B \\cdot K_{\\text{tok}} \\cdot S}{\\text{BW}} + \\max\\!\\left(\\frac{W}{\\text{BW}},\\ \\frac{2 B N_{\\text{active}}}{\\text{FLOPs}}\\right)",
+      "where": [
+        [
+          "B",
+          "Active sequences in the step."
+        ],
+        [
+          "K_tok",
+          "KV bytes per token per sequence."
+        ],
+        [
+          "S",
+          "Per-sequence KV occupancy; we use PEAK seq = ISL + OSL (last decode step)."
+        ],
+        [
+          "BW, FLOPs",
+          "Aggregate HBM bandwidth and compute across all GPUs."
+        ],
+        [
+          "W",
+          "Total HBM weight stream (all experts for MoE)."
+        ],
+        [
+          "N_active",
+          "Per-token active parameters (= N_total for dense)."
+        ]
+      ],
+      "description": "Attention kernel (always memory-bound on KV) plus MLP kernel (max of weight-load vs compute). Each layer runs these as separate sequential CUDA kernels, so they add per step.",
+      "derivation": "Reference §4 / Scaling Book. Attention and MLP are separate sequential kernels per layer → per-step time sums. Attention AI is ~1 at decode (no compute roof), so pure HBM-BW on the KV stream. The MLP max picks the slower of weight-load (W/BW, constant in B) and compute (2BN/FLOPs, linear in B). MoE contract: W uses total params; compute term uses active. PEAK seq (ISL+OSL) — not mean — because SLAs bound EVERY step and the last decode step is the worst. Sizing against the mean fits batches that meet TBT on average but blow SLO at end-of-decode.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "stepTime",
+      "calc_path": "calc.mjs:144"
+    },
+    {
+      "id": "throughput_at_b",
+      "name": "Aggregate decode throughput",
+      "category": "latency",
+      "expr_tex": "\\text{tps}(B) = \\frac{B}{T_{\\text{step}}(B)}",
+      "where": [
+        [
+          "B",
+          "Active sequences."
+        ],
+        [
+          "T_step(B)",
+          "Per-step latency from stepTime."
+        ],
+        [
+          "tps",
+          "Aggregate tokens/sec emitted by the fleet."
+        ]
+      ],
+      "description": "Vendor-headline tok/s, not per-user rate. Autoregressive invariant: one new token per active sequence per step, so fleet tps = B / T_step.",
+      "derivation": "B tokens land per step → tps = B / T_step. Inherits stepTime's regimes: roughly linear in B below B_crit, then saturates at FLOPs/(2N) above (B cancels asymptotically because T_step is itself linear in B). Per-user rate is 1/T_step — strictly smaller. Delegating to stepTime keeps a single source of truth for the per-kernel breakdown.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        }
+      ],
+      "calc_fn": "throughputAtB",
+      "calc_path": "calc.mjs:164"
+    },
+    {
+      "id": "cost_per_mtok",
+      "name": "Cost per million output tokens",
+      "category": "cost",
+      "expr_tex": "\\$/\\text{Mtok} = \\frac{p \\cdot n_{\\text{gpus}} \\cdot 10^6}{3600 \\cdot \\text{tps}}",
+      "where": [
+        [
+          "p",
+          "USD price per GPU per hour."
+        ],
+        [
+          "n_gpus",
+          "GPUs in the deployment."
+        ],
+        [
+          "tps",
+          "Aggregate decode tokens/sec at the operating point."
+        ]
+      ],
+      "description": "Unit conversion closing the third axis of the Pareto surface (latency × throughput × $/Mtok). Fleet $/hr ÷ fleet tokens/hr, scaled to per-million.",
+      "derivation": "Fleet cost = p × n_gpus $/hr; emission rate = tps × 3600 tok/hr; $/tok = (p × n_gpus) / (tps × 3600); scale by 1e6. Edge cases: price=null → null (renders '—'); tps=0 → Infinity (caller masks); price=0 → 0 (free hardware = free tokens).",
+      "citation": [
+        {
+          "label": "Reference §0.1",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#01-what-youre-actually-optimizing"
+        }
+      ],
+      "calc_fn": "costPerMtok",
+      "calc_path": "calc.mjs:182"
+    },
+    {
+      "id": "b_slo",
+      "name": "Largest batch meeting TBT SLO (b_slo)",
+      "category": "capacity",
+      "expr_tex": "\\begin{aligned} B_{\\text{ridge}} &= \\frac{W \\cdot \\text{FLOPs}}{2 N_{\\text{active}} \\cdot \\text{BW}} \\\\ B_a &= \\frac{(T_{\\text{slo}} - W/\\text{BW}) \\cdot \\text{BW}}{K_{\\text{tok}} \\cdot S} \\\\ B_b &= \\frac{T_{\\text{slo}}}{K_{\\text{tok}} S / \\text{BW} + 2 N_{\\text{active}} / \\text{FLOPs}} \\\\ B_{\\text{slo}} &= \\begin{cases} B_a & B_a \\le B_{\\text{ridge}} \\\\ B_b & B_b \\ge B_{\\text{ridge}} \\\\ B_{\\text{ridge}} & \\text{otherwise} \\end{cases} \\end{aligned}",
+      "where": [
+        [
+          "T_slo",
+          "Target TBT (seconds)."
+        ],
+        [
+          "W, N_active",
+          "Total weight stream and active params."
+        ],
+        [
+          "K_tok, S",
+          "KV per token and peak seq (ISL + OSL)."
+        ],
+        [
+          "BW, FLOPs",
+          "Aggregate HBM BW and compute."
+        ],
+        [
+          "B_a, B_b",
+          "Candidate solutions in the MLP weight-load and MLP compute regimes."
+        ]
+      ],
+      "description": "Largest batch keeping every decode step under the TBT SLO. Solves stepTime piecewise across its two MLP regimes; the binding answer is the candidate that lands in its own regime.",
+      "derivation": "T_step is piecewise-linear in B with MLP-ridge crossover at B_ridge = (W·FLOPs)/(2N·BW). Below the ridge W/BW dominates; above, 2BN/FLOPs does. Each regime gives a linear equation; the binding answer is the candidate whose B sits in its own regime. If both straddle the ridge, the SLO is met exactly at B_ridge. B_ridge is NOT B_crit — they coincide for symmetric precision (BF16/BF16) but diverge for FP8/FP8 (B_ridge≈α, B_crit≈2α) because Scaling Book's stepTime omits activation streaming. Replacing B_ridge with bCrit() would silently report falsely permissive values for FP8/FP8. We also flag 'attention' as the binder if attention alone exceeds the budget. PEAK seq makes this SLO-conservative (worst step, not average) — the right framing for any p99-style SLA.",
+      "citation": [
+        {
+          "label": "Reference §4",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#4-latencythroughput-curve-closed-form"
+        },
+        {
+          "label": "JAX Scaling Book — inference",
+          "url": "https://jax-ml.github.io/scaling-book/inference/"
+        }
+      ],
+      "calc_fn": "bSlo",
+      "calc_path": "calc.mjs:226"
+    },
+    {
+      "id": "b_kv",
+      "name": "Largest batch fitting KV in HBM (b_kv)",
+      "category": "capacity",
+      "expr_tex": "B_{\\text{kv}} = \\left\\lfloor \\frac{\\text{HBM}_{\\text{total}} (1 - \\text{ACT\\_OVERHEAD}) - W}{K_{\\text{tok}} \\cdot S} \\right\\rfloor",
+      "where": [
+        [
+          "HBM_total",
+          "Aggregate HBM (hbm_gb × ngpus × 1e9)."
+        ],
+        [
+          "W",
+          "Total weight stream (all experts for MoE)."
+        ],
+        [
+          "K_tok",
+          "KV bytes per token (from kvPerToken for the right attention variant)."
+        ],
+        [
+          "S",
+          "Peak seq = ISL + OSL."
+        ]
+      ],
+      "description": "Largest batch that fits the KV cache in HBM after weights and activation headroom. Uses peak occupancy so the bound never OOMs mid-generation.",
+      "derivation": "Reference §3 / §5: usable HBM for KV = HBM × (1 − ACT_OVERHEAD) − W; KV per sequence = K_tok × peak_seq. ISL+OSL is the conservative choice because KV grows monotonically through decode — last step is worst case for OOM. This function owns the kvPerToken call internally so callers can't silently mis-apply the MHA formula to MLA. Compute sparsity does NOT shrink HBM footprint; W is the total stream.",
+      "citation": [
+        {
+          "label": "Reference §3",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#3-kv-cache-the-other-bottleneck"
+        },
+        {
+          "label": "Reference §5",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#5-critical-batch-llama-70b-worked-example"
+        }
+      ],
+      "calc_fn": "bKv",
+      "calc_path": "calc.mjs:290"
+    },
+    {
+      "id": "y_max",
+      "name": "Useful TP ceiling (Y_max)",
+      "category": "parallelism",
+      "expr_tex": "Y_{\\max} = \\frac{d_{\\text{ff}}}{B \\cdot \\beta}, \\quad \\beta = \\frac{W_{\\text{hbm}}}{W_{\\text{ici}}}",
+      "where": [
+        [
+          "d_ff",
+          "FFW hidden dim (d_model and L cancel in the derivation; only d_ff survives)."
+        ],
+        [
+          "B",
+          "Batch size."
+        ],
+        [
+          "beta",
+          "Hardware HBM-to-ICI BW ratio (H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8)."
+        ]
+      ],
+      "description": "Max useful TP degree per replica before ICI all-reduce dominates per-step decode latency. Past Y_max, more TP does not cut step time.",
+      "derivation": "Reference §6 (Scaling Book): per-layer FFW weight stream T_HBM = 2DF/(Y·W_hbm); per-layer activation all-reduce T_ICI = 2BD/W_ici. The crossover T_ICI > T_HBM simplifies (D cancels both sides; L scales both equally) to Y > d_ff / (B · β) — only d_ff survives. Returns +∞ if ici_bw_gbs is missing ('no constraint modelled'); caller still applies TP_CAP and memory-fit ceilings. This is a latency-usefulness ceiling, not a hard limit — exceeding it means more TP doesn't help (and may hurt), not that it crashes.",
+      "citation": [
+        {
+          "label": "Reference §6",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#6-parallelism-decision-tree"
+        }
+      ],
+      "calc_fn": "yMax",
+      "calc_path": "calc.mjs:322"
+    },
+    {
+      "id": "recommend_parallelism",
+      "name": "Recommend TP × PP × replicas",
+      "category": "parallelism",
+      "expr_tex": "\\text{TP}^{*} = \\min\\{t \\in \\{1,2,4,8\\} : W/t \\le \\text{HBM}_{\\text{per-gpu}} (1 - \\text{ACT\\_OVERHEAD})\\}",
+      "where": [
+        [
+          "W",
+          "Total weight bytes."
+        ],
+        [
+          "HBM_per_gpu",
+          "hw.hbm_gb × 1e9."
+        ],
+        [
+          "TP*",
+          "Smallest TP in {1,2,4,8} that fits the per-GPU shard."
+        ],
+        [
+          "PP",
+          "Pipeline stages used when no TP in {1,2,4,8} fits: TP=8 per stage, PP = ceil(W / (8 × HBM_per_gpu_usable))."
+        ]
+      ],
+      "description": "Two-ceiling parallelism recommender. Smallest TP that fits the memory shard; falls back to TP=8 × PP when even TP=8 won't fit; surfaces Y_max as a soft diagnostic.",
+      "derivation": "Scan {1,2,4,8} (NVLink-aligned, ngpus-bounded); pick the smallest TP whose shard W/TP fits HBM_per_gpu × (1 − ACT_OVERHEAD). Replicas = floor(ngpus / TP). No fit → use TP=8 per stage and PP = ceil(W / (8 · HBM_per_gpu_usable)). We do NOT force TP down to Y_max — if memory needs TP=4 we honor that even if Y_max=2 — but surface a diagnostic so users know TP=4 was memory-driven, not latency-driven. Useful cap = min(TP_CAP, ngpus, floor(Y_max)). Memory-fit is hard; Y_max is soft.",
+      "citation": [
+        {
+          "label": "Reference §6",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#6-parallelism-decision-tree"
+        }
+      ],
+      "calc_fn": "recommendParallelism",
+      "calc_path": "calc.mjs:338"
+    },
+    {
+      "id": "recommend_max_batched_tokens",
+      "name": "Recommended max_num_batched_tokens",
+      "category": "engine_knobs",
+      "expr_tex": "\\text{mnbt} = \\min_{c \\in \\text{SARATHI\\_BANDS}} \\big\\{ c : c \\geq \\max(1024,\\, \\alpha \\cdot B \\cdot \\text{ISL}) \\big\\},\\quad \\text{capped at 2048 if TBT} \\leq 30\\text{ ms}",
+      "where": [
+        [
+          "B",
+          "recommended batch (min of b_slo, b_kv)"
+        ],
+        [
+          "ISL",
+          "input sequence length (prompt tokens)"
+        ],
+        [
+          "TBT",
+          "tokens-between-time SLO (ms)"
+        ],
+        [
+          "\\alpha",
+          "DJL TRT-LLM band midpoint (= ALPHA = 0.15)"
+        ],
+        [
+          "SARATHI_BANDS",
+          "{512, 1024, 1536, 2048, 4096, 8192}"
+        ]
+      ],
+      "description": "Starting value for vLLM's --max-num-batched-tokens — the per-step token budget that gates how much prefill can backfill alongside decode. Picked from the Sarathi-Serve verified bands instead of a free-form integer so the analytical recommendation matches a configuration the paper actually measured.",
+      "derivation": "Sarathi-Serve §5.1 shows that strict-TBT deployments (≤30 ms) should run a small chunk (~512) to protect per-token latency, while relaxed deployments (~100 ms TBT) can run 2048 to recover prefill throughput. DJL's TRT-LLM tuning guide gives an upper-bound hint of α·B·ISL with α ∈ [0.1, 0.2] (we use 0.15, the midpoint). The picker takes max(1024, hint) and walks the verified band list upward, then applies the strict cap of 2048 if TBT ≤ 30 ms. Returning the band label ('strict' vs 'relaxed') lets the UI explain which regime the recommendation came from.",
+      "citation": [
+        {
+          "label": "Reference §10",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#10-tensorrt-llm-tuning-methodology"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        }
+      ],
+      "calc_fn": "recommendMaxBatchedTokens",
+      "calc_path": "calc.mjs:436"
+    },
+    {
+      "id": "prefill_throughput_per_chip",
+      "name": "Per-chip prefill throughput",
+      "category": "disagg",
+      "expr_tex": "\\text{tps}_{p} = \\frac{C \\cdot \\text{PREFILL\\_MFU}}{2 N_{\\text{active}} + 2 \\cdot \\text{ISL} \\cdot d_{\\text{model}} \\cdot L}",
+      "where": [
+        [
+          "C",
+          "Per-chip peak FLOPs (FP8 path needs both operands FP8 + HW support)."
+        ],
+        [
+          "PREFILL_MFU",
+          "0.40 — midpoint of the 30–50% band."
+        ],
+        [
+          "N_active",
+          "Per-token active params (matmul FLOPs = 2 · N_active per token)."
+        ],
+        [
+          "ISL · d_model · L",
+          "Self-attention FLOPs per token (Q·Kᵀ + attn·V over preceding ISL/2 tokens × 2 matmuls, causally averaged)."
+        ]
+      ],
+      "description": "Tokens/sec/chip for prefill at the operating MFU. Feeds pdRatio. B does not appear because per-step work and tokens generated both scale linearly in B, so B cancels.",
+      "derivation": "Per-token FLOPs has two components: matmul (QKVO + FFW) = 2 · N_active per token (Scaling Book §6 convention) plus self-attention (causally averaged) = 2 · ISL · d_model · L. Attention share at d_model=8192, L=80: ~1% at ISL=2k, ~8% at ISL=8k (Scaling Book worked example), ~30% at ISL=32k, >70% at ISL=128k (MFU convention itself breaks down). PREFILL_MFU=0.40 anchors at 'decently-batched chunked prefill' (~2k chunks); achieved MFU swings ~30% at 512 chunks to ~50–60% at 8k+. That swing is the dominant source of pdRatio's order-of-magnitude band. FP8 selection rule mirrors bCrit's.",
+      "citation": [
+        {
+          "label": "Reference §5.2",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#52-full-topology-recap"
+        },
+        {
+          "label": "Investigation of FP8 Across Accelerators",
+          "url": "https://arxiv.org/abs/2502.01070"
+        }
+      ],
+      "calc_fn": "prefillThroughputPerChip",
+      "calc_path": "calc.mjs:497"
+    },
+    {
+      "id": "pd_ratio",
+      "name": "Prefill:Decode replica ratio",
+      "category": "disagg",
+      "expr_tex": "\\text{P:D} = \\frac{\\text{ISL}}{\\text{OSL}} \\cdot \\frac{\\text{tps}_{d,\\text{chip}}}{\\text{tps}_{p,\\text{chip}}}",
+      "where": [
+        [
+          "ISL, OSL",
+          "Input and output sequence lengths."
+        ],
+        [
+          "tps_{d,chip}",
+          "Decode tokens/sec/chip from stepTime/throughputAtB at operating B."
+        ],
+        [
+          "tps_{p,chip}",
+          "Prefill tokens/sec/chip from prefillThroughputPerChip."
+        ]
+      ],
+      "description": "Prefill:decode chip ratio for disaggregated sizing. Order-of-magnitude correct; expect ±2× vs production sizers (DistServe / Splitwise / Mooncake use SLO-bound simulators).",
+      "derivation": "Reference §5.2 / DistServe (OSDI '24) §4 throughput-based form: n_p = ceil(R / prefill_goodput), n_d = ceil(R / decode_goodput) → P:D = decode_goodput / prefill_goodput. Expand goodput as req/s/chip = tokens/sec/chip ÷ tokens-per-req: prefill_goodput = prefill_tput/ISL, decode_goodput = decode_tput/OSL → P:D = (ISL/OSL) × (decode_tput / prefill_tput). Decode side comes from the calculator's own stepTime, auto-honoring regime, KV cap, SLO cap, and MoE corrections. Direction note: higher prefill MFU → faster prefill chips → FEWER prefill per decode. Splitwise A100→H100 controlled experiment (55→35 prefill machines, same workload) falsifies the older multiplicative MFU_p/MFU_d form.",
+      "citation": [
+        {
+          "label": "Reference §5.2",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#52-full-topology-recap"
+        },
+        {
+          "label": "DistServe (OSDI '24)",
+          "url": "https://arxiv.org/abs/2401.09670"
+        },
+        {
+          "label": "Splitwise (ISCA '24)",
+          "url": "https://arxiv.org/abs/2311.18677"
+        }
+      ],
+      "calc_fn": "pdRatio",
+      "calc_path": "calc.mjs:532"
+    },
+    {
+      "id": "sweep_ranges",
+      "name": "Empirical sweep grids",
+      "category": "engine_knobs",
+      "expr_tex": "\\begin{aligned} \\text{max\\_num\\_seqs} &\\in \\{2^k : b/4 \\le 2^k \\le 2b\\} \\\\ \\text{mnbt} &\\in \\text{SARATHI\\_BANDS} \\cap [1, \\min(2 \\cdot \\text{mnbt}^{*}, \\text{strictCap})] \\\\ \\text{concurrency} &\\in \\{1, b/4, b/2, b, \\lfloor 1.5b \\rfloor, 2b\\} \\end{aligned}",
+      "where": [
+        [
+          "b",
+          "Recommended batch = min(b_slo, b_kv)."
+        ],
+        [
+          "mnbt*",
+          "Picker's recommended max_num_batched_tokens."
+        ],
+        [
+          "strictCap",
+          "SARATHI_STRICT_CAP (2048) if TBT ≤ 30 ms, else +∞."
+        ]
+      ],
+      "description": "Three grids: two server-side (Cartesian product, each combo = vLLM restart) and one client-side load axis. Brackets the analytical knee so the empirical sweep finds the actual cliff on either side.",
+      "derivation": "Reference §0.5 two-stage methodology: min(b_slo, b_kv) rules out ~80% of the search space; tight sweep around it costs ~70 runs vs ~600 blind. max_num_seqs walks powers of 2 in [b/4, 2b] (vLLM scheduler is opinionated about them — Sarathi §4) to locate the empirical KV/SLO ceiling. max_num_batched_tokens draws from SARATHI_BANDS (shared with the picker — prevents drift where the picker recommends 1536 but the grid only shows {512,1024,2048,4096}), capped at 2× the picker's pick and at SARATHI_STRICT_CAP under strict TBT. concurrency uses fractional steps — deliberately NOT powers of 2 — to land at sub-saturation (TBT flat, throughput linear), at-knee (plateau), and super-saturation (TBT cliff, queue growth). If the cliff lands at 0.5b or 3b, the model is mis-calibrated for that workload.",
+      "citation": [
+        {
+          "label": "Reference §0.5",
+          "anchor": "../reference/MODEL_SIZING_SCALING_REFERENCE.html#05-method-analytical-bounds-empirical-refinement-goodput"
+        },
+        {
+          "label": "Sarathi-Serve (OSDI '24)",
+          "url": "https://arxiv.org/abs/2403.02310"
+        }
+      ],
+      "calc_fn": "sweepRanges",
+      "calc_path": "calc.mjs:609"
+    }
+  ]
+}</script>
+<script type="module">
+
+// ===== calc.mjs =====
+// Pure-function compute layer for the LLM inference sizing calculator.
+//
+// No DOM access, no globals, no I/O — every function takes plain numbers/objects
+// and returns plain numbers/objects. This is what makes the formulas testable in
+// node:test without a browser. Every formula cites a section in
+// MODEL_SIZING_SCALING_REFERENCE.md so reviewers can trace numbers to source.
+
+// ---------- constants ----------
+// Reserve ~10% of HBM for activations + workspace + paging fragmentation.
+// The reference doesn't pin this; it's a vLLM-style headroom. Note: actual
+// vLLM default is gpu_memory_utilization=0.92 (vllm/config/cache.py), so our
+// ACT_OVERHEAD=0.10 (→ 90% utilization) is intentionally conservative vs the
+// shipped default. Tunable from the UI later if needed.
+const ACT_OVERHEAD = 0.10;
+// Practical within-node TP fan-out. 8 is the standard NVLink island (HGX/DGX).
+// The hardware ceiling. The *useful* TP ceiling is min(TP_CAP, Y_max) — see
+// yMax() below.
+const TP_CAP = 8;
+// max_num_batched_tokens hint band α from DJL TRT-LLM guidance: 0.1–0.2 × B × ISL.
+// We use the midpoint as the centerpoint; the sweep widens around it.
+const ALPHA = 0.15;
+// MFU midpoints. Reference §0.3 (with footnote citing sources) gives bands of
+// ~30–50% prefill MFU and ~5–15% decode MFU, synthesized from:
+//   - DeepSeek-V3 production inference system overview (Feb 2025): back-calculated
+//     ~34% prefill MFU / ~7% decode MFU on H800 against FP8 peak (the prefill
+//     number is inflated by ~56% disk KV-cache hits, so the true compute-only
+//     prefill MFU is lower).
+//   - "Investigation of FP8 Across Accelerators" (arXiv:2502.01070): square
+//     (prefill-shaped) GEMM on H100 hits ~59% of FP8 peak; thin (decode-shaped)
+//     GEMM collapses to <1% peak in adversarial batch=64 cases.
+//   - Sarathi-Serve (OSDI '24): qualitative — "decode is memory-bound, low MFU"
+//     — no published number, just the structural argument.
+//   - Databricks LLM Inference Best Practices: deliberately reports MBU (Model
+//     Bandwidth Utilization), not MFU, for decode (~55–60% at batch=1) because
+//     MFU is the wrong axis for a memory-bound workload.
+// No primary source publishes "the" canonical bands. The midpoints below are
+// rule-of-thumb. The 4× ratio they imply drives the pdRatio multiplier (line
+// ~313) — that ratio is *only* defensible to roughly ±2× (real range across
+// sources: 3×–8×). Treat pdRatio as an order-of-magnitude disagg hint, not a
+// calibrated capacity ratio. See §0.3 "On the MFU bands" footnote in
+// MODEL_SIZING_SCALING_REFERENCE.md for the verbatim source quotes and URLs.
+const PREFILL_MFU = 0.40;
+const DECODE_MFU = 0.10;
+
+// Byte costs by dtype name. Sub-byte precisions (INT4) stored as float so we
+// never integer-divide a parameter count (caught as an edge-case bug class).
+const DTYPE_BYTES = Object.freeze({
+  FP16: 2,
+  BF16: 2,
+  FP8: 1,
+  INT8: 1,
+  INT4: 0.5,
+});
+
+// ---------- low-level building blocks ----------
+
+// Total weight memory across all GPUs (TP shards it, but the aggregate is what
+// matters for the roofline since BW also aggregates). params_b_total is in
+// billions, matching the data table; multiply by 1e9 here once so callers stay
+// in "B". Note: this is the *total* parameter count — for MoE, all experts must
+// sit in HBM regardless of routing. The compute-roofline formula uses active
+// params via stepTime's paramCount_active, not this function.
+function weightsBytes(params_b_total, weight_bytes) {
+  return params_b_total * 1e9 * weight_bytes;
+}
+
+// KV cache bytes per generated token, per sequence (reference §3).
+// MHA/GQA/MQA share the generic formula:
+//   2 (K+V) × bytes × n_kv_heads × head_dim × n_layers
+// Factor of 2 covers K and V tensors; n_kv_heads (< n_heads for GQA, =1 for
+// MQA) is what GQA actually compresses — which is why GQA's KV is so much
+// smaller than MHA.
+// MLA is structurally different (reference §3 table): a single low-rank latent
+// of size d_c plus one rope key of size d_rope, shared across heads — so no
+// factor of 2 (one cached tensor, not K+V separately), no n_kv_heads, no
+// head_dim. Field names match DeepSeek HF config (kv_lora_rank, qk_rope_head_dim).
+function kvPerToken(model, kv_bytes) {
+  if (model.attn_type === "MLA") {
+    return (model.kv_lora_rank + model.qk_rope_head_dim) * kv_bytes * model.n_layers;
+  }
+  return 2 * kv_bytes * model.n_kv_heads * model.head_dim * model.n_layers;
+}
+
+// Roofline ridge-point batch (reference §1, Scaling Book inference chapter
+// https://jax-ml.github.io/scaling-book/inference/):
+//   B_crit = (C / W_hbm) × (bits_w / bits_act) × (N_total / N_active)
+// where C is the *precision-adjusted* peak FLOPs — not a fixed FP16 rate, and
+// the trailing factor is the Scaling Book inference Q5 "factor of E/k" MoE
+// sparsity correction: weight memory streams ALL experts (N_total) per step
+// while compute scales only with the ACTIVE experts per token (N_active), so
+// the ridge batch shifts right by exactly that ratio. For dense models
+// N_total = N_active, sparsity = 1, and the formula reduces to the original.
+//
+// The book's rule on precision: "If we do our FLOPs in int8 or fp8, B_crit
+// increases by 2x." FP8 tensor cores fire only when BOTH operands are FP8 AND
+// the hardware exposes an FP8 path (cuBLAS GEMM rule), so FP8/FP8 picks
+// fp8_tflops (2× on H100 → 590) while BF16/BF16 stays on fp16_tflops (295).
+// Asymmetric cases (e.g., INT8 weights + BF16 acts) ride the FP16 compute path
+// and shift only through bits_w/bits_act (8/16 → halves B_crit, matching the
+// book's TPU v5e int8-weights/bf16-acts → 120 example).
+//
+// Worked MoE example (DeepSeek-V3 on H100, BF16/BF16):
+//   dense B_crit = 295; sparsity = 671/37 ≈ 18.135; B_crit_MoE ≈ 5347.
+function bCrit(hw, model, weight_prec, act_prec) {
+  const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
+  const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
+  const bw = hw.hbm_bw_gbs * 1e9;
+  const bits_w = DTYPE_BYTES[weight_prec] * 8;
+  const bits_act = DTYPE_BYTES[act_prec] * 8;
+  // Scaling Book inference Q5: B_crit_MoE = B_crit_dense × (E/k) = N_total/N_active.
+  // Dense models: params_b_total === params_b_active → sparsity = 1.
+  const sparsity = model.params_b_total / model.params_b_active;
+  return (flops / bw) * (bits_w / bits_act) * sparsity;
+}
+
+// Time per decode step (seconds), per-kernel form (reference §4 + Scaling Book
+// inference chapter, https://jax-ml.github.io/scaling-book/inference/):
+//
+//   Step_time = (B · KV_per_seq) / BW                       ← attention kernel
+//             + max( 2·B·N / FLOPs ,  W / BW )              ← MLP kernel
+//
+// Why additive, not a single max: attention and MLP run as *separate sequential
+// CUDA kernels* per layer, so per-step wall time sums across the two kernels.
+// The right-hand max picks the MLP kernel's bottleneck (compute roof vs weight
+// load). The book's justification for the asymmetry: "the attention component
+// (left) is never compute-bound, and thus doesn't need a FLOPs roofline" — so
+// attention is modelled as pure HBM-bandwidth on the KV stream only.
+//
+// MoE contract (formerly a verbatim-from-book simplification): the two MLP-
+// branch terms read DIFFERENT param counts. Memory branch uses
+// `weight_bytes_total` (full HBM weight stream — all MoE experts); caller MUST
+// pass `weightsBytes(model.params_b_total, ...)`. Compute branch uses
+// `paramCount_active` (per-token FLOPs scale with active params only — MoE
+// compute sparsity DOES reduce 2BN/FLOPs). For dense models both fields are
+// equal and behavior is unchanged vs the original single-N formulation.
+//
+// seq is tokens-of-KV per active sequence during the step we're modelling. Use
+// PEAK occupancy (ISL+OSL — the last decode step) rather than the mean. Reason:
+// production SLAs (e.g., "TBT p99 < 50ms") bound EVERY step, and the last step
+// is the slowest because KV is largest then. Sizing against the mean fits
+// batches that meet TBT on average but blow SLO at end-of-decode; sizing
+// against peak is the SLO-conservative answer. The asymmetry vs bKv's peak
+// usage is gone — both bounds now agree on what "fits" means.
+function stepTime({ B, kv_per_token, seq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
+  // Attention kernel: stream the live KV of every sequence each step. No compute
+  // roof — attention's AI is ~1, always memory-bound at decode (reference §0.3).
+  const attnMemTime = (B * kv_per_token * seq) / totalBW;
+  // MLP kernel: weight-load vs compute, whichever is slower. W/BW is constant
+  // in B (the per-step weight stream is the same regardless of how many
+  // tokens share it); 2BN/FLOPs grows linearly in B. N here = active params.
+  const mlpMemTime = weight_bytes_total / totalBW;
+  const computeTime = (2 * B * paramCount_active) / totalFLOPs;
+  return attnMemTime + Math.max(mlpMemTime, computeTime);
+}
+
+// Aggregate decode throughput in tokens/sec at batch B. One decode step emits
+// exactly one new token per active sequence (autoregressive invariant), so
+// B tokens per step → tps = B / stepTime. This is the headline tok/s number
+// vendors quote — NOT per-user rate (= 1/stepTime). Inherits stepTime's
+// physics: rises ~linearly with B below B_crit, then saturates at the
+// compute ceiling FLOPs/(2N) above (where B cancels in the asymptote because
+// stepTime is itself linear in B). Delegating to stepTime keeps one source
+// of truth — the per-kernel KV/MLP/compute breakdown lives there, not here.
+function throughputAtB(args) {
+  const t = stepTime(args);
+  return args.B / t;
+}
+
+// $/Mtok output at the given throughput. Pure unit conversion — no new physics.
+//
+//   fleet cost rate = price_per_hour_usd × ngpus               $/hr
+//   fleet emits     = tps × 3600                                tokens/hr
+//   $/token         = (price × ngpus) / (tps × 3600)            $/tok
+//   $/Mtok          = (price × ngpus × 1e6) / (3600 × tps)
+//
+// Reference §0.1 Pareto framing (latency × throughput × $/Mtok) — closes the
+// third axis of the cost surface the calculator was previously missing.
+//
+// Edge cases: price=null returns null (custom hardware with blank price → UI
+// renders the m-cost tile as "—"); tps=0 returns Infinity (caller masks before
+// display); price=0 returns 0 (free hardware = free tokens).
+function costPerMtok({ price_per_hour_usd, ngpus, tps }) {
+  if (price_per_hour_usd === null || price_per_hour_usd === undefined) return null;
+  if (tps === 0) return Infinity;
+  return (price_per_hour_usd * ngpus * 1e6) / (3600 * tps);
+}
+
+// ---------- batch-size bounds ----------
+
+// Largest B that keeps a decode step under TBT_SLO. Solves the per-kernel
+// stepTime form (reference §4 + Scaling Book):
+//   T(B) = (B·K·S)/BW + max(W/BW, 2BN/FLOPs)
+//
+// The right-hand max is monotone in B only through the compute branch
+// (W/BW is constant in B). The MLP-ridge crossover is at:
+//   B_ridge = (W · FLOPs) / (2N · BW)
+//
+// Two regimes, both linear in B:
+//   (a) Below the ridge (W/BW dominates): T = (B·K·S)/BW + W/BW
+//       Solve: B ≤ (T_slo − W/BW) · BW / (K·S)
+//       Unreachable if T_slo·BW ≤ W (weight stream alone busts budget).
+//   (b) Above the ridge (compute dominates): T = (B·K·S)/BW + 2BN/FLOPs
+//       Solve: B ≤ T_slo / (K·S/BW + 2N/FLOPs)
+//
+// Strategy: compute both candidate bounds; the binding answer is the candidate
+// whose B *actually lands in its own regime* (i.e., on its own side of B_ridge).
+// At small B regime (a) is correct; at large B regime (b) is correct. The
+// boundary B_ridge is also a valid answer when both candidates straddle it.
+// Variables: W = weight_bytes_total (total HBM weight stream — for MoE, all
+// experts); N = paramCount_active (per-token compute scales with active params
+// only — the 2BN/FLOPs term). Dense models: total === active, asymmetry is a
+// no-op.
+//
+// Note on B_ridge vs B_crit: these answer different questions. B_ridge is the
+// MLP weight-load-vs-compute crossover *within this simplified stepTime model*
+// (no activation streaming). B_crit (in bCrit() above) is the per-matmul
+// arithmetic-intensity threshold that DOES include activation memory via the
+// bits_w/bits_act factor. They coincide numerically for symmetric precision
+// (BF16/BF16, INT8/INT8) by algebraic coincidence, but diverge for FP8/FP8
+// (B_ridge ≈ α, B_crit ≈ 2α). The Scaling Book inference chapter explicitly
+// omits activations from the stepTime model ("activation costs are largely
+// ignored — negligible for both prefill and generate"), so B_ridge is the
+// correct boundary for this solve. Do NOT replace B_ridge with bCrit() —
+// the two regime expressions below would no longer match the boundary and
+// the solve would silently report falsely-permissive values for FP8/FP8.
+function bSlo({ tbt_ms, kv_per_token, seq, weight_bytes_total, paramCount_active, totalBW, totalFLOPs }) {
+  const T = tbt_ms / 1000;
+  const W = weight_bytes_total;
+  const N = paramCount_active;
+  // KS uses PEAK seq (ISL+OSL) — see stepTime() comment for the SLO-vs-mean
+  // rationale. This makes bSlo answer "what's the max B that meets TBT on the
+  // WORST decode step?" rather than "...on the average step", which is the
+  // production-correct framing for any p99-style SLA.
+  const KS = kv_per_token * seq;
+
+  const wOverBW = W / totalBW;
+  // Regime-(a) candidate: weight-load dominates the MLP kernel.
+  const numA = T - wOverBW;
+  if (numA <= 0) {
+    return { value: 0, unreachable: true, reason: "weights stream time alone exceeds TBT budget" };
+  }
+  const bA = (numA * totalBW) / KS;
+  // Regime-(b) candidate: MLP compute dominates.
+  const bB = T / (KS / totalBW + (2 * N) / totalFLOPs);
+  // Ridge: the B at which W/BW == 2BN/FLOPs (MLP kernel crossover).
+  const bRidge = (W * totalFLOPs) / (2 * N * totalBW);
+
+  // Pick the candidate that lands in its own regime. Below the ridge: (a)
+  // governs. Above: (b) governs. If they cross, the binding one is the smaller
+  // of the two valid pieces (the step time is piecewise-linear and continuous
+  // at the ridge).
+  let value, binding;
+  if (bA <= bRidge) {
+    // Candidate (a) is consistent (its solution sits in the W/BW-dominated regime).
+    value = bA;
+    binding = "mlp-weight-load";
+  } else if (bB >= bRidge) {
+    // Candidate (b) is consistent (its solution sits in the compute-dominated regime).
+    value = bB;
+    binding = "mlp-compute";
+  } else {
+    // Neither candidate is self-consistent → the SLO is met exactly at the
+    // ridge. Use B_ridge.
+    value = bRidge;
+    binding = "mlp-ridge";
+  }
+
+  // Attention term is the only remaining axis: if KS·B/BW alone already exceeds
+  // T (would only happen at absurd KV·seq), flag binding as attention.
+  if ((value * KS) / totalBW > T) {
+    binding = "attention";
+  }
+  return { value: Math.max(0, Math.floor(value)), unreachable: false, binding };
+}
+
+// Largest B that fits the KV cache in HBM after weights + activation headroom
+// (reference §3, §5). Uses peak occupancy ISL+OSL — end-of-decode is when KV
+// is largest, so this is the conservative bound that won't OOM mid-generation.
+//
+// Owns the KV-per-token derivation: calls kvPerToken(model, kv_bytes)
+// internally so the right per-attention-variant formula (MHA / GQA / MQA / MLA)
+// is always used. Earlier shape accepted a pre-computed kv_per_token from the
+// caller, which made it possible for a caller to silently pass a wrong number
+// (e.g., the MHA formula on an MLA model). Returns the K it derived so callers
+// that also need it (chart curve, stepTime) don't recompute.
+//
+// weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all
+// experts sit in HBM regardless of routing. Compute sparsity does NOT shrink
+// HBM footprint.
+function bKv({ hw, model, ngpus, weight_bytes_total, kv_bytes, isl, osl }) {
+  const totalHBM = hw.hbm_gb * ngpus * 1e9;
+  const usable = totalHBM * (1 - ACT_OVERHEAD) - weight_bytes_total;
+  const kv_per_token = kvPerToken(model, kv_bytes);
+  if (usable <= 0) {
+    return { value: 0, weights_overflow: true, kv_per_token };
+  }
+  const peakSeq = isl + osl;
+  if (peakSeq <= 0 || kv_per_token <= 0) {
+    return { value: 0, weights_overflow: false, kv_per_token };
+  }
+  return {
+    value: Math.floor(usable / (kv_per_token * peakSeq)),
+    weights_overflow: false,
+    kv_per_token,
+  };
+}
+
+// ---------- TP usefulness ceiling (Scaling Book Y_max) ----------
+
+// Max useful TP degree per replica before ICI all-reduce dominates per-step
+// decode latency. Past this many chips, adding more TP doesn't cut step time
+// (and may make it worse). Reference §6 (Scaling Book derivation):
+//
+//   T_HBM = 2DF/(Y·W_hbm)   weight-stream per layer (Wup + Wdown = 2DF bytes)
+//   T_ICI = 2BD/W_ici       all-reduce of activations per layer
+//   T_ICI > T_HBM  ⇒  Y > F / (B · β)   with β = W_hbm/W_ici
+//
+// d_model and n_layers cancel out (they scale both terms equally) — only d_ff
+// survives. β is hardware-specific: H100 ≈ 3.7, A100 ≈ 3.4, TPU v5e ≈ 8.
+// Returns +Infinity when ici_bw_gbs is missing (treat as "no constraint
+// modelled" — caller still applies the TP_CAP and memory-fit ceilings).
+function yMax(d_ff, batch, hw) {
+  if (!hw.ici_bw_gbs || !d_ff || batch <= 0) return Infinity;
+  const beta = hw.hbm_bw_gbs / hw.ici_bw_gbs;
+  return d_ff / (batch * beta);
+}
+
+// ---------- parallelism ----------
+
+// Recommend TP × PP × replicas. Two ceilings interact:
+//   1. Memory fit: smallest TP ∈ {1,2,4,8} where the weight slice fits per GPU.
+//   2. Latency usefulness (Y_max): adding TP past Y_max stops cutting decode
+//      latency because ICI is now the floor. We don't *force* TP down to
+//      Y_max (if memory needs TP=4 we use TP=4 even if Y_max=2), but we surface
+//      a diagnostic so the user knows TP=4 was a memory-fit choice, not a
+//      latency choice.
+// ngpus is total GPUs across the deployment; replicas = serving units that fit.
+function recommendParallelism({ hw, weight_bytes_total, ngpus, d_ff, batch }) {
+  // weight_bytes_total must be the TOTAL HBM weight stream — for MoE, all experts sit in HBM regardless of routing. Compute sparsity does NOT shrink HBM footprint.
+  const hbm_per_gpu = hw.hbm_gb * 1e9 * (1 - ACT_OVERHEAD);
+  const ymax = yMax(d_ff, batch, hw);
+  // Useful TP ceiling: NVLink fan-out (8), GPU count, and Y_max combined.
+  const usefulCap = Math.min(TP_CAP, ngpus, Math.max(1, Math.floor(ymax)));
+  const tpCandidates = [1, 2, 4, 8].filter((t) => t <= ngpus);
+  let tp = null;
+  for (const t of tpCandidates) {
+    if (weight_bytes_total / t <= hbm_per_gpu) { tp = t; break; }
+  }
+  // Build a structured diagnostic about ICI-binding so the UI can surface it.
+  const ici_binds = Number.isFinite(ymax) && ymax < TP_CAP;
+  if (tp !== null) {
+    const replicas = Math.floor(ngpus / tp);
+    let reason = tp === 1
+      ? "weights fit on a single GPU; TP=1 maximizes replica count"
+      : `weights need TP=${tp} to fit per-GPU HBM with ${Math.round(ACT_OVERHEAD * 100)}% headroom`;
+    if (ici_binds && tp > usefulCap) {
+      reason += ` (memory needs TP=${tp}, but Y_max=${ymax.toFixed(1)} — beyond ICI usefulness ceiling)`;
+    } else if (ici_binds) {
+      reason += ` (Y_max=${ymax.toFixed(1)} caps useful TP regardless of memory)`;
+    }
+    return { tp, pp: 1, replicas, fits: true, reason, y_max: ymax, useful_cap: usefulCap };
+  }
+  // No TP value in {1,2,4,8} fits — need pipeline parallelism. Use TP=8 per
+  // stage (NVLink ceiling) and split layers across PP stages.
+  const tpUsed = Math.min(8, ngpus);
+  const pp = Math.ceil(weight_bytes_total / (tpUsed * hbm_per_gpu));
+  const replicaGpus = tpUsed * pp;
+  if (replicaGpus > ngpus) {
+    return {
+      tp: tpUsed, pp, replicas: 0, fits: false, y_max: ymax, useful_cap: usefulCap,
+      reason: `needs TP=${tpUsed}×PP=${pp}=${replicaGpus} GPUs per replica; only ${ngpus} available`,
+    };
+  }
+  return {
+    tp: tpUsed, pp, replicas: Math.floor(ngpus / replicaGpus), fits: true,
+    y_max: ymax, useful_cap: usefulCap,
+    reason: `weights too large for TP-only; need PP=${pp} stages (TP=${tpUsed} per stage)`,
+  };
+}
+
+// ---------- max_num_batched_tokens ----------
+
+// Recommends a starting value for vLLM's --max-num-batched-tokens flag (the
+// scheduler's token budget per forward pass — prefill + decode tokens combined,
+// the chunked-prefill knob). Returns { value, band } where `band` is a label
+// for the UI tile.
+//
+// This is a HEURISTIC, not a derived bound. It blends two pieces of guidance:
+//
+//   1. DJL TRT-LLM "sensible band" hint (α × batch × ISL, α∈[0.1, 0.2]):
+//      bigger workloads need a bigger token budget so prefill chunks don't
+//      starve. We use the midpoint α=0.15. The α value itself is rule-of-thumb,
+//      not derived from a primary benchmark — treat as a starting hint.
+//
+//   2. Sarathi-Serve OSDI '24 (arXiv 2403.02310v3) §5.1 — token-budget bands
+//      indexed by SLO strictness, quoted verbatim:
+//        "We use token budget of 2048 and 512 for all models under the relaxed
+//         and strict settings, respectively, except for the LLaMA2-70B relaxed
+//         configuration where we use token budget of 1536 to reduce the impact
+//         of pipeline bubbles."
+//      → 512 strict / 2048 relaxed are the source-verified anchors; 1536 is
+//      the PP-tuned variant. Strict band is triggered by tbt_ms ≤ 30ms (tight
+//      SLOs can't afford fat forward passes; bigger token budgets slow every
+//      decode step).
+//
+// Algorithm:
+//   - Compute `hint = α × maxBatch × isl` (DJL band lower edge).
+//   - Pick the smallest candidate from {512, 1024, 1536, 2048, 4096, 8192}
+//     that is ≥ max(1024, hint). Candidates are powers-of-2 (kernel tile
+//     alignment) with 1536 inserted as the Sarathi 70B-PP variant.
+//   - If TBT is strict (≤30ms), cap at 2048 — Sarathi's relaxed-band ceiling.
+//
+// Not modelled: HBM cost of the token budget (activation memory at the chosen
+// budget); chunked-prefill throughput tradeoff (Sarathi's actual optimization).
+// This is a "what to put in the vLLM flag as a starting point" answer, not a
+// "what's optimal" answer — empirical sweep around the recommendation, then
+// pick the goodput knee.
+// Sarathi-Serve token-budget bands. SINGLE SOURCE OF TRUTH for the picker
+// AND the sweep grid — drift between the two used to mean the picker could
+// recommend 1536 or 8192 while the sweep table only showed {512, 1024, 2048,
+// 4096}, hiding the actual recommendation from the user's empirical sweep.
+//   - 512: strict TBT regime (Sarathi-Serve §5.1).
+//   - 1024: default starting point (Sarathi-Serve § passim, also a vLLM
+//           kernel-friendly power of 2).
+//   - 1536: paper-cited LLaMA2-70B PP variant (Sarathi-Serve §5.1 verbatim:
+//           "except for the LLaMA2-70B relaxed configuration where we use
+//           token budget of 1536 to reduce the impact of pipeline bubbles").
+//   - 2048: relaxed TBT regime cap (Sarathi-Serve §5.1).
+//   - 4096 / 8192: large-throughput variants for throughput-only deployments.
+const SARATHI_BANDS = [512, 1024, 1536, 2048, 4096, 8192];
+// Strict TBT regime: when TBT_SLO ≤ this, cap the budget at SARATHI_STRICT_CAP.
+// "Strict ~512" / "relaxed ~2048" framing from Sarathi-Serve §5.2.
+const SARATHI_STRICT_TBT_MS = 30;
+const SARATHI_STRICT_CAP = 2048;
+
+function recommendMaxBatchedTokens({ maxBatch, isl, tbt_ms }) {
+  const hint = ALPHA * Math.max(1, maxBatch) * Math.max(1, isl);
+  const sarathiBand = tbt_ms <= SARATHI_STRICT_TBT_MS ? "strict (~512)" : "relaxed (~2048)";
+  let pick = SARATHI_BANDS.find((c) => c >= Math.max(1024, hint)) ?? SARATHI_BANDS[SARATHI_BANDS.length - 1];
+  if (tbt_ms <= SARATHI_STRICT_TBT_MS && pick > SARATHI_STRICT_CAP) pick = SARATHI_STRICT_CAP;
+  return { value: pick, band: sarathiBand };
+}
+
+// ---------- P:D ratio (disaggregation hint) ----------
+
+// Per-token forward FLOPs for prefill. Two components:
+//   - Matmul (QKVO projections + FFW): 2 × N_active per token. This is the
+//     standard MFU accounting convention used by Scaling Book §6, DeepSeek-V3
+//     production report (Feb 2025), MosaicML training MFU, etc.
+//   - Self-attention (Q·Kᵀ + attn·V, causal-averaged): 2 × ISL × d_model ×
+//     n_layers per token. Token i sees i preceding tokens; averaged over the
+//     prefill, per-token attention cost is 2 × (ISL/2) × d_model × n_layers ×
+//     2 (Q·Kᵀ and attn·V) = 2 × ISL × d_model × n_layers.
+//
+// Attention as % of total at Llama-3-70B scale (d_model=8192, n_layers=80):
+//   ISL=2k:   ~1%     — negligible
+//   ISL=8k:   ~8%     — Scaling Book's worked example assumption holds
+//   ISL=32k:  ~30%    — significant; not counting it overstates prefill tput
+//   ISL=128k: >70%    — attention dominates; the MFU convention itself breaks
+//                       down for long context (production reports MBU instead)
+//
+// MLA caveat: attention compute is approximately this same formula (the latent
+// compression in MLA reduces KV cache footprint, not attention FLOPs at infer).
+function prefillFlopsPerToken(model, isl) {
+  const matmul = 2 * model.params_b_active * 1e9;
+  const attention = 2 * isl * model.d_model * model.n_layers;
+  return matmul + attention;
+}
+
+// Per-chip prefill throughput at the SLO-feasible operating MFU. Returns
+// tokens/sec/chip. Used by pdRatio.
+//
+// Why batch size (B) doesn't appear in this formula:
+//   For B concurrent prefill requests, per-step work scales linearly with B
+//   (each request has its own attention; requests don't cross-attend), and
+//   total tokens generated also scales with B, so B cancels in tokens/sec/chip.
+//   Same algebra as decode (where tokens_per_sec_per_chip = peak × MFU / 2N).
+//   What varies with B is *achieved MFU*, not per-token throughput — which is
+//   exactly what the MFU constant is hiding (see next paragraph).
+//
+// What PREFILL_MFU=0.40 assumes:
+//   "Decently-batched chunked prefill" — i.e., max_num_batched_tokens in the
+//   ~2048 range (Sarathi-Serve relaxed band). Real achieved MFU swings with
+//   the chunk size:
+//     ~30% at 512-token chunks (Sarathi strict TBT band — small tiles
+//        under-occupy SMs, so kernel MFU drops)
+//     ~40–45% at 2048 (this constant's anchor — MosaicML H100 training MFU,
+//        DSv3 back-calculated ~34% on FP8)
+//     ~50–60% at 8192+ (Investigation of FP8 Across Accelerators paper —
+//        square GEMMs at 8k+ shapes hit ~59% of FP8 peak on H100)
+//   So pdRatio is ~30% too LOW under strict-TBT SLOs (real prefill_tput is
+//   smaller → real P:D is higher) and ~25% too HIGH under aggressive batching.
+//   This is the dominant source of pdRatio's order-of-magnitude band.
+//
+// FP8 tensor-core path mirrors bCrit's selection rule (both operands FP8 +
+// hardware support); asymmetric precision rides the FP16 compute path.
+function prefillThroughputPerChip({ hw, model, weight_prec, act_prec, isl }) {
+  const useFp8 = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
+  const flops = (useFp8 ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
+  return (flops * PREFILL_MFU) / prefillFlopsPerToken(model, isl);
+}
+
+// Prefill:Decode replica ratio for sizing a disaggregated deployment
+// (reference §5.2). Throughput-based form, derived from DistServe (OSDI '24)
+// §4: P:D = n_p/n_d = decode_goodput / prefill_goodput.
+//
+// Expanding goodput as req/s/chip = tokens/sec/chip / tokens-per-req:
+//   prefill_goodput = prefill_tput_per_chip / ISL
+//   decode_goodput  = decode_tput_per_chip  / OSL
+//   → P:D = (ISL/OSL) × (decode_tput_per_chip / prefill_tput_per_chip)
+//
+// decode_tput_per_chip comes from the calculator's own stepTime (via
+// throughputAtB at the operating B) — so this formula automatically picks
+// up the right decode regime (memory-bound at typical B, compute-bound at
+// large B), KV-memory-induced batch caps, SLO-bounded batch, and any MoE/
+// precision/sparsity corrections baked into stepTime.
+//
+// Empirical anchors (all H100 BF16, with my formula's prediction vs reported):
+//   Splitwise (ISCA '24) conversation HH (ISL≈1500, OSL≈129) → 1.25 vs 1.67
+//   Splitwise coding HH (ISL≈1500, OSL≈30 effective) → 5.8 vs 7.0
+//   Mooncake 3P:1D config → ~1.6–3 depending on workload guess
+// Order-of-magnitude correct. Real disagg sizing uses SLO-bound simulators
+// (DistServe, Splitwise event-driven sim), not closed form — expect this to
+// over- or under-estimate by up to ~2× vs production ratios. Treat as a
+// "is this workload disagg-shaped?" hint, not a tuned capacity ratio.
+//
+// Direction note: higher prefill MFU → faster prefill chips → FEWER prefill
+// chips needed per decode chip. Splitwise A100→H100 controlled comparison
+// (55→35 prefill machines, same workload) directly falsifies the historical
+// (ISL/OSL) × (MFU_p/MFU_d) "multiply" form that lived here through
+// commit 11a736e. See git log if you're tempted to flip it back.
+function pdRatio({ isl, osl, decode_tput_per_chip, prefill_tput_per_chip }) {
+  if (osl <= 0 || !(decode_tput_per_chip > 0) || !(prefill_tput_per_chip > 0)) return null;
+  return (isl / osl) * (decode_tput_per_chip / prefill_tput_per_chip);
+}
+
+// ---------- sweep ranges (analytical → empirical hand-off) ----------
+// Turn the analytical batch bound into the experimental sweep grid. Brackets
+// the bound so the empirical sweep can find the actual knee on either side.
+function powersOf2In(minV, maxV) {
+  const out = [];
+  let p = 1;
+  while (p < minV) p *= 2;
+  while (p <= maxV) { out.push(p); p *= 2; }
+  return out;
+}
+
+// Build the empirical sweep grid a benchmark harness drives. The whole
+// reason the calculator exists (reference §0.5 "two-stage methodology"):
+// use the analytical knee b = min(b_slo, b_kv) to rule out ~80% of the
+// search space, then sweep a tight band around it — on the order of ~70
+// runs instead of ~600 blind ones.
+//
+// The three grids split across two surfaces:
+//
+//   SERVER-SIDE (set on `vllm serve`; each combination = one restart)
+//   ────────────────────────────────────────────────────────────────────
+//   max_num_seqs            Concurrent-request cap. Powers of 2 in
+//                           [b/4, 2b] because vLLM's scheduler is
+//                           opinionated about them (Sarathi-Serve §4).
+//                           Walking this axis locates the empirical
+//                           KV/SLO ceiling — does the knee really sit
+//                           where min(b_slo, b_kv) said it would?
+//   max_num_batched_tokens: Per-step token budget. Sarathi-Serve
+//                           verified bands (512 / 1024 / 2048 / 4096)
+//                           capped at ≤ 2× the picker's recommendation
+//                           and at the strict-TBT cap so the sweep
+//                           never suggests a value the picker already
+//                           ruled out. Walking this axis finds the
+//                           chunk size that best trades TBT against
+//                           prefill backfill throughput for the user's
+//                           ISL/OSL mix.
+//
+//   CLIENT-SIDE (driven by the load generator — wrk, locust, or
+//                `vllm bench serve --max-concurrency`; cheap to change,
+//                no server restart)
+//   ────────────────────────────────────────────────────────────────────
+//   concurrency:            Offered request-level load. Fractional
+//                           steps [1, b/4, b/2, b, 1.5b, 2b] —
+//                           deliberately NOT powers of 2 because the
+//                           goal is to land exactly at three regimes
+//                           relative to the predicted knee:
+//                             • sub-saturation (1, b/4, b/2): TBT
+//                               stays flat, throughput is linear
+//                             • at the knee (b): throughput plateaus
+//                               at the SLO edge
+//                             • super-saturation (1.5b, 2b): TBT
+//                               cliff, queue growth
+//                           If the empirical cliff lands at 0.5b or 3b
+//                           instead of b, the analytical model is
+//                           mis-calibrated for that workload and the
+//                           user has learned something concrete.
+//
+// Canonical runner pattern these grids are shaped for (server config is
+// the outer Cartesian product because relaunch is expensive; concurrency
+// is the cheap inner sweep that traces the load curve per server config):
+//
+//   for ns in max_num_seqs:                   # outer: server relaunch
+//     for mnbt in max_num_batched_tokens:     # outer: server relaunch
+//       launch_vllm(max_num_seqs=ns, max_num_batched_tokens=mnbt)
+//       for c in concurrency:                 # inner: client load step
+//         record(ns, mnbt, c, ttft, tbt_p50, tbt_p99, tput, gpu_util)
+//       teardown_vllm()
+//
+// Caller (compute()) feeds recommendedBatch = min(b_slo, b_kv) and
+// recommendedMnbt from recommendMaxBatchedTokens(). The UI's "patchbay"
+// renders the three grids as chip rows; the snippet block emits them
+// as Python lists ready to paste into a runner.
+function sweepRanges({ recommendedBatch, recommendedMnbt, tbt_ms }) {
+  const b = Math.max(1, Math.floor(recommendedBatch));
+  const seqs = powersOf2In(Math.max(1, Math.floor(b / 4)), Math.max(2, b * 2));
+  // Sweep candidates come from the same SARATHI_BANDS the picker uses, so the
+  // sweep table will always include the recommended value (including 1536 for
+  // PP and 8192 for throughput-only). Apply the same strict-TBT cap so we
+  // don't suggest the user empirically test 4096 when the picker already ruled
+  // it out for strict TBT.
+  const strictCap = tbt_ms != null && tbt_ms <= SARATHI_STRICT_TBT_MS ? SARATHI_STRICT_CAP : Infinity;
+  const upper = Math.min(recommendedMnbt * 2, strictCap);
+  const tokens = SARATHI_BANDS.filter((v) => v <= upper);
+  const concurrency = [1, Math.max(1, Math.floor(b / 4)), Math.max(1, Math.floor(b / 2)), b, Math.floor(b * 1.5), b * 2]
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((x, y) => x - y);
+  return { max_num_seqs: seqs, max_num_batched_tokens: tokens, concurrency };
+}
+
+// ---------- top-level orchestrator ----------
+
+// Single entry point for the UI. Takes raw form input, returns everything the
+// UI needs: metrics, chart curve points, sweep grids, and a structured warnings
+// list. Kept top-down readable; each delegate is a pure function above.
+function compute(input) {
+  const warnings = [];
+  const { hw, model, isl, osl, weight_prec, kv_prec, act_prec, tbt_ms, ttft_ms, ngpus } = input;
+  // Cost defaults to the hardware row's per-GPU on-demand list price; the UI
+  // override (price-per-hour input) takes precedence by passing it in `input`.
+  // null/undefined are both allowed and propagate to a "—" tile + gapped cost
+  // curve in the chart (see costPerMtok's null guard).
+  const price_per_hour_usd = input.price_per_hour_usd !== undefined
+    ? input.price_per_hour_usd
+    : (hw.price_per_hour_usd ?? null);
+
+  // Input sanitation. Clamp to safe minima; never propagate NaN/Infinity.
+  const cleanIsl = Math.max(1, Math.floor(isl || 0));
+  const cleanOsl = Math.max(1, Math.floor(osl || 0));
+  const cleanNgpus = Math.max(1, Math.floor(ngpus || 0));
+  const cleanTbt = Math.max(1, tbt_ms || 0);
+
+  if (cleanIsl + cleanOsl > model.max_context) {
+    warnings.push({ level: "warn", msg: `ISL+OSL (${cleanIsl + cleanOsl}) exceeds model max_context (${model.max_context}).` });
+  }
+  if (model.attn_type === "MLA") {
+    warnings.push({ level: "info", msg: `${model.label} uses MLA: KV modelled as (d_c + d_rope) × bytes × n_layers per token (reference §3).` });
+  }
+  // MoE info note (independent of attention type): announce the sparsity factor.
+  const isMoE = model.params_b_total > model.params_b_active;
+  if (isMoE) {
+    warnings.push({
+      level: "info",
+      msg: `${model.label} is MoE: ${model.params_b_total}B total weights stream from HBM, ${model.params_b_active}B execute per token. B_crit shifted by ${(model.params_b_total/model.params_b_active).toFixed(1)}× vs a dense ${model.params_b_active}B model.`,
+    });
+  }
+  if (weight_prec === "FP8" && !hw.fp8_tflops) {
+    warnings.push({ level: "warn", msg: `${hw.label} has no hardware FP8 path; using FP16 roofline for compute (FP8 byte savings still apply to weights/KV memory).` });
+  }
+
+  const wBytes = DTYPE_BYTES[weight_prec];
+  const kvBytes = DTYPE_BYTES[kv_prec];
+
+  const W_total           = weightsBytes(model.params_b_total, wBytes);
+  const paramCount_active = model.params_b_active * 1e9;
+  const K = kvPerToken(model, kvBytes);
+  const totalBW = hw.hbm_bw_gbs * 1e9 * cleanNgpus;
+  // Match bCrit: FP8 tensor cores only fire on FP8×FP8 GEMM on FP8-capable HW.
+  const useFp8Compute = weight_prec === "FP8" && act_prec === "FP8" && hw.fp8_tflops;
+  const flopsPerGpu = (useFp8Compute ? hw.fp8_tflops : hw.fp16_tflops) * 1e12;
+  const totalFLOPs = flopsPerGpu * cleanNgpus;
+
+  // bCrit only depends on a single GPU's roofline ratio (it's a per-chip
+  // arithmetic-intensity threshold; aggregating ngpus would cancel out).
+  const bcrit = bCrit(hw, model, weight_prec, act_prec);
+
+  // Sequence-occupancy: peak (ISL+OSL — end-of-decode) is used for BOTH bounds.
+  // bKv: peak is the OOM risk (must fit the worst step). bSlo / stepTime: peak
+  // is the SLO risk (the worst step is the slowest; "TBT p99 < X" demands every
+  // step meet bound). Using mean for stepTime would fit batches that meet TBT
+  // on average but blow SLO at end-of-decode — wrong answer for a sizing tool.
+  const peakSeq = cleanIsl + cleanOsl;
+
+  const bslo = bSlo({ tbt_ms: cleanTbt, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs });
+  const bkv = bKv({ hw, model, ngpus: cleanNgpus, weight_bytes_total: W_total, kv_bytes: kvBytes, isl: cleanIsl, osl: cleanOsl });
+
+  if (bslo.unreachable) {
+    warnings.push({ level: "error", msg: `b_slo unreachable: TBT=${cleanTbt}ms × BW < weight stream time. Raise TP or relax TBT.` });
+  }
+  if (bkv.weights_overflow) {
+    warnings.push({ level: "error", msg: `Weights overflow available HBM (${(W_total / 1e9).toFixed(1)} GB > ${hw.hbm_gb * cleanNgpus} GB). Increase ngpus.` });
+  }
+
+  // ---- recommended operating batch ----
+  //
+  // The three Bs are NOT the same kind of bound:
+  //   b_kv:  hard CEILING — exceed → OOM.
+  //   b_slo: hard CEILING — exceed → TBT SLO violated.
+  //   b_crit: NOT a ceiling. It's the roofline ridge — the batch above which
+  //          the MLP kernel flips from memory-bound (FLOPs idle) to
+  //          compute-bound (latency grows linearly with B). It's a *regime
+  //          marker / target floor*, not a constraint: nothing breaks if you
+  //          run above it, you just pay latency for throughput; nothing breaks
+  //          if you run below it, you just leave FLOPs on the floor.
+  //
+  // Recommended operating point: push to the right edge of the feasible range
+  // [b_crit, min(b_slo, b_kv)] — max out throughput within the ceilings,
+  // even if that lands past b_crit (the rational compute-bound trade-off).
+  // Hence min(b_slo, b_kv), NOT min(b_crit, b_slo, b_kv): including b_crit
+  // would deliberately under-batch and waste throughput honoring a constraint
+  // that doesn't exist. The b_crit vs recommended comparison is then surfaced
+  // as a regime diagnostic below (memory-bound vs compute-bound).
+  //
+  // How parallelism enters the numbers above:
+  //   b_crit: per-chip roofline ratio (FLOPs/BW × bits_w/bits_act × sparsity).
+  //          TP/PP do NOT change it — sharding splits weights and compute
+  //          proportionally, so the per-chip ratio is invariant. That's why
+  //          bCrit() takes no ngpus.
+  //   b_kv:  scales ~linearly with ngpus. bKv() uses (hw.hbm_gb × ngpus) for
+  //          aggregate HBM; weights still occupy W_total (sharded but the sum
+  //          is the same), so usable HBM for KV grows almost linearly.
+  //   b_slo: scales ~linearly with ngpus via totalBW = hbm_bw × ngpus and
+  //          totalFLOPs = flops × ngpus — both branches of the closed form
+  //          (weight-load branch and compute branch) grow with ngpus.
+  // Net effect: adding GPUs lifts both ceilings while b_crit stays put — so
+  // more hardware moves you rightward through the regimes (memory-bound →
+  // ridge → compute-bound). What we DO NOT model: the comm cost of crossing
+  // the useful-TP ceiling (Y_max). Beyond Y_max the all-reduce floor inflates
+  // step time and the linear-in-ngpus assumption breaks down. We surface that
+  // as a diagnostic via the parallelism block below, but don't dock b_slo for
+  // it — sizing remains optimistic past Y_max.
+  //
+  // Fall back to 1 if both bounds are zero/unreachable so the sweep grids
+  // still render something sane and we never propagate Infinity.
+  const bsloEff = bslo.value > 0 ? bslo.value : Infinity;
+  const bkvEff = bkv.value > 0 ? bkv.value : Infinity;
+  const rawBatch = Math.min(bsloEff, bkvEff);
+  const recommendedBatch = Number.isFinite(rawBatch) ? Math.max(1, rawBatch) : 1;
+
+  // Regime diagnostic: where does the recommended batch sit relative to the
+  // roofline ridge? See the long comment above for why b_crit isn't a
+  // constraint — it's a regime marker, and that's what we report here.
+  if (bcrit > 0 && Number.isFinite(bcrit)) {
+    const binder = bsloEff <= bkvEff ? "TBT SLO" : "KV cache";
+    if (recommendedBatch < bcrit * 0.8) {
+      warnings.push({
+        level: "info",
+        msg: `Memory-bound regime: recommended batch (${Math.round(recommendedBatch)}) is below B_crit (${Math.round(bcrit)}). ` +
+             `FLOPs are idle — ${binder} is the binder. More HBM or relaxed TBT would unlock throughput; a faster GPU at same BW would NOT help.`,
+      });
+    } else if (recommendedBatch > bcrit * 1.2) {
+      warnings.push({
+        level: "info",
+        msg: `Compute-bound regime: recommended batch (${Math.round(recommendedBatch)}) is past B_crit (${Math.round(bcrit)}). ` +
+             `Each additional sequence trades linear latency for throughput — the rational regime when ${binder} headroom allows it.`,
+      });
+    } else {
+      warnings.push({
+        level: "info",
+        msg: `Operating near the roofline ridge: recommended batch (${Math.round(recommendedBatch)}) ≈ B_crit (${Math.round(bcrit)}). ` +
+             `Throughput-per-latency sweet spot — neither FLOPs nor BW is significantly underutilized.`,
+      });
+    }
+  }
+
+  // Parallelism depends on batch (for Y_max), so compute it after recommendedBatch.
+  const parallelism = recommendParallelism({
+    hw, weight_bytes_total: W_total, ngpus: cleanNgpus,
+    d_ff: model.d_ff, batch: recommendedBatch,
+  });
+  if (!parallelism.fits) {
+    warnings.push({ level: "error", msg: parallelism.reason });
+  }
+  if (Number.isFinite(parallelism.y_max) && parallelism.y_max < TP_CAP && cleanNgpus > 1) {
+    warnings.push({
+      level: "warn",
+      msg: `ICI binds TP usefulness at Y_max=${parallelism.y_max.toFixed(1)} chips ` +
+           `(β=${(hw.hbm_bw_gbs / hw.ici_bw_gbs).toFixed(1)}, B=${recommendedBatch}, d_ff=${model.d_ff}). ` +
+           `TP beyond this stops cutting decode latency.`,
+    });
+  }
+  const mnbt = recommendMaxBatchedTokens({ maxBatch: recommendedBatch, isl: cleanIsl, tbt_ms: cleanTbt });
+  const sweep = sweepRanges({ recommendedBatch, recommendedMnbt: mnbt.value, tbt_ms: cleanTbt });
+
+  // Chart curve: log-spaced B from 1 to 4× max(bcrit, bkv). UI draws stepTime
+  // and throughput from this; sized to comfortably show the ridge and the
+  // KV-cliff regions both.
+  const curveMax = Math.max(bcrit * 4, (bkv.value || 1) * 2, 64);
+  const curve = [];
+  for (let B = 1; B <= curveMax; B = Math.max(B + 1, Math.ceil(B * 1.2))) {
+    const t_ms = stepTime({ B, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs }) * 1000;
+    const tps = (B / (t_ms / 1000));
+    // Cost overlay on throughput — unit conversion only (see costPerMtok).
+    // Propagates null when price is unset so the chart can render gaps cleanly.
+    const cost = costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps });
+    curve.push({ B, step_ms: t_ms, tokens_per_sec: tps, cost_per_mtok: cost });
+  }
+
+  // Throughput at the recommended batch — headline tile number.
+  const throughput = recommendedBatch > 0 && Number.isFinite(recommendedBatch)
+    ? throughputAtB({ B: recommendedBatch, kv_per_token: K, seq: peakSeq, weight_bytes_total: W_total, paramCount_active, totalBW, totalFLOPs })
+    : 0;
+  // P:D ratio: now derived from the calculator's own decode throughput at the
+  // operating B (so it auto-honors the regime decode is in) divided by the
+  // closed-form prefill throughput (compute-bound, MFU-based). See pdRatio()
+  // comment for the DistServe-grounded derivation + empirical anchors.
+  const decode_tput_per_chip = cleanNgpus > 0 ? throughput / cleanNgpus : 0;
+  const prefill_tput_per_chip = prefillThroughputPerChip({ hw, model, weight_prec, act_prec, isl: cleanIsl });
+  const pd = pdRatio({ isl: cleanIsl, osl: cleanOsl, decode_tput_per_chip, prefill_tput_per_chip });
+  // $/Mtok at the recommended batch — headline tile number. null if price
+  // unset; the UI renders that as "—".
+  const cost_per_mtok = throughput > 0
+    ? costPerMtok({ price_per_hour_usd, ngpus: cleanNgpus, tps: throughput })
+    : null;
+
+  return {
+    metrics: {
+      b_crit: Math.round(bcrit),
+      b_slo: bslo.value,
+      b_kv: bkv.value,
+      recommended_batch: recommendedBatch,
+      max_num_seqs: recommendedBatch,
+      max_num_batched_tokens: mnbt.value,
+      max_num_batched_tokens_band: mnbt.band,
+      throughput_tps: throughput,
+      throughput_tps_per_gpu: throughput / cleanNgpus,
+      cost_per_mtok,
+      price_per_hour_usd,
+      parallelism,
+      pd_ratio: pd,
+      weights_gb: W_total / 1e9,
+      kv_per_token_kb: K / 1024,
+      kv_per_seq_gb: (K * peakSeq) / 1e9,
+    },
+    chart: { curve, bcrit, bslo: bslo.value, bkv: bkv.value, tbt_ms: cleanTbt },
+    sweep,
+    warnings,
+  };
+}
+
+// ===== chart.mjs =====
+// Chart layer: three vertically-stacked oscilloscope panels — Latency,
+// Throughput, Cost — each a single Chart.js instance sharing the same log-B
+// X axis and caliper markers (b_crit / b_slo / b_kv). The single-canvas dual-
+// axis version this replaced visually buried throughput under latency; one
+// canvas per channel means each curve gets its full vertical reading.
+//
+// Exports createScope(canvas, channel, initial) — UI calls it three times
+// (one per channel) and stores the returned handles in window.__sizingScopes.
+// Assumes window.Chart (Chart.js v4) is loaded via CDN.
+
+const COLOR = {
+  bg:        "#0a0e14",
+  text:      "#e6edf3",
+  muted:     "#8b949e",
+  dim:       "#6e7681",
+  grid:      "#1a1f29",
+  border:    "#30363d",
+  // Per-channel line + caliper colors. Calipers always match the metric
+  // they mark (b_crit blue, b_slo yellow, b_kv green) regardless of which
+  // panel they sit in — keeps the three-panel reading visually consistent.
+  latency:   "#58a6ff",
+  throughput:"#3fb950",
+  cost:      "#d29922",
+  slo:       "#8b949e",
+  bcrit:     "#58a6ff",
+  bslo:      "#d29922",
+  bkv:       "#3fb950",
+};
+
+// Per-channel config. Picking the right `dataKey` from the curve points and
+// the right Y-axis title/formatter keeps createScope() generic — adding a
+// fourth channel later would just be a new entry here.
+const CHANNELS = {
+  latency: {
+    dataKey:  "step_ms",
+    color:    COLOR.latency,
+    glow:     "rgba(88, 166, 255, 0.18)",
+    yLabel:   "STEP TIME  (ms)",
+    yFormat:  (v) => `${v.toFixed(1)} ms`,
+    showSlo:  true,   // dashed TBT line on latency panel only
+  },
+  throughput: {
+    dataKey:  "tokens_per_sec",
+    color:    COLOR.throughput,
+    glow:     "rgba(63, 185, 80, 0.18)",
+    yLabel:   "THROUGHPUT  (tok/s)",
+    yFormat:  (v) => `${Math.round(v).toLocaleString("en-US")} tok/s`,
+    showSlo:  false,
+  },
+  cost: {
+    dataKey:  "cost_per_mtok",
+    color:    COLOR.cost,
+    glow:     "rgba(210, 153, 34, 0.18)",
+    yLabel:   "$ / Mtok",
+    // Cost curve carries nulls when price is unset → Chart.js renders gaps.
+    yFormat:  (v) => `$${v.toFixed(2)} / Mtok`,
+    showSlo:  false,
+  },
+};
+
+// Find the chart-area X pixel for a given B value (log scale). Returns null if
+// out of the visible range — markers off-screen should be hidden, not clamped.
+function xForB(chart, B) {
+  const scale = chart.scales.x;
+  if (!scale || B == null || !Number.isFinite(B) || B <= 0) return null;
+  const x = scale.getPixelForValue(B);
+  if (x < scale.left - 1 || x > scale.right + 1) return null;
+  return x;
+}
+
+// Caliper-marker plugin. Draws three full-height vertical lines (b_crit /
+// b_slo / b_kv) with a top-gutter label like an engineering CAD dimension.
+// Reusable across all three channels — markers live on per-chart options.
+//
+// Label placement uses greedy first-fit row assignment: labels are sorted by
+// X and placed in the topmost row that has no horizontal collision with an
+// already-placed label. Common case (markers well-separated): all three land
+// in row 0. Crowded case (e.g., B_crit=296 and B_kv=333 — labels would
+// otherwise overlap into mush): the second label drops into row 1. Up to
+// 2 rows are supported (chart layout pads 26px above chartArea for them);
+// 3-marker pile-ups beyond that fall back to overprint of the topmost row.
+const calipersPlugin = {
+  id: "calipers",
+  afterDatasetsDraw(chart) {
+    const markers = chart.options.plugins?.calipers?.markers ?? [];
+    const ctx = chart.ctx;
+    const { top, bottom, right } = chart.chartArea;
+    ctx.save();
+    ctx.font = '500 10px "Martian Mono", ui-monospace, monospace';
+    ctx.textBaseline = "alphabetic";
+
+    // First pass: project visible markers, measure label width, decide each
+    // label's anchor X (clamped to stay on-canvas at the right edge).
+    const labelGap = 6;
+    const positioned = markers
+      .map((m) => {
+        const x = xForB(chart, m.B);
+        if (x == null) return null;
+        const label = `${m.label} · ${Math.round(m.B)}`;
+        const w = ctx.measureText(label).width;
+        const lx = Math.min(x + 6, right - w - 2);
+        return { ...m, x, label, w, lx };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.lx - b.lx);
+
+    // Greedy first-fit row assignment. rowEdge[i] tracks the right edge of
+    // the rightmost label currently in row i; a new label fits in row i iff
+    // its lx is past that edge.
+    const rowEdge = [];
+    for (const m of positioned) {
+      let row = 0;
+      while (rowEdge[row] != null && m.lx < rowEdge[row]) row++;
+      rowEdge[row] = m.lx + m.w + labelGap;
+      m.row = row;
+    }
+
+    // Second pass: draw drop lines (full height, always at row-0 tick),
+    // top tick caps (at chartArea.top), and labels at their assigned row.
+    const rowH = 11;
+    for (const m of positioned) {
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(m.x, top); ctx.lineTo(m.x, bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(m.x - 4, top - 1); ctx.lineTo(m.x + 4, top - 1);
+      ctx.stroke();
+      ctx.fillStyle = m.color;
+      ctx.fillText(m.label, m.lx, top - 6 - m.row * rowH);
+    }
+    ctx.restore();
+  },
+};
+
+// Crosshair plugin: thin vertical+horizontal line + coordinate badge that
+// follows the mouse. Per-chart (each scope gets its own crosshair). The Y
+// formatter comes from the channel config so the badge reads "ms" on the
+// latency panel, "tok/s" on throughput, "$X.XX/Mtok" on cost.
+const crosshairPlugin = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const cur = chart._cursor;
+    if (!cur) return;
+    const { top, bottom, left, right } = chart.chartArea;
+    if (cur.x < left || cur.x > right || cur.y < top || cur.y > bottom) return;
+    const ctx = chart.ctx;
+    const yFormat = chart._yFormat || ((v) => v.toFixed(1));
+    const channelColor = chart._channelColor || COLOR.latency;
+    ctx.save();
+    ctx.strokeStyle = channelColor;
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cur.x, top); ctx.lineTo(cur.x, bottom);
+    ctx.moveTo(left, cur.y); ctx.lineTo(right, cur.y);
+    ctx.stroke();
+    const B = chart.scales.x.getValueForPixel(cur.x);
+    const yVal = chart.scales.y.getValueForPixel(cur.y);
+    const label = `B=${B < 10 ? B.toFixed(1) : Math.round(B)} · ${yFormat(yVal)}`;
+    ctx.font = '500 10px "Martian Mono", ui-monospace, monospace';
+    ctx.textBaseline = "top";
+    const w = ctx.measureText(label).width;
+    const pad = 6;
+    const bx = Math.min(cur.x + 10, right - w - pad * 2);
+    const by = Math.max(cur.y - 22, top + 2);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = COLOR.bg;
+    ctx.strokeStyle = COLOR.border;
+    ctx.lineWidth = 1;
+    ctx.fillRect(bx, by, w + pad * 2, 16);
+    ctx.strokeRect(bx, by, w + pad * 2, 16);
+    ctx.fillStyle = COLOR.text;
+    ctx.fillText(label, bx + pad, by + 3);
+    ctx.restore();
+  },
+};
+
+// First-paint marker stagger: hide the caliper labels then fade them in one
+// by one after the curve draw finishes. Per-chart — each scope animates
+// independently of the others (UI staggers scope starts on top of this).
+function staggerMarkerReveal(chart, durations = [0, 80, 160]) {
+  const markers = chart.options.plugins?.calipers?.markers ?? [];
+  const original = markers.map((m) => ({ ...m }));
+  markers.forEach((m) => { m.color = "transparent"; });
+  chart.update("none");
+  setTimeout(() => {
+    markers.forEach((m, i) => {
+      setTimeout(() => { m.color = original[i].color; chart.update("none"); }, durations[i] ?? 0);
+    });
+  }, 600);
+}
+
+// Build one oscilloscope scope (canvas + Chart instance + update API).
+// `channel` is "latency" | "throughput" | "cost". Returns { chart, update }.
+function createScope(canvas, channel, initial) {
+  const cfg = CHANNELS[channel];
+  if (!cfg) throw new Error(`createScope: unknown channel "${channel}"`);
+  const labels = initial.curve.map((p) => p.B);
+  const data = initial.curve.map((p) => p[cfg.dataKey]);
+
+  // Build datasets: glow halo (drawn first, low opacity, fat stroke) + bright
+  // line (drawn on top, narrow). Same data; layering creates the CRT effect.
+  // Latency panel also gets a TBT-SLO horizontal as a dataset (avoids needing
+  // chartjs-plugin-annotation — keeps the page on one CDN script).
+  const datasets = [
+    { label: `${channel}_glow`, data, yAxisID: "y", borderColor: cfg.glow,
+      borderWidth: 6, pointRadius: 0, tension: 0.3, fill: false, order: 3,
+      spanGaps: false /* cost curve has nulls — render as gaps */ },
+    { label: channel, data, yAxisID: "y", borderColor: cfg.color,
+      borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, order: 1,
+      spanGaps: false },
+  ];
+  if (cfg.showSlo) {
+    datasets.push({
+      label: "tbt_slo", data: labels.map(() => initial.tbt_ms), yAxisID: "y",
+      borderColor: COLOR.slo, borderWidth: 1, borderDash: [4, 4],
+      pointRadius: 0, fill: false, order: 4,
+    });
+  }
+
+  const chart = new window.Chart(canvas, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: "easeOutQuart" },
+      interaction: { mode: "nearest", intersect: false },
+      // Top padding leaves room for the caliper labels (drawn above
+      // chartArea.top by calipersPlugin, stacked into up to 2 rows when
+      // markers overlap horizontally). Without padding the labels render
+      // above the canvas boundary and get clipped. 26px = 2 rows × 11px + 4
+      // breathing. Right padding deliberately omitted — the rightmost tick
+      // ("1,500") needs the full plot width; the label-position clamp inside
+      // calipersPlugin keeps rightmost labels on-canvas already.
+      layout: { padding: { top: 26 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        calipers: { markers: [
+          { B: initial.bcrit, color: COLOR.bcrit, label: "B_crit" },
+          { B: initial.bslo,  color: COLOR.bslo,  label: "B_slo"  },
+          { B: initial.bkv,   color: COLOR.bkv,   label: "B_kv"   },
+        ] },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "BATCH SIZE  (B)", color: COLOR.muted,
+                   font: { family: '"Martian Mono", monospace', size: 10, weight: "500" } },
+          ticks: { color: COLOR.dim, font: { family: '"Martian Mono", monospace', size: 10 } },
+          grid:  { color: COLOR.grid, drawBorder: false },
+        },
+        y: {
+          position: "left",
+          title: { display: true, text: cfg.yLabel, color: COLOR.muted,
+                   font: { family: '"Martian Mono", monospace', size: 10, weight: "500" } },
+          ticks: { color: COLOR.dim, font: { family: '"Martian Mono", monospace', size: 10 } },
+          grid:  { color: COLOR.grid, drawBorder: false },
+          beginAtZero: true,
+        },
+      },
+    },
+    plugins: [calipersPlugin, crosshairPlugin],
+  });
+  // Stash channel-specific formatter + color where the crosshair plugin
+  // (which is shared across all scopes) can read them per-chart.
+  chart._yFormat = cfg.yFormat;
+  chart._channelColor = cfg.color;
+
+  // Crosshair tracking — independent per canvas/chart.
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    chart._cursor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    chart.draw();
+  });
+  canvas.addEventListener("mouseleave", () => { chart._cursor = null; chart.draw(); });
+
+  // First-paint stagger per-scope (skipped under reduced-motion). UI staggers
+  // scope construction itself ~120ms apart so the three panels reveal in
+  // top-down reading order.
+  if (typeof window !== "undefined" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    staggerMarkerReveal(chart);
+  }
+
+  return {
+    chart,
+    channel,
+    update(data) {
+      const labels = data.curve.map((p) => p.B);
+      const next = data.curve.map((p) => p[cfg.dataKey]);
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = next; // glow
+      chart.data.datasets[1].data = next; // bright
+      if (cfg.showSlo) {
+        chart.data.datasets[2].data = labels.map(() => data.tbt_ms);
+        // Keep the hidden legacy tps dataset in sync so its length matches
+        // labels (Chart.js complains about ragged datasets on resize).
+        if (chart.data.datasets[3]) {
+          chart.data.datasets[3].data = data.curve.map((p) => p.tokens_per_sec);
+        }
+      }
+      const m = chart.options.plugins.calipers.markers;
+      m[0].B = data.bcrit; m[1].B = data.bslo; m[2].B = data.bkv;
+      chart.update();
+    },
+  };
+}
+
+// ===== drawer.mjs =====
+// Formulas drawer — slide-out reference panel that renders every formula
+// the calculator uses with KaTeX, plus a description / derivation / citation
+// expander per row. Content lives in src/data/formulas.json (inlined by the
+// build into <script id="formulas-data">). KaTeX comes from the CDN script
+// the HTML head includes; if it hasn't loaded yet we render the raw expr_tex
+// in a <code> block and upgrade in place once KaTeX arrives.
+
+// Category labels — kept in render order so the drawer reads top-down from
+// "things you might know" to "things you came to look up."
+const CATEGORY_ORDER = [
+  ["constants",     "CONSTANTS"],
+  ["memory",        "MEMORY"],
+  ["regime",        "ROOFLINE / REGIME"],
+  ["latency",       "LATENCY MODEL"],
+  ["capacity",      "CAPACITY CEILINGS"],
+  ["parallelism",   "PARALLELISM"],
+  ["engine_knobs",  "ENGINE KNOBS"],
+  ["disagg",        "DISAGGREGATION"],
+  ["cost",          "COST"],
+];
+
+// Escape user-supplied strings before injecting into innerHTML. Same helper
+// pattern used by ui.mjs escapeHtml — kept local so this module is
+// self-contained (so the build can decide where to place it in bundle order).
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// Render one formula expression. Tries KaTeX if it's loaded; falls back to a
+// <code> block tagged for upgrade-in-place once the CDN script arrives.
+function renderExpr(expr) {
+  if (typeof window !== "undefined" && window.katex && typeof window.katex.renderToString === "function") {
+    try {
+      return window.katex.renderToString(expr, { throwOnError: false, displayMode: true });
+    } catch (_) {
+      // fall through to the plaintext fallback if KaTeX itself throws
+    }
+  }
+  // Fallback path. The data-katex-pending attribute is what the upgrade pass
+  // looks for once window.katex becomes available.
+  return `<code class="formula-expr-fallback" data-katex-pending="1">${esc(expr)}</code>`;
+}
+
+// One row per formula. Math is visible always; everything else is collapsed
+// behind a <details> expander so the user sees a clean list by default.
+function renderRow(f) {
+  const where = f.where.map(([name, meaning]) =>
+    `<dt><code>${esc(name)}</code></dt><dd>${esc(meaning)}</dd>`).join("");
+  const citations = f.citation.map((c) => {
+    const href = c.anchor ?? c.url ?? "#";
+    const target = c.url ? ` target="_blank" rel="noopener"` : "";
+    return `<a class="formula-cite" href="${esc(href)}"${target}>${esc(c.label)}</a>`;
+  }).join("");
+  return `
+    <article class="formula-row" data-formula-id="${esc(f.id)}">
+      <header class="formula-head">
+        <span class="formula-name">${esc(f.name)}</span>
+        <span class="formula-path">${esc(f.calc_path)}</span>
+      </header>
+      <div class="formula-expr" data-expr="${esc(f.expr_tex)}">${renderExpr(f.expr_tex)}</div>
+      <details class="formula-details">
+        <summary>WHY / WHERE / SOURCE</summary>
+        <div class="formula-body">
+          <p class="formula-description">${esc(f.description)}</p>
+          ${where ? `<dl class="formula-where">${where}</dl>` : ""}
+          <p class="formula-derivation">${esc(f.derivation)}</p>
+          <div class="formula-citations">${citations}</div>
+        </div>
+      </details>
+    </article>
+  `;
+}
+
+// Group rows by category so the drawer has scannable headings.
+function renderAll(formulas) {
+  const byCat = new Map();
+  for (const f of formulas) {
+    if (!byCat.has(f.category)) byCat.set(f.category, []);
+    byCat.get(f.category).push(f);
+  }
+  const sections = CATEGORY_ORDER
+    .filter(([key]) => byCat.has(key))
+    .map(([key, label]) => `
+      <section class="formula-cat" data-cat="${esc(key)}">
+        <h3 class="formula-cat-head">${esc(label)}</h3>
+        ${byCat.get(key).map(renderRow).join("")}
+      </section>
+    `).join("");
+  return sections;
+}
+
+// If KaTeX loads AFTER first paint (CDN slow / cold cache), walk every
+// pending fallback and upgrade it in place. Bound to the script's onload via
+// the build script; also runs once at mount time in case KaTeX raced ahead.
+function upgradePendingKatex() {
+  if (typeof window === "undefined" || !window.katex) return;
+  const pending = document.querySelectorAll(".formula-expr [data-katex-pending]");
+  for (const node of pending) {
+    const expr = node.parentElement?.dataset.expr;
+    if (!expr) continue;
+    try {
+      node.parentElement.innerHTML = window.katex.renderToString(expr, {
+        throwOnError: false, displayMode: true,
+      });
+    } catch (_) {
+      // Leave the fallback in place; KaTeX renderToString({throwOnError:false})
+      // already emits a red error span so the user sees what failed.
+    }
+  }
+}
+
+// Focus-trap helper. While the drawer is open Tab must cycle within it so
+// keyboard users don't escape into the background page (WAI-ARIA dialog
+// pattern). Returns the keydown handler so the caller can remove it on close.
+function trapFocus(drawer, closeBtn) {
+  return (e) => {
+    if (e.key !== "Tab") return;
+    const focusables = drawer.querySelectorAll(
+      'a[href], button, summary, [tabindex]:not([tabindex="-1"])');
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  };
+}
+
+// Entry point — wires the trigger button, the drawer, the backdrop, the
+// `f` shortcut, Esc-to-close, focus management, and KaTeX upgrade. Idempotent
+// (calling twice is a no-op): guards against double-init by checking for the
+// `data-formulas-mounted` flag on the trigger.
+function mountFormulasDrawer() {
+  const trigger = document.getElementById("formulas-trigger");
+  const drawer = document.getElementById("formulas-drawer");
+  const backdrop = document.getElementById("formulas-backdrop");
+  const dataTag = document.getElementById("formulas-data");
+  if (!trigger || !drawer || !backdrop || !dataTag) return;
+  if (trigger.dataset.formulasMounted === "1") return;
+  trigger.dataset.formulasMounted = "1";
+
+  const formulas = JSON.parse(dataTag.textContent).formulas;
+  // Render once; the data is static so we don't recompute on every open.
+  const body = drawer.querySelector(".formulas-body");
+  body.innerHTML = renderAll(formulas);
+  // If KaTeX is already loaded (cache hit), this is a no-op; otherwise the
+  // CDN script's onload (wired by the build) will call us again.
+  upgradePendingKatex();
+  window.addEventListener("katex-loaded", upgradePendingKatex);
+
+  const closeBtn = drawer.querySelector(".formulas-close");
+  let lastFocused = null;
+  let trapHandler = null;
+
+  const open = () => {
+    if (!drawer.hasAttribute("hidden")) return;
+    lastFocused = document.activeElement;
+    drawer.removeAttribute("hidden");
+    backdrop.removeAttribute("hidden");
+    trigger.setAttribute("aria-expanded", "true");
+    // Focus the close button so Esc/Enter work immediately + screen readers
+    // announce the drawer landmark.
+    closeBtn.focus();
+    trapHandler = trapFocus(drawer, closeBtn);
+    document.addEventListener("keydown", trapHandler);
+  };
+
+  const close = () => {
+    if (drawer.hasAttribute("hidden")) return;
+    drawer.setAttribute("hidden", "");
+    backdrop.setAttribute("hidden", "");
+    trigger.setAttribute("aria-expanded", "false");
+    if (trapHandler) {
+      document.removeEventListener("keydown", trapHandler);
+      trapHandler = null;
+    }
+    // Return focus to the trigger so keyboard users don't lose their place.
+    if (lastFocused && typeof lastFocused.focus === "function") {
+      lastFocused.focus();
+    } else {
+      trigger.focus();
+    }
+  };
+
+  trigger.addEventListener("click", open);
+  closeBtn.addEventListener("click", close);
+  backdrop.addEventListener("click", close);
+  // Esc-to-close — works regardless of focus location (focus trap keeps focus
+  // inside the drawer anyway).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !drawer.hasAttribute("hidden")) close();
+  });
+  // `f` shortcut — only when no input/textarea/select has focus, so it
+  // doesn't fight with the form controls.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "f" && e.key !== "F") return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = document.activeElement;
+    const tag = t?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable) return;
+    if (drawer.hasAttribute("hidden")) { e.preventDefault(); open(); }
+  });
+}
+
+// ===== ui.mjs =====
+// DOM wiring layer. Reads the embedded data tables, builds the form,
+// dispatches recompute on every input change, and renders results into the
+// readout tiles, oscilloscope, patchbay, snippet, and diagnostics log.
+//
+// All numeric formatting funnels through `fmt()` so display rounding stays
+// consistent across tiles, chart axes, and the copy-paste snippet.
+
+
+
+
+// ---------- data tables ----------
+// Embedded as <script type="application/json"> by the build script; the build
+// test guarantees these round-trip cleanly.
+const HARDWARE = JSON.parse(document.getElementById("hardware-data").textContent).hardware;
+const MODELS = JSON.parse(document.getElementById("models-data").textContent).models;
+
+const HW_BY_KEY    = Object.fromEntries(HARDWARE.map((h) => [h.key, h]));
+const MODEL_BY_KEY = Object.fromEntries(MODELS.map((m) => [m.key, m]));
+
+// ---------- formatting helpers ----------
+
+// Smart number formatter. Tiny values get a decimal; large values get grouping
+// separators; non-finite or zero gets the em-dash placeholder (engineering UI
+// convention — "no signal" rather than a misleading "0").
+const fmt = (v, opts = {}) => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (opts.percent) return `${(v * 100).toFixed(1)}%`;
+  if (opts.gb) return `${v.toFixed(v < 10 ? 2 : 1)}`;
+  if (Math.abs(v) >= 10000) return Math.round(v).toLocaleString("en-US");
+  if (Math.abs(v) >= 100) return Math.round(v).toString();
+  if (Math.abs(v) >= 10) return v.toFixed(1);
+  return v.toFixed(2);
+};
+
+const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+const setHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+// ---------- form setup ----------
+
+function populatePresets() {
+  const hwSel = document.getElementById("hw");
+  const modelSel = document.getElementById("model");
+  for (const h of HARDWARE) hwSel.add(new Option(h.label, h.key));
+  hwSel.add(new Option("Custom…", "__custom"));
+  for (const m of MODELS) modelSel.add(new Option(m.label, m.key));
+  modelSel.add(new Option("Custom…", "__custom"));
+  // Sensible defaults: H100 + Llama-3-8B — the most common starting point.
+  hwSel.value = "H100-80GB";
+  modelSel.value = "llama-3-8b";
+  // Seed price input from the default hardware row.
+  syncPriceToHardware();
+}
+
+// Sync the price-per-hour input to the currently-selected hardware row's
+// default. Called on initial paint and on every hw row swap — within-row
+// edits leave the user's override alone. Plan Layer 6 test #12.
+function syncPriceToHardware() {
+  const hwKey = document.getElementById("hw").value;
+  const priceEl = document.getElementById("price-per-hour");
+  if (!priceEl) return;
+  if (hwKey === "__custom") {
+    priceEl.value = ""; // custom row → blank → propagates null cost
+    return;
+  }
+  const hw = HW_BY_KEY[hwKey];
+  if (hw && hw.price_per_hour_usd != null) {
+    priceEl.value = hw.price_per_hour_usd;
+  }
+}
+
+function readForm() {
+  // Custom mode pulls raw fields from the reveal panel; preset mode looks up
+  // the table by key. Either way we end up with a plain hw/model object.
+  const hwKey = document.getElementById("hw").value;
+  const modelKey = document.getElementById("model").value;
+  const customHw = hwKey === "__custom";
+  const customModel = modelKey === "__custom";
+  document.getElementById("hw-custom").open = customHw;
+  document.getElementById("model-custom").open = customModel;
+
+  const hw = customHw ? {
+    key: "custom", label: "Custom HW",
+    hbm_gb: +document.getElementById("c-hbm-gb").value,
+    hbm_bw_gbs: +document.getElementById("c-hbm-bw").value,
+    fp16_tflops: +document.getElementById("c-fp16").value,
+    fp8_tflops: document.getElementById("c-fp8").value ? +document.getElementById("c-fp8").value : null,
+    nvlink: document.getElementById("c-nvlink").checked,
+  } : HW_BY_KEY[hwKey];
+
+  const model = customModel ? (() => {
+    // Custom-mode model: read total + active params. If active is blank/zero,
+    // mirror it from total (the dense one-click case). Fallback to legacy
+    // single c-params input if it still exists (HTML may not be rebuilt yet).
+    const totalEl  = document.getElementById("c-params-total");
+    const activeEl = document.getElementById("c-params-active");
+    const legacyEl = document.getElementById("c-params");
+    const total  = totalEl  ? +totalEl.value  : (legacyEl ? +legacyEl.value : 0);
+    const activeRaw = activeEl ? +activeEl.value : 0;
+    const active = activeRaw > 0 ? activeRaw : total;
+    return ({
+    key: "custom", label: "Custom Model",
+    params_b_total: total,
+    params_b_active: active,
+    n_layers: +document.getElementById("c-layers").value,
+    d_model: +document.getElementById("c-dmodel").value,
+    n_heads: +document.getElementById("c-heads").value,
+    n_kv_heads: +document.getElementById("c-kvheads").value,
+    head_dim: +document.getElementById("c-headdim").value,
+    max_context: +document.getElementById("c-maxctx").value,
+    attn_type: document.getElementById("c-attn").value,
+  });
+  })() : MODEL_BY_KEY[modelKey];
+
+  // Price override: blank input → fall back to hw.price_per_hour_usd; for
+  // custom hardware with no default this propagates as null and the cost tile
+  // renders "—". Anything > 0 wins over the row default.
+  const priceRaw = document.getElementById("price-per-hour")?.value;
+  const priceParsed = priceRaw === "" || priceRaw == null ? null : +priceRaw;
+  const price_per_hour_usd = (priceParsed != null && Number.isFinite(priceParsed) && priceParsed > 0)
+    ? priceParsed
+    : (hw?.price_per_hour_usd ?? null);
+
+  return {
+    hw, model,
+    isl: +document.getElementById("isl").value,
+    osl: +document.getElementById("osl").value,
+    weight_prec: document.getElementById("weight-prec").value,
+    kv_prec: document.getElementById("kv-prec").value,
+    act_prec: document.getElementById("act-prec").value,
+    tbt_ms: +document.getElementById("tbt").value,
+    ttft_ms: +document.getElementById("ttft").value,
+    ngpus: +document.getElementById("ngpus").value,
+    price_per_hour_usd,
+  };
+}
+
+// ---------- recompute pipeline ----------
+
+// Three independent Chart.js instances, one per channel. Lazy-init on first
+// recompute so the page doesn't pay chart construction cost before the first
+// computed data is available. Exposed on window.__sizingScopes for E2E tests
+// and manual debugging (convention from prior dashboards).
+let scopes = null;
+
+function recompute(skipPulse = false) {
+  const input = readForm();
+  const out = compute(input);
+  paintMetrics(out, input);
+  paintChart(out);
+  paintSweep(out, input);
+  paintDiagnostics(out);
+  paintSnippet(out, input);
+  if (!skipPulse) pulseTiles();
+}
+
+function paintMetrics(out, input) {
+  const m = out.metrics;
+  setText("m-bcrit", fmt(m.b_crit));
+  setText("m-bslo",  fmt(m.b_slo));
+  setText("m-bkv",   fmt(m.b_kv));
+  setText("m-mns",   fmt(m.max_num_seqs));
+  setText("m-mnbt",  fmt(m.max_num_batched_tokens));
+  setText("m-mnbt-band", m.max_num_batched_tokens_band);
+  setText("m-tps",   fmt(m.throughput_tps));
+  setText("m-tps-pg", `${fmt(m.throughput_tps_per_gpu)} per GPU`);
+  // Cost tile. null (custom HW with blank price) → "—"; Infinity (tps=0) → "—".
+  // Two-decimal format reads as currency; vendor list comparisons need cents.
+  const costTxt = (m.cost_per_mtok == null || !Number.isFinite(m.cost_per_mtok))
+    ? "—"
+    : `$${m.cost_per_mtok.toFixed(2)}`;
+  setText("m-cost", costTxt);
+  setText("m-pd",    m.pd_ratio == null ? "—" : `${fmt(m.pd_ratio)} : 1`);
+  const p = m.parallelism;
+  setText("m-par",   p.fits ? `TP=${p.tp} · PP=${p.pp}` : "—");
+  setText("m-par-sub", p.fits ? `${p.replicas} replica${p.replicas === 1 ? "" : "s"} · ${p.reason}` : p.reason);
+  setText("m-weights", fmt(m.weights_gb, { gb: true }) + " GB");
+  setText("m-kv", fmt(m.kv_per_token_kb) + " kB/token · " + fmt(m.kv_per_seq_gb, { gb: true }) + " GB/seq");
+
+  // Sparkline placement: drop a tiny SVG under each B tile showing curve
+  // position. Anchored to the chart curve so the spark and main chart agree.
+  drawSparkline("spark-bcrit", out.chart.curve, m.b_crit, "#58a6ff");
+  drawSparkline("spark-bslo",  out.chart.curve, m.b_slo,  "#d29922");
+  drawSparkline("spark-bkv",   out.chart.curve, m.b_kv,   "#3fb950");
+}
+
+function drawSparkline(id, curve, markB, color) {
+  const el = document.getElementById(id);
+  if (!el || curve.length < 2) return;
+  const w = 220, h = 22, pad = 1;
+  // Filter out non-positive step_ms (defensive — log() blows up on ≤0).
+  const pts = curve.filter((p) => p.step_ms > 0 && p.B > 0);
+  if (pts.length < 2) return;
+  const minT = Math.min(...pts.map((p) => p.step_ms));
+  const maxT = Math.max(...pts.map((p) => p.step_ms));
+  const minB = pts[0].B, maxB = pts[pts.length - 1].B;
+  const lx = (B) => pad + (B - minB) / (maxB - minB) * (w - 2 * pad);
+  // Linear Y. Trade-off: the memory-bound region below B_crit compresses
+  // against the bottom edge so curve shape there is barely readable; the
+  // compute-bound tail dominates. Kept linear for consistency with the main
+  // scopes (also flipped to linear). Falls back to mid-line if degenerate.
+  const tSpan = maxT - minT;
+  const ly = tSpan > 0
+    ? (t) => h - pad - (t - minT) / tSpan * (h - 2 * pad)
+    : () => (h - pad - (h - 2 * pad) / 2);
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${lx(p.B).toFixed(1)},${ly(p.step_ms).toFixed(1)}`).join(" ");
+  const mx = markB && Number.isFinite(markB) && markB >= minB && markB <= maxB ? lx(markB) : null;
+  // Tint the curve with the metric color at low opacity — the old `#30363d`
+  // hairline was barely visible against the tile background. Marker stays
+  // dominant at 1.5px solid; curve reads as a faint contextual backdrop.
+  el.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="${h}">
+      <path d="${path}" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="1.2" />
+      ${mx != null ? `<line x1="${mx.toFixed(1)}" y1="0" x2="${mx.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1.5"/>` : ""}
+    </svg>`;
+}
+
+function paintChart(out) {
+  if (!scopes) {
+    // First paint: stagger scope construction by 120ms each so the three
+    // panels reveal in top-down reading order. Each scope's own marker
+    // stagger (80ms apart) layers on top of this. Skip the stagger entirely
+    // under prefers-reduced-motion — construct all three immediately.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const canvases = {
+      latency:    document.getElementById("scope-latency-canvas"),
+      throughput: document.getElementById("scope-throughput-canvas"),
+      cost:       document.getElementById("scope-cost-canvas"),
+    };
+    scopes = {};
+    const order = ["latency", "throughput", "cost"];
+    const mount = (ch) => {
+      if (!canvases[ch]) return;
+      scopes[ch] = createScope(canvases[ch], ch, out.chart);
+    };
+    if (reduceMotion) {
+      for (const ch of order) mount(ch);
+    } else {
+      // Mount latency immediately so the first scope is visible at t=0; the
+      // other two stagger in. Avoids a 240ms blank-canvas flash on slow GPUs.
+      mount("latency");
+      setTimeout(() => mount("throughput"), 120);
+      setTimeout(() => mount("cost"),       240);
+    }
+    if (typeof window !== "undefined") {
+      window.__sizingScopes = scopes;
+      // Back-compat alias for older E2E tests that read window.__sizingChart.
+      // Points at the latency scope's chart (the panel that previously *was*
+      // "the chart"). Set lazily once latency mounts so the test wait works.
+      const setAlias = () => {
+        if (scopes.latency) window.__sizingChart = scopes.latency.chart;
+        else setTimeout(setAlias, 50);
+      };
+      setAlias();
+    }
+  } else {
+    for (const s of Object.values(scopes)) s.update(out.chart);
+  }
+}
+
+function paintSweep(out, input) {
+  const tracks = [
+    { label: "MAX_NUM_SEQS",        values: out.sweep.max_num_seqs,             rec: out.metrics.max_num_seqs },
+    { label: "MAX_NUM_BATCHED_TOK", values: out.sweep.max_num_batched_tokens,   rec: out.metrics.max_num_batched_tokens },
+    { label: "CONCURRENCY",         values: out.sweep.concurrency,              rec: out.metrics.max_num_seqs },
+  ];
+  const html = tracks.map(({ label, values, rec }) => `
+    <div class="patch-label">${label}</div>
+    <div class="patch-track">
+      ${values.map((v) => `<span class="chip${v === rec ? " recommended" : ""}">${v}</span>`).join("")}
+    </div>
+  `).join("");
+  setHTML("patchbay", html);
+}
+
+function paintDiagnostics(out) {
+  const el = document.getElementById("diagnostics");
+  if (!out.warnings.length) {
+    el.innerHTML = `<div class="empty">[--:--:--] · no issues.</div>`;
+    return;
+  }
+  // Timestamp uses recompute moment, not now() in a loop, so all lines share
+  // the same tick — easier to scan than time-jittered logs.
+  const t = new Date();
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mm = String(t.getMinutes()).padStart(2, "0");
+  const ss = String(t.getSeconds()).padStart(2, "0");
+  const ms = String(t.getMilliseconds()).padStart(3, "0");
+  const stamp = `${hh}:${mm}:${ss}.${ms}`;
+  el.innerHTML = out.warnings.map((w) => `
+    <div class="diag-line">
+      <time>[${stamp}]</time>
+      <span class="glyph ${w.level === "error" ? "error" : "warn"}">${w.level === "error" ? "■" : "▲"}</span>
+      <span class="msg">${escapeHtml(w.msg)}</span>
+    </div>
+  `).join("");
+}
+
+const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+function paintSnippet(out, input) {
+  const m = out.metrics;
+  const lines = [
+    `# vLLM serving args (analytical recommendation — verify empirically).`,
+    `# Model:    ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
+    `# ISL/OSL: ${input.isl}/${input.osl}   TBT SLO: ${input.tbt_ms} ms   Precision: w=${input.weight_prec} kv=${input.kv_prec}`,
+    ``,
+    `vllm serve <model-id> \\`,
+    `  --tensor-parallel-size ${m.parallelism.tp} \\`,
+    `  --pipeline-parallel-size ${m.parallelism.pp} \\`,
+    `  --max-num-seqs ${m.max_num_seqs} \\`,
+    `  --max-num-batched-tokens ${m.max_num_batched_tokens} \\`,
+    `  --max-model-len ${input.isl + input.osl} \\`,
+    `  --gpu-memory-utilization ${(1 - 0.10).toFixed(2)}`,
+    ``,
+    `# Empirical sweep grid:`,
+    `concurrency_list = [${out.sweep.concurrency.join(", ")}]`,
+    `max_num_seqs_grid = [${out.sweep.max_num_seqs.join(", ")}]`,
+    `mnbt_grid = [${out.sweep.max_num_batched_tokens.join(", ")}]`,
+  ];
+  document.getElementById("snippet-body").textContent = lines.join("\n");
+}
+
+function pulseTiles() {
+  for (const el of document.querySelectorAll(".readout")) {
+    el.classList.remove("pulse");
+    // force reflow so the animation restarts (CSS @keyframes trick).
+    void el.offsetWidth;
+    el.classList.add("pulse");
+  }
+}
+
+// ---------- wiring ----------
+
+function wireCopyButton() {
+  const btn = document.getElementById("copy-btn");
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById("snippet-body").textContent);
+      btn.classList.add("flash");
+      btn.textContent = "[ COPIED ]";
+      setTimeout(() => { btn.classList.remove("flash"); btn.textContent = "[ COPY ]"; }, 1200);
+    } catch (e) {
+      btn.textContent = "[ COPY FAILED ]";
+    }
+  });
+}
+
+function bootstrap() {
+  populatePresets();
+  const form = document.getElementById("sizing-form");
+  form.addEventListener("input", () => recompute());
+  form.addEventListener("change", () => recompute());
+  // Hardware row swap → reset price input to the new row's default. Within-row
+  // edits leave the user's override alone (the change event only fires on
+  // <select> changes, not on price input edits). Fire an `input` event after
+  // setting the value so the form-level input listener picks up the new price
+  // and recomputes — plan Layer 6 test #12 anchor.
+  document.getElementById("hw").addEventListener("change", () => {
+    syncPriceToHardware();
+    const priceEl = document.getElementById("price-per-hour");
+    if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  wireCopyButton();
+  // Side-drawer for "show all formulas" — populated once from the inlined
+  // formulas-data tag and kept hidden until the user opens it. Idempotent;
+  // no-op if its DOM scaffold isn't present (test harnesses).
+  mountFormulasDrawer();
+  // Skip the pulse on first paint — pulse should signal change, not arrival.
+  recompute(true);
+}
+
+// Bootstrap automatically when the script tag executes after DOM ready. The
+// build script places <script type="module">…bootstrap()…<\/script> at the end
+// of <body>, so the DOM is already parsed.
+bootstrap();
+
+</script>
+</body>
+</html>

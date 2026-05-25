@@ -1,0 +1,14 @@
+{
+  "name": "vllm-sizing-calculator",
+  "private": true,
+  "type": "module",
+  "description": "Tests for the LLM inference sizing calculator. Source is HTML/JS; this exists only to declare devDependencies for Playwright.",
+  "scripts": {
+    "test:unit": "node --test tests/calc.test.mjs tests/data.test.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "katex": "^0.17.0"
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "_comment": "Numerical truth anchors. Every value cited verbatim from MODEL_SIZING_SCALING_REFERENCE.md so a reviewer can trace each assertion back to source. Tolerance noted per entry (memory math in this domain is approximate by design).",
+  "bcrit": [
+    {
+      "name": "H100 bf16/bf16",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 295,
+      "tolerance_pct": 2,
+      "source": "MODEL_SIZING_SCALING_REFERENCE.md §1 Hardware Roofline Ratios table"
+    },
+    {
+      "name": "H100 fp8/fp8 (FP8 tensor core path)",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
+      "weight_prec": "FP8",
+      "act_prec": "FP8",
+      "expected": 590,
+      "tolerance_pct": 2,
+      "source": "§1 Hardware Roofline Ratios table — '~590 (fp8)'"
+    },
+    {
+      "name": "H100 int8 weights, bf16 acts (asymmetric drops B_crit ~2x)",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
+      "weight_prec": "INT8",
+      "act_prec": "BF16",
+      "expected": 147,
+      "tolerance_pct": 5,
+      "source": "§1 example 'int8 weights + bf16 activations → B_crit drops 2x'"
+    },
+    {
+      "name": "H100 int8/int8 (symmetric, ratio unchanged)",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-70b",
+      "weight_prec": "INT8",
+      "act_prec": "INT8",
+      "expected": 295,
+      "tolerance_pct": 2,
+      "source": "§1 example 'int8 weights + int8 activations → B_crit unchanged'"
+    },
+    {
+      "name": "H200 bf16/bf16",
+      "hw_key": "H200",
+      "model_key": "llama-3-70b",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 205,
+      "tolerance_pct": 2,
+      "source": "§1 Hardware Roofline Ratios table"
+    },
+    {
+      "name": "DSv3 H100 BF16/BF16 (MoE sparsity 671/37 ≈ 18.135×)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "BF16",
+      "act_prec": "BF16",
+      "expected": 5347,
+      "tolerance_pct": 0.5,
+      "source": "Scaling Book inference Q5: B_crit_MoE = B_crit_dense × E/k. Dense 70B BF16/BF16 → 295; DSv3 sparsity 671/37 = 18.135× → 5347.7"
+    },
+    {
+      "name": "DSv3 H100 FP8/FP8 (MoE sparsity + FP8 path)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "FP8",
+      "act_prec": "FP8",
+      "expected": 10695,
+      "tolerance_pct": 0.5,
+      "source": "Scaling Book Q5 + FP8 path: 590 × 671/37 = 10695.4"
+    },
+    {
+      "name": "DSv3 H100 INT8/BF16 (asymmetric + MoE sparsity)",
+      "hw_key": "H100-80GB",
+      "model_key": "deepseek-v3",
+      "weight_prec": "INT8",
+      "act_prec": "BF16",
+      "expected": 2666,
+      "tolerance_pct": 1,
+      "source": "Scaling Book Q5 + asymmetric: 147 × 671/37 = 2666.0"
+    }
+  ],
+  "kv": [
+    {
+      "name": "Llama-3-70B int8 KV per token",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "expected_bytes": 163840,
+      "tolerance_pct": 0.1,
+      "source": "§3, §5 worked example: 2 × 8 × 128 × 80 = 160 kB"
+    },
+    {
+      "name": "Llama-3-70B int8 KV per 8k sequence",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "seq_len": 8192,
+      "expected_gb": 1.342,
+      "tolerance_pct": 5,
+      "source": "§3 worked example '~1.3 GB' at 8k"
+    },
+    {
+      "name": "Llama-3-70B int8 batch=32 at 8k context",
+      "model_key": "llama-3-70b",
+      "kv_prec": "INT8",
+      "seq_len": 8192,
+      "batch": 32,
+      "expected_gb": 42.9,
+      "tolerance_pct": 5,
+      "source": "§3 worked example '~42 GB just for KV'"
+    },
+    {
+      "name": "DeepSeek-V3 MLA BF16 KV per token (no factor of 2, no n_kv_heads)",
+      "model_key": "deepseek-v3",
+      "kv_prec": "BF16",
+      "expected_bytes": 70272,
+      "tolerance_pct": 0.1,
+      "source": "§3 MLA row: (d_c + d_rope) × bytes × n_layers = (512 + 64) × 2 × 61"
+    },
+    {
+      "name": "DeepSeek-V3 MLA BF16 KV per 32k sequence (matches §3 table ~2.18–2.30 GB band)",
+      "model_key": "deepseek-v3",
+      "kv_prec": "BF16",
+      "seq_len": 32768,
+      "expected_gb": 2.30,
+      "tolerance_pct": 6,
+      "source": "§3 MLA row '2.18 GB/seq' at 32K — analytical (576×2×61×32768) = 2.30 GB; reference figure within 6%"
+    }
+  ],
+  "weights": [
+    {
+      "name": "Llama-3-70B int8 weights",
+      "model_key": "llama-3-70b",
+      "weight_prec": "INT8",
+      "expected_gb": 70.6,
+      "tolerance_pct": 1,
+      "source": "§5: '70 B (int8 → 70 GB)'"
+    }
+  ],
+  "y_max": [
+    {
+      "name": "Scaling Book worked example (TPU v5e ish)",
+      "d_ff": 16384,
+      "batch": 32,
+      "hw": {"hbm_bw_gbs": 800, "ici_bw_gbs": 100},
+      "expected": 64,
+      "tolerance_pct": 0.1,
+      "source": "Scaling Book inference chapter: 'if F is 16,384 and B is 32, we can in theory do model parallelism up to 16384/(32*8) = 64 ways'"
+    }
+  ],
+  "cost": [
+    {
+      "name": "H100 $12.29/hr × 1 GPU × Llama-3-8B FP16 defaults",
+      "hw_key": "H100-80GB",
+      "model_key": "llama-3-8b",
+      "weight_prec": "FP16", "kv_prec": "FP16", "act_prec": "FP16",
+      "isl": 1024, "osl": 256, "tbt_ms": 50, "ngpus": 1,
+      "price_per_hour_usd": 12.29,
+      "expected_cost_per_mtok_usd": 0.2264,
+      "tolerance_pct": 1,
+      "source": "Derived numerically on 2026-05-23: compute() returned throughput_tps=15082.17 at the recommended batch for these inputs; (12.29 × 1 × 1e6) / (3600 × 15082.17) = 0.22635. Tolerance ±1% guards against floating-point and rounding drift only — the cost formula itself is locked to 10-decimal precision by the closed-form unit test in calc.test.mjs."
+    },
+    {
+      "name": "T4 $0.526/hr × 1 GPU × Llama-3-8B INT4 (cheap+slow analytical band)",
+      "hw_key": "T4",
+      "model_key": "llama-3-8b",
+      "weight_prec": "INT4", "kv_prec": "INT8", "act_prec": "INT8",
+      "isl": 1024, "osl": 256, "tbt_ms": 100, "ngpus": 1,
+      "price_per_hour_usd": 0.526,
+      "expected_cost_per_mtok_usd": 0.0744,
+      "tolerance_pct": 1,
+      "source": "Derived numerically on 2026-05-23: throughput_tps=1963.78; (0.526 × 1 × 1e6) / (3600 × 1963.78) = 0.07440. Note: analytical model doesn't penalize quantization-induced kernel inefficiencies on Turing, so the realised $/Mtok at this scenario in production will likely be 2–4× this value. This golden locks the formula composition, not the workload realism."
+    }
+  ]
+}

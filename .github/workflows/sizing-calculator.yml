@@ -1,0 +1,62 @@
+name: sizing-calculator
+
+# Runs the four test layers behind the LLM inference sizing calculator.
+# Triggers narrowed to the calculator's source + build script so unrelated
+# repo changes don't burn CI minutes here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "calculators/sizing_calc/**"
+      - "tools/build_sizing_calculator_html.py"
+      - ".github/workflows/sizing-calculator.yml"
+  pull_request:
+    paths:
+      - "calculators/sizing_calc/**"
+      - "tools/build_sizing_calculator_html.py"
+      - ".github/workflows/sizing-calculator.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: calculators/sizing_calc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install JS deps
+        run: npm ci || npm install --no-audit --no-fund
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the calculator HTML
+        working-directory: .
+        run: python3 tools/build_sizing_calculator_html.py
+
+      - name: Unit + data-schema tests
+        run: node --test tests/calc.test.mjs tests/data.test.mjs
+
+      - name: Build-script test
+        working-directory: .
+        run: python3 -m pytest calculators/sizing_calc/tests/test_build.py -v
+
+      - name: End-to-end browser test
+        run: npx playwright test
