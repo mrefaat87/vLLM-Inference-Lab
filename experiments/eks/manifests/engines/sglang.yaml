@@ -1,0 +1,81 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sglang-engine
+  labels: { app: sglang-engine, project: inference-lab }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sglang-engine }
+  template:
+    metadata:
+      labels: { app: sglang-engine, project: inference-lab }
+    spec:
+      nodeSelector: { gpu: a10g }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+      containers:
+        - name: sglang
+          image: "{{IMAGE}}"
+          args:
+            - "python3"
+            - "-m"
+            - "sglang.launch_server"
+            - "--model-path={{MODEL}}"
+            - "--quantization={{QUANTIZATION}}"
+            - "--tp-size={{TENSOR_PARALLEL}}"
+            - "--context-length={{MAX_MODEL_LEN}}"
+            - "--host=0.0.0.0"
+            - "--port=30000"
+            - "--enable-metrics"
+          ports:
+            - { name: http, containerPort: 30000 }
+          resources:
+            limits:
+              nvidia.com/gpu: "{{TENSOR_PARALLEL}}"
+              memory: 96Gi
+            requests:
+              cpu: "4"
+              memory: 32Gi
+          readinessProbe:
+            httpGet: { path: /health_generate, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - { name: HF_HOME, value: /weights }
+            - { name: TRANSFORMERS_OFFLINE, value: "1" }
+          volumeMounts:
+            - { name: weights, mountPath: /weights }
+            - { name: shm, mountPath: /dev/shm }
+      volumes:
+        - name: weights
+          emptyDir: { sizeLimit: 200Gi }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 16Gi }
+      initContainers:
+        - name: fetch-weights
+          image: amazon/aws-cli:2.17.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              aws s3 sync s3://inference-lab-models-${AWS_ACCOUNT}/{{MODEL}} /weights
+              || (echo "FAIL: weights bucket missing"; exit 1)
+          volumeMounts:
+            - { name: weights, mountPath: /weights }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sglang-engine
+  labels: { app: sglang-engine, project: inference-lab }
+spec:
+  selector: { app: sglang-engine }
+  ports:
+    - { name: http, port: 30000, targetPort: http }

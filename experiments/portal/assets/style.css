@@ -1,0 +1,508 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Empirical Lab — telemetry-console aesthetic.
+   Sibling to the sizing calculator's engineering instrument: same dark
+   palette, same Martian Mono numerals, same scope-panel frames. Where the
+   calculator predicts, the lab records — the two pages should feel like
+   adjacent benches in the same shop.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Palette — locked to the calculator's tokens so neither page drifts. */
+  --bg:        #0d1117;
+  --bg-deep:   #0a0e14;
+  --panel:     #161b22;
+  --rule:      #1f2937;
+  --grid:      #1a1f29;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --muted:     #8b949e;
+  --dim:       #6e7681;
+  --accent:    #58a6ff;
+  --b-crit:    #58a6ff;
+  --b-slo:     #d29922;
+  --b-kv:      #3fb950;
+  --danger:    #f85149;
+  --glow:      rgba(88, 166, 255, 0.18);
+
+  /* Fonts — display serif for editorial breath, mono for every datum.
+     Body uses system-ui because the page is data-dense and we want
+     a fast first paint. */
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-body:    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:    "Martian Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  min-height: 100vh;
+  /* Atmosphere — same vignette + dotted grid as the calculator so the two
+     surfaces share a horizon. */
+  background:
+    radial-gradient(ellipse 1200px 700px at 50% -10%, rgba(88, 166, 255, 0.04), transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(139, 148, 158, 0.06) 1px, transparent 1.5px) 0 0 / 32px 32px,
+    var(--bg);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Top instrument strip. Same shape as the calculator; brand label changes.
+   ────────────────────────────────────────────────────────────────────────── */
+.strip {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
+}
+.strip-left  { display: flex; align-items: center; gap: 14px; }
+.strip-right { display: flex; align-items: center; gap: 18px; }
+.strip-left .brand { color: var(--text); letter-spacing: 0.22em; }
+.strip .sep { width: 1px; height: 12px; background: var(--border); display: inline-block; }
+.strip a {
+  color: var(--muted); text-decoration: none;
+  transition: color 120ms;
+  position: relative;
+}
+.strip a:hover { color: var(--text); }
+.strip a.active { color: var(--accent); }
+.strip a.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -16px;
+  height: 1px; background: var(--accent);
+}
+
+.live-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--b-kv); box-shadow: 0 0 6px var(--b-kv);
+  margin-right: 6px;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Bench switcher — three-position selector spanning calculator + lab.
+   Reads like a multi-channel selector on a benchtop instrument: numbered
+   positions, hairline divider between them, accent underline + glow on the
+   active one. Same component appears on every page so the user always
+   knows which bench they're at and can flip with one click.
+   ────────────────────────────────────────────────────────────────────────── */
+.bench-switcher {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+}
+.bench-switcher .bs-label {
+  display: flex; align-items: center;
+  padding: 0 12px;
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--dim);
+  border-right: 1px solid var(--rule);
+  background: linear-gradient(to right, rgba(88,166,255,0.04), transparent);
+}
+.bench-switcher .bs-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  border-right: 1px solid var(--rule);
+  position: relative;
+  transition: color 120ms, background 120ms;
+}
+.bench-switcher .bs-item:last-child { border-right: 0; }
+.bench-switcher .bs-num {
+  font-size: 9px; letter-spacing: 0.18em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.bench-switcher .bs-item:hover {
+  color: var(--text);
+  background: rgba(88,166,255,0.04);
+  text-decoration: none;
+}
+.bench-switcher .bs-item:hover .bs-num { color: var(--muted); }
+.bench-switcher .bs-item.active {
+  color: var(--accent);
+  background:
+    linear-gradient(to bottom, rgba(88,166,255,0.10), rgba(88,166,255,0.02));
+}
+.bench-switcher .bs-item.active .bs-num { color: var(--accent); }
+.bench-switcher .bs-item.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+/* Strip layout — three direct children (left brand, switcher, right aux).
+   `justify-content: space-between` on .strip puts equal space between them
+   so the switcher lands visually centered without needing margin tricks. */
+.strip { gap: 16px; }
+.strip-left, .strip-right { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+  .bench-switcher .bs-name { display: none; }
+  .bench-switcher .bs-item { padding: 7px 10px; }
+  .bench-switcher .bs-label { padding: 0 8px; }
+}
+@media (max-width: 640px) {
+  .bench-switcher .bs-label { display: none; }
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Page layout — full width, generous gutters; no sidebar (the lab is read-only).
+   ────────────────────────────────────────────────────────────────────────── */
+.bench {
+  padding: 28px 36px 80px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+@media (max-width: 760px) {
+  .bench { padding: 20px 18px 60px; }
+  .strip { padding: 12px 18px; }
+}
+
+/* Section headers — display serif against the mono datums. Borrowed exactly
+   from the calc so cross-page navigation feels like one app. */
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.005em; }
+h1 { font-size: 38px; margin: 0 0 6px; line-height: 1.05; }
+h1 .sub { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em;
+          text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 10px; }
+h2 { font-size: 22px; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
+.lede { color: var(--muted); font-size: 13px; max-width: 64ch; margin: 4px 0 22px; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+code, kbd, pre {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Run selector — borrows the calc's underline-only input language.
+   Two fields side by side, mono labels in caps with letter-spacing.
+   ────────────────────────────────────────────────────────────────────────── */
+.run-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 28px;
+  align-items: end;
+  margin: 18px 0 24px;
+  padding: 16px 18px 14px;
+  background: var(--bg-deep);
+  border: 1px solid var(--rule);
+}
+.run-bar .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.run-bar .field label {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+}
+.run-bar select {
+  font-family: var(--font-mono); font-size: 13px;
+  color: var(--text); background: transparent;
+  border: 0; border-bottom: 1px solid var(--border);
+  padding: 6px 22px 6px 0; appearance: none; outline: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%238b949e' stroke-width='1.4'/></svg>");
+  background-repeat: no-repeat; background-position: right 2px center;
+  transition: border-color 120ms;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+}
+.run-bar select:focus, .run-bar select:hover { border-bottom-color: var(--accent); }
+.run-bar .stat {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--dim);
+  padding-bottom: 8px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Summary row — single mono line with key=value chunks separated by hairlines.
+   ────────────────────────────────────────────────────────────────────────── */
+.summary {
+  display: flex; flex-wrap: wrap; align-items: stretch;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text);
+}
+.summary .cell {
+  padding: 12px 16px;
+  border-right: 1px solid var(--rule);
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 0;
+}
+.summary .cell:last-child { border-right: 0; }
+.summary .k {
+  font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.summary .v { color: var(--text); }
+.summary.compare .cell { background: linear-gradient(to bottom, rgba(210,153,34,0.05), transparent 80%); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Prediction strip — calc colors as chips. b_crit blue, b_kv green,
+   ratio colored by goodness. Looks like a small bench instrument.
+   ────────────────────────────────────────────────────────────────────────── */
+.prediction-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 22px; padding: 10px 14px;
+  border: 1px solid var(--rule);
+  background:
+    linear-gradient(to right, rgba(88,166,255,0.04), transparent 40%),
+    var(--bg-deep);
+}
+.prediction-strip .ps-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--muted);
+  padding-right: 10px; margin-right: 4px;
+  border-right: 1px solid var(--rule);
+  display: flex; align-items: center; gap: 8px;
+}
+.prediction-strip .ps-label::before {
+  content: "▶";
+  color: var(--accent);
+  font-size: 9px;
+}
+
+.metric-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--text);
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.metric-chip .k {
+  font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted);
+}
+.metric-chip.bc      { border-color: var(--b-crit); }
+.metric-chip.bc .k   { color: var(--b-crit); }
+.metric-chip.bs      { border-color: var(--b-slo); }
+.metric-chip.bs .k   { color: var(--b-slo); }
+.metric-chip.bk      { border-color: var(--b-kv); }
+.metric-chip.bk .k   { color: var(--b-kv); }
+.metric-chip.ratio.good { border-color: var(--b-kv); }
+.metric-chip.ratio.good .v { color: var(--b-kv); }
+.metric-chip.ratio.warn { border-color: var(--b-slo); }
+.metric-chip.ratio.warn .v { color: var(--b-slo); }
+.metric-chip.ratio.bad  { border-color: var(--danger); }
+.metric-chip.ratio.bad  .v { color: var(--danger); }
+.metric-chip code {
+  font-size: 10.5px; color: var(--dim);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Scope panels — same frame as the calculator. Each chart is a scope.
+   ────────────────────────────────────────────────────────────────────────── */
+.scopes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 14px 0 0;
+}
+@media (max-width: 980px) {
+  .scopes { grid-template-columns: 1fr; }
+}
+
+.scope {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 14px 16px 12px;
+  position: relative;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4);
+  display: flex; flex-direction: column;
+  animation: scope-in 360ms ease-out both;
+}
+/* Stagger the entrance so the dashboard reveals top-down. */
+.scope:nth-child(1) { animation-delay: 40ms; }
+.scope:nth-child(2) { animation-delay: 120ms; }
+.scope:nth-child(3) { animation-delay: 200ms; }
+.scope:nth-child(4) { animation-delay: 280ms; }
+.scope:nth-child(5) { animation-delay: 360ms; }
+@keyframes scope-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.scope.span-2 { grid-column: 1 / -1; }
+
+.scope-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.scope-title { color: var(--text); }
+.scope-channels { display: flex; gap: 14px; flex-wrap: wrap; }
+.scope-channels span { display: inline-flex; align-items: center; gap: 6px; }
+.scope-channels .sw { width: 10px; height: 2px; display: inline-block; }
+.scope-channels .ch-pred .sw { background: var(--accent); }
+.scope-channels .ch-pred       { color: var(--accent); }
+.scope-channels .ch-meas .sw   { background: var(--b-slo); }
+.scope-channels .ch-meas       { color: var(--b-slo); }
+.scope-channels .ch-tps .sw    { background: var(--b-kv); }
+.scope-channels .ch-tps        { color: var(--b-kv); }
+.scope-channels .ch-bar .sw    { background: var(--accent); }
+.scope-channels .ch-bar        { color: var(--accent); }
+
+.scope-canvas-wrap { position: relative; height: 240px; flex: 1; }
+.scope.scope-tall .scope-canvas-wrap { height: 300px; }
+
+.scope-foot {
+  margin-top: 10px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--dim);
+  display: flex; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Command center — runs table. Hairline rows, mono columns, status chips.
+   ────────────────────────────────────────────────────────────────────────── */
+.cli-bench {
+  margin: 0 0 24px; padding: 16px 18px;
+  background: var(--bg-deep);
+  border: 1px solid var(--rule);
+}
+.cli-bench .ps-label { /* mirrors prediction-strip label */
+  display: block; margin: 0 0 10px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--muted);
+}
+.cli-bench .ps-label::before { content: "▶"; color: var(--accent); margin-right: 8px; font-size: 9px; }
+.cli-bench pre {
+  margin: 0; padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  font-size: 12.5px; color: var(--text);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.cli-bench pre .prompt { color: var(--b-kv); user-select: none; }
+.cli-bench .hint {
+  display: block; margin-top: 10px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--dim);
+  letter-spacing: 0.04em;
+}
+
+.runs {
+  border: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+}
+.runs-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.runs-head .count { color: var(--text); }
+table.runs-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px;
+}
+table.runs-table th, table.runs-table td {
+  text-align: left;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+/* The model cell is the only one allowed to wrap — long HF paths are
+   common enough that letting them push the row width is worse. */
+table.runs-table td:nth-child(5),
+table.runs-table th:nth-child(5) { white-space: normal; max-width: 260px; }
+table.runs-table tr:last-child td { border-bottom: 0; }
+table.runs-table th {
+  color: var(--muted); font-weight: 400;
+  font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+}
+table.runs-table tbody tr {
+  transition: background 120ms;
+}
+table.runs-table tbody tr:hover { background: rgba(88, 166, 255, 0.04); }
+table.runs-table td { color: var(--text); }
+table.runs-table td.dim  { color: var(--dim); }
+table.runs-table td code { color: var(--accent); font-size: 11px; }
+table.runs-table td a {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 3px 8px; border-radius: 2px;
+  transition: color 120ms, border-color 120ms;
+}
+table.runs-table td a:hover {
+  color: var(--accent); border-color: var(--accent); text-decoration: none;
+}
+
+/* Status chip — hairline, calc colors. */
+.status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 2px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+}
+.status::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--dim);
+}
+.status-planned         { color: var(--muted); }
+.status-planned::before { background: var(--muted); }
+.status-running         { color: var(--b-slo); border-color: var(--b-slo); }
+.status-running::before { background: var(--b-slo); animation: live-pulse 1.4s ease-in-out infinite; }
+.status-done            { color: var(--b-kv);  border-color: var(--b-kv); }
+.status-done::before    { background: var(--b-kv); }
+.status-failed          { color: var(--danger); border-color: var(--danger); }
+.status-failed::before  { background: var(--danger); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Empty states & diagnostics.
+   ────────────────────────────────────────────────────────────────────────── */
+.empty {
+  font-family: var(--font-mono); font-size: 12px; color: var(--dim);
+  padding: 18px 16px; text-align: center;
+  border: 1px dashed var(--rule); background: var(--bg-deep);
+}
+.empty .hint { display: block; color: var(--muted); margin-top: 6px; font-size: 11.5px; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Footer — same proportions as the calculator.
+   ────────────────────────────────────────────────────────────────────────── */
+.foot {
+  border-top: 1px solid var(--rule);
+  padding: 14px 28px;
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--dim); letter-spacing: 0.1em;
+}
+.foot a { color: var(--muted); text-decoration: none; }
+.foot a:hover { color: var(--accent); }

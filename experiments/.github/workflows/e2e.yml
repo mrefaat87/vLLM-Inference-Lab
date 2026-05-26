@@ -1,0 +1,47 @@
+name: e2e
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "Engine under test"
+        required: true
+        default: "vllm"
+        type: choice
+        options: [vllm, sglang, trtllm]
+      duration_s:
+        description: "Smoke run duration (seconds)"
+        required: true
+        default: "60"
+
+defaults:
+  run:
+    working-directory: experiments
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      RUN_E2E: "1"
+      EXP_ENGINE: ${{ inputs.engine }}
+      EXP_DURATION_S: ${{ inputs.duration_s }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - name: Configure AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_E2E_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Bring up isolated cluster
+        run: ./eks/bringup.sh
+      - name: E2E
+        run: pytest -m e2e -v
+      - name: Always teardown
+        if: always()
+        run: ./eks/teardown.sh --yes

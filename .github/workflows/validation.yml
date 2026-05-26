@@ -1,0 +1,111 @@
+name: validation
+# Cross-repo integration: assert the empirical lab and the sizing calculator
+# stay aligned on join keys, prediction schema, and bridge contracts.
+
+on:
+  pull_request:
+    paths:
+      - "experiments/**"
+      - "calculators/sizing_calc/**"
+      - ".github/workflows/validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "experiments/**"
+      - "calculators/sizing_calc/**"
+
+jobs:
+  cross-repo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      # ----- Calc side -----
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: calculators/sizing_calc/package-lock.json
+      - name: Install calc deps
+        working-directory: calculators/sizing_calc
+        run: npm ci
+
+      - name: Calc unit tests
+        working-directory: calculators/sizing_calc
+        run: npm run test:unit
+
+      - name: Build prediction grid
+        working-directory: calculators/sizing_calc
+        env:
+          SIZING_CALC_VERSION: ${{ github.sha }}
+        run: node scripts/emit_predictions.mjs --out predictions/grid.json
+
+      # ----- Lab side -----
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: experiments/pyproject.toml
+
+      - name: Install lab
+        working-directory: experiments
+        run: pip install -e ".[dev]"
+
+      - name: Lab unit + integration + build tests
+        working-directory: experiments
+        run: pytest -m "unit or integration or build" -q
+
+      # ----- Cross-repo smoke -----
+      - name: Cross-repo smoke (mock run → bridge → calc bundle)
+        working-directory: experiments
+        run: |
+          set -euo pipefail
+          # Single mock run that should populate a prediction via the grid.
+          python -m experiments.cli.exp run \
+            --engine mock --workload chatbot \
+            --rate 8 --duration 3 --warmup 0 \
+            --model-ref llama-3-70b --hw-ref A10G \
+            --preflight advisory \
+            --results-dir _smoke/results
+          python -m experiments.cli.exp build-portal \
+            --results-dir _smoke/results \
+            --out _smoke/_site \
+            --calc-bridge ../calculators/sizing_calc/lab_runs/
+
+      - name: Assert bridge written + prediction baked in
+        working-directory: experiments
+        run: |
+          set -euo pipefail
+          test -f ../calculators/sizing_calc/lab_runs/index.json
+          # Exactly one run, with measured-side analysis populated.
+          python - <<'PY'
+          import json, pathlib
+          idx = json.loads(pathlib.Path("../calculators/sizing_calc/lab_runs/index.json").read_text())
+          assert len(idx["runs"]) == 1, idx
+          rid = idx["runs"][0]["run_id"]
+          blob = json.loads(pathlib.Path(f"../calculators/sizing_calc/lab_runs/runs/{rid}.json").read_text())
+          assert blob["schema_version"].startswith("1.1.")
+          assert blob["prediction"] is not None, "calc bridge should have populated prediction"
+          assert blob["prediction"]["curve"], "predicted curve empty"
+          print(f"OK: bridge has 1 run with predicted curve of {len(blob['prediction']['curve'])} points")
+          PY
+
+      - name: Rebuild calculator HTML and assert validation inlined
+        run: |
+          python tools/build_sizing_calculator_html.py
+          grep -q "loadLabRuns" calculators/sizing_calculator.html
+          # Byte budget gate (250 KB ceiling per plan C8).
+          BYTES=$(wc -c < calculators/sizing_calculator.html)
+          echo "calculator html: ${BYTES} bytes"
+          test "$BYTES" -lt 256000
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-repo-debug
+          path: |
+            experiments/_smoke/
+            calculators/sizing_calc/lab_runs/
+            calculators/sizing_calculator.html

@@ -1,0 +1,40 @@
+name: test
+on:
+  pull_request:
+    paths: ["experiments/**"]
+  push:
+    branches: [main]
+    paths: ["experiments/**"]
+
+defaults:
+  run:
+    working-directory: experiments
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python-version }}", cache: "pip" }
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Unit
+        run: pytest -m unit --cov=experiments --cov-branch --cov-report=xml
+      - name: Contract
+        run: pytest -m contract
+      - name: Integration
+        run: pytest -m integration
+      - name: Build
+        run: pytest -m build
+      - name: Coverage gate
+        run: python -m coverage report --fail-under=85
+      - if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          files: experiments/coverage.xml
+          fail_ci_if_error: false

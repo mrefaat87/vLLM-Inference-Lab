@@ -100,6 +100,68 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Bench switcher — three-position selector linking the sizing calculator
+   to the empirical lab's command center and results explorer. The same
+   component appears on every bench (calc, command, results) so the user
+   always knows where they are and can flip with a single click.
+   ────────────────────────────────────────────────────────────────────────── */
+.bench-switcher {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+}
+.bench-switcher .bs-label {
+  display: flex; align-items: center;
+  padding: 0 12px;
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--dim);
+  border-right: 1px solid var(--rule);
+  background: linear-gradient(to right, rgba(88,166,255,0.04), transparent);
+}
+.bench-switcher .bs-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  border-right: 1px solid var(--rule);
+  position: relative;
+  transition: color 120ms, background 120ms;
+}
+.bench-switcher .bs-item:last-child { border-right: 0; }
+.bench-switcher .bs-num {
+  font-size: 9px; letter-spacing: 0.18em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.bench-switcher .bs-item:hover {
+  color: var(--text);
+  background: rgba(88,166,255,0.04);
+}
+.bench-switcher .bs-item:hover .bs-num { color: var(--muted); }
+.bench-switcher .bs-item.active {
+  color: var(--accent);
+  background:
+    linear-gradient(to bottom, rgba(88,166,255,0.10), rgba(88,166,255,0.02));
+}
+.bench-switcher .bs-item.active .bs-num { color: var(--accent); }
+.bench-switcher .bs-item.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+@media (max-width: 900px) {
+  .bench-switcher .bs-name { display: none; }
+  .bench-switcher .bs-item { padding: 7px 10px; }
+  .bench-switcher .bs-label { padding: 0 8px; }
+}
+@media (max-width: 640px) {
+  .bench-switcher .bs-label { display: none; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Two-column layout. Sticky control panel on the left, readout deck right.
    ────────────────────────────────────────────────────────────────────────── */
 .bench {
@@ -408,6 +470,12 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 }
 .copy-btn:hover { color: var(--text); border-color: var(--muted); }
 .copy-btn.flash { color: var(--b-kv); border-color: var(--b-kv); }
+/* Two adjacent copy buttons — the more specific "EXP RUN" first
+   (recommended for the lab handoff), then the full-snippet fallback. */
+.snippet-btns { display: inline-flex; gap: 6px; }
+#copy-exp-btn { border-color: var(--accent); color: var(--accent); }
+#copy-exp-btn:hover { background: rgba(88,166,255,0.06); color: var(--text); }
+#copy-exp-btn.flash { background: rgba(63,185,80,0.10); color: var(--b-kv); border-color: var(--b-kv); }
 
 /* ──────────────────────────────────────────────────────────────────────────
    Diagnostics log — kernel-log styling. Persistent, never a toast.
@@ -659,6 +727,60 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   .formulas-drawer, .formula-where { background: Canvas; border-color: CanvasText; }
   .formula-cite, .formulas-trigger { color: LinkText; border-color: LinkText; }
 }
+
+/* ---------- lab-runs panel ----------
+ * Shown under "Lab runs" heading. Mirrors the snippet + patchbay
+ * aesthetic: deep-bg row tiles, monospace metric strip, accent-bordered
+ * tags. Each row is one measured experiment whose join keys matched the
+ * current calc inputs.
+ */
+.lab-runs { margin: 22px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.lab-runs .empty {
+  font-family: var(--font-mono); font-size: 12px; color: var(--dim);
+  padding: 12px 14px; border: 1px dashed #21262d; border-radius: 4px;
+  background: var(--bg-deep);
+}
+.lab-summary {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 4px;
+}
+.lab-summary code { color: var(--accent); }
+.lab-row {
+  background: var(--bg-deep);
+  border: 1px solid #21262d;
+  border-radius: 4px;
+  padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color 120ms;
+}
+.lab-row:hover { border-color: var(--muted); }
+.lab-row.missing { color: var(--dim); font-style: italic; }
+.lab-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lab-row-head code {
+  font-family: var(--font-mono); font-size: 11px; color: var(--dim);
+  margin-left: auto;
+}
+.lab-tag {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 7px;
+  border: 1px solid #30363d; border-radius: 3px;
+  color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.lab-row-metrics {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted);
+}
+.lab-row-metrics strong {
+  color: var(--text);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lab-div { padding-left: 12px; border-left: 1px solid #21262d; }
+.lab-div-good strong { color: #3fb950; }
+.lab-div-warn strong { color: #d29922; }
+.lab-div-bad  strong { color: #f85149; }
+.lab-div-neutral strong { color: var(--dim); }
 </style>
 </head>
 <body>
@@ -667,13 +789,25 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   <div class="strip-left">
     <span class="brand">SIZING CALCULATOR</span>
     <span class="sep"></span>
-    <span>vLLM · Inference · Roofline analysis</span>
+    <span>vLLM · Roofline</span>
   </div>
+  <nav class="bench-switcher" aria-label="bench selector">
+    <span class="bs-label">BENCH</span>
+    <a href="sizing_calculator.html" class="bs-item active">
+      <span class="bs-num">01</span><span class="bs-name">SIZING CALC</span>
+    </a>
+    <a href="../experiments/_site/command_center.html" class="bs-item">
+      <span class="bs-num">02</span><span class="bs-name">COMMAND</span>
+    </a>
+    <a href="../experiments/_site/results_explorer.html" class="bs-item">
+      <span class="bs-num">03</span><span class="bs-name">RESULTS</span>
+    </a>
+  </nav>
   <div class="strip-right">
     <button id="formulas-trigger" class="formulas-trigger" type="button"
             aria-controls="formulas-drawer" aria-expanded="false"
             title="Show every formula the calculator uses (shortcut: f)">[ FORMULAS ]</button>
-    <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ MODEL SIZING REFERENCE</a>
+    <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ REFERENCE</a>
   </div>
 </header>
 
@@ -726,6 +860,35 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
             <div class="field"><label>Attention</label><select id="c-attn"><option>GQA</option><option>MHA</option><option>MQA</option><option>MLA</option></select></div>
           </div>
         </details>
+      </div>
+
+      <div class="field">
+        <label>Workload <span class="unit">preset → ISL/OSL</span></label>
+        <select id="workload-preset" title="Workload presets — ISL/OSL anchored to real production traces (Azure Splitwise, Mooncake/Kimi, MLPerf R1, DistServe). Selecting fills the fields; editing either switches back to Custom.">
+          <option value="custom"           data-isl=""      data-osl=""    >Custom</option>
+          <optgroup label="── Chat & assistants">
+            <option value="chatbot_turn1"  data-isl="500"   data-osl="200" >Chatbot · turn 1 · 500 / 200</option>
+            <option value="chatbot_mid"    data-isl="2000"  data-osl="200" >Chatbot · mid-session · 2 000 / 200</option>
+          </optgroup>
+          <optgroup label="── Retrieval & long doc">
+            <option value="rag"            data-isl="8000"  data-osl="200" >RAG / long-ctx QA · 8 000 / 200</option>
+            <option value="summarize"      data-isl="16000" data-osl="400" >Summarize long doc · 16 000 / 400</option>
+            <option value="extract"        data-isl="6000"  data-osl="400" >Structured extraction · 6 000 / 400</option>
+          </optgroup>
+          <optgroup label="── Coding & agents">
+            <option value="copilot_inline" data-isl="2000"  data-osl="30"  >Code completion (inline FIM) · 2 000 / 30</option>
+            <option value="tool_call"      data-isl="8000"  data-osl="50"  >Agent · tool-call step · 8 000 / 50</option>
+            <option value="agentic_step"   data-isl="20000" data-osl="500" >Agentic coding · step · 20 000 / 500</option>
+            <option value="agentic_edit"   data-isl="40000" data-osl="1500">Agentic coding · code edit · 40 000 / 1 500</option>
+          </optgroup>
+          <optgroup label="── Reasoning (hidden CoT)">
+            <option value="reason_easy"    data-isl="800"   data-osl="4000" >Reasoning · math/code · 800 / 4 000</option>
+            <option value="reason_hard"    data-isl="1000"  data-osl="16000">Reasoning · hard (AIME) · 1 000 / 16 000</option>
+          </optgroup>
+          <optgroup label="── Embedding / classification">
+            <option value="embedding"      data-isl="512"   data-osl="1"   >Embedding / classify · 512 / 1</option>
+          </optgroup>
+        </select>
       </div>
 
       <div class="field-row">
@@ -882,10 +1045,23 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 
     <div class="snippet">
       <div class="snippet-head">
-        <span>↓ vLLM serve · empirical grid</span>
-        <button class="copy-btn" id="copy-btn" type="button">[ COPY ]</button>
+        <span>↓ vLLM serve · exp run · empirical grid</span>
+        <span class="snippet-btns">
+          <button class="copy-btn" id="copy-exp-btn" type="button"
+                  title="Copy only the `exp run …` lines so you can paste straight into the lab terminal">[ COPY EXP RUN ]</button>
+          <button class="copy-btn" id="copy-btn" type="button"
+                  title="Copy the full snippet (serve args + exp run + sweep grid)">[ COPY ALL ]</button>
+        </span>
       </div>
       <pre id="snippet-body">—</pre>
+    </div>
+
+    <h2>Lab runs</h2>
+    <p class="lede">Empirical measurements from the inference lab. Filtered to the
+      selected hardware × model; the calc's predicted curves stay where they are
+      and these scatter on top.</p>
+    <div class="lab-runs" id="lab-runs">
+      <div class="empty">[lab] · waiting for first calc render…</div>
     </div>
 
     <h2>Diagnostics</h2>
@@ -3111,6 +3287,169 @@ function mountFormulasDrawer() {
   });
 }
 
+// ===== validation.mjs =====
+// Validation overlay: loads measured runs from the lab's bridge dir and
+// projects them onto the calculator's scope panels.
+//
+// Why a separate module: calc.mjs and the existing UI must stay
+// independent of any lab-side artifacts (the calculator must work on a
+// clone-of-just-the-calc). validation.mjs is opt-in — bootstrap() in
+// ui.mjs calls into it only after the main form is wired, and it
+// degrades gracefully (empty state) when no bridge dir is present.
+
+// The bundled calculator HTML lives at `calculators/sizing_calculator.html`;
+// the bridge dir lives at `calculators/sizing_calc/lab_runs/`. Relative to
+// the HTML, that's `./sizing_calc/lab_runs/`. The DEV_BRIDGE_URL is used
+// only by tests that run validation.mjs from within `calculators/sizing_calc/`
+// directly (where `./lab_runs/` is correct).
+const DEFAULT_BRIDGE_URL = "./sizing_calc/lab_runs/index.json";
+const DEV_BRIDGE_URL = "./lab_runs/index.json";
+
+/**
+ * Fetch the lab bridge index and per-run blobs.
+ *
+ * Returns:
+ *   {
+ *     index:   [ { run_id, model_ref, hw_ref, result_href, ... } ],
+ *     runs:    Map<run_id, full result JSON>,
+ *     unavailable: false | "reason string"
+ *   }
+ *
+ * Never throws. Network failures and bad JSON resolve to
+ * `unavailable: "<reason>"` so the caller can render an empty-state
+ * card without try/catch boilerplate.
+ */
+export async function loadLabRuns({
+  bridgeUrl = DEFAULT_BRIDGE_URL,
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  let index = [];
+  try {
+    const resp = await fetchImpl(bridgeUrl);
+    if (!resp.ok) {
+      return { index: [], runs: new Map(), unavailable: `${bridgeUrl} returned ${resp.status}` };
+    }
+    const blob = await resp.json();
+    index = Array.isArray(blob.runs) ? blob.runs : [];
+  } catch (e) {
+    return { index: [], runs: new Map(), unavailable: `bridge fetch failed: ${e.message}` };
+  }
+  // Lazy: don't pre-fetch every per-run blob. Caller asks via fetchRun().
+  return { index, runs: new Map(), unavailable: false };
+}
+
+/**
+ * Filter the bridge index to runs whose join keys match the currently
+ * selected (model.key, hw.key).
+ *
+ * Defensive: missing fields don't match anything. The filter is *strict
+ * string equality* so any case/spacing drift between the calc's
+ * models.json and the lab's --model-ref defaults surfaces here, not as
+ * a silent empty overlay.
+ */
+function filterRuns(index, modelKey, hwKey) {
+  if (!Array.isArray(index)) return [];
+  return index.filter(
+    (r) => r && r.model_ref === modelKey && r.hw_ref === hwKey,
+  );
+}
+
+/**
+ * Project a fully-loaded run JSON into points consumable by the three
+ * scope panels.
+ *
+ * Returns:
+ *   {
+ *     batchProxy: number,    // Little's Law: rps × ttft + 1
+ *     ttftMs: number | null,
+ *     tps: number | null,
+ *     costPerMtok: number | null,
+ *     divergenceRatio: number | null,  // measured tps / predicted tps at nearest curve point
+ *   }
+ *
+ * The batch axis is a *proxy* — engines don't expose batch directly.
+ * Documented prominently in the panel header so users don't read
+ * Little's Law as ground truth.
+ */
+function projectRun(run) {
+  const a = run?.analysis || {};
+  const ttft = a.ttft_s?.p50 ?? null;
+  const rps = a.throughput?.requests_per_sec_avg ?? null;
+  const tps = a.throughput?.tok_per_sec_avg ?? null;
+  const batchProxy = (rps != null && ttft != null) ? Math.max(1, rps * ttft + 1) : null;
+
+  const ttftMs = ttft != null ? ttft * 1000 : null;
+  // Cost is recoverable from run's hardware row + tps; we lean on the
+  // sister calc's cost formula at view time rather than baking $/Mtok
+  // into the bridge summary.
+  const costPerMtok = null;
+
+  let divergenceRatio = null;
+  const curve = run?.prediction?.curve;
+  if (batchProxy != null && tps != null && Array.isArray(curve) && curve.length > 0) {
+    const nearest = curve.reduce(
+      (best, p) => (Math.abs(p.batch - batchProxy) < Math.abs(best.batch - batchProxy) ? p : best),
+      curve[0],
+    );
+    if (nearest.tps > 0) divergenceRatio = tps / nearest.tps;
+  }
+  return { batchProxy, ttftMs, tps, costPerMtok, divergenceRatio };
+}
+
+/**
+ * Lazily fetch a per-run blob by href (relative to the bridge dir).
+ * Caches in the `runs` Map so the same run isn't re-fetched.
+ */
+export async function fetchRun({
+  bridgeBase = "./lab_runs",
+  href,
+  cache,
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  if (!href) return null;
+  if (cache && cache.has(href)) return cache.get(href);
+  let blob = null;
+  try {
+    const resp = await fetchImpl(`${bridgeBase}/${href}`);
+    if (!resp.ok) return null;
+    blob = await resp.json();
+  } catch {
+    return null;
+  }
+  if (cache) cache.set(href, blob);
+  return blob;
+}
+
+/**
+ * Render an empty-state card into a panel element. Called when no
+ * matching runs are found OR when the bridge dir is unreachable.
+ *
+ * `availableCombos`: optional [{model_ref, hw_ref}, …] so the user knows
+ * what's actually been measured. Helps when the missing-match is because
+ * the user picked a model that hasn't been benchmarked yet.
+ */
+function emptyStateMessage({ unavailable, availableCombos = [] } = {}) {
+  if (unavailable) {
+    return (
+      `No lab runs available (${unavailable}). ` +
+      `Build the lab portal with: ` +
+      `<code>exp build-portal --calc-bridge calculators/sizing_calc/lab_runs/</code>`
+    );
+  }
+  if (availableCombos.length === 0) {
+    return "Bridge is present but contains no runs.";
+  }
+  const lines = availableCombos
+    .slice(0, 8)
+    .map((c) => `<code>${c.model_ref} × ${c.hw_ref}</code>`)
+    .join(", ");
+  return (
+    `No runs match the current selection. ` +
+    `Available combinations: ${lines}` +
+    (availableCombos.length > 8 ? ` (+${availableCombos.length - 8} more)` : "")
+  );
+}
+
 // ===== ui.mjs =====
 // DOM wiring layer. Reads the embedded data tables, builds the form,
 // dispatches recompute on every input change, and renders results into the
@@ -3121,6 +3460,20 @@ function mountFormulasDrawer() {
 
 
 
+
+// Lab-runs state: fetched once on first recompute, cached for the session.
+// `_promise` so concurrent recomputes don't refetch.
+const labRunsState = {
+  _promise: null,
+  _runCache: new Map(),
+  async get() {
+    if (!this._promise) this._promise = loadLabRuns({ bridgeUrl: DEFAULT_BRIDGE_URL });
+    return this._promise;
+  },
+  fetchRun(href) {
+    return fetchRun({ bridgeBase: "./sizing_calc/lab_runs", href, cache: this._runCache });
+  },
+};
 
 // ---------- data tables ----------
 // Embedded as <script type="application/json"> by the build script; the build
@@ -3264,6 +3617,13 @@ function recompute(skipPulse = false) {
   paintSweep(out, input);
   paintDiagnostics(out);
   paintSnippet(out, input);
+  // Lab runs: fire-and-forget against the bridge. Failures show an
+  // empty-state card; they never block the calc render.
+  paintLabRuns(input, out).catch((e) => {
+    // Last-resort safety net — paintLabRuns already swallows non-throwing
+    // failures, so this only fires on a genuine bug worth logging.
+    console.warn("paintLabRuns failed", e);
+  });
   if (!skipPulse) pulseTiles();
 }
 
@@ -3371,6 +3731,69 @@ function paintChart(out) {
   }
 }
 
+async function paintLabRuns(input, _calcOut) {
+  const el = document.getElementById("lab-runs");
+  if (!el) return;
+  const hwKey = input.hw?.key;
+  const modelKey = input.model?.key;
+  if (!hwKey || !modelKey) {
+    el.innerHTML = `<div class="empty">[lab] · custom hw/model — empirical runs join on stable keys only.</div>`;
+    return;
+  }
+
+  const { index, unavailable } = await labRunsState.get();
+  if (unavailable) {
+    el.innerHTML = `<div class="empty">[lab] · ${escapeHtml(emptyStateMessage({ unavailable }))}</div>`;
+    return;
+  }
+  const matches = filterRuns(index, modelKey, hwKey);
+  if (matches.length === 0) {
+    const combos = [...new Map(
+      index.map((r) => [`${r.model_ref}|${r.hw_ref}`, { model_ref: r.model_ref, hw_ref: r.hw_ref }])
+    ).values()];
+    el.innerHTML =
+      `<div class="empty">[lab] · ${emptyStateMessage({ unavailable: false, availableCombos: combos })}</div>`;
+    return;
+  }
+
+  // Fetch each matching run lazily, then render a compact list.
+  const fulls = await Promise.all(matches.map((m) => labRunsState.fetchRun(m.result_href)));
+  const rows = matches.map((m, i) => {
+    const run = fulls[i];
+    if (!run) {
+      return `<div class="lab-row missing">${escapeHtml(m.run_id)} · <span class="lab-tag">[404]</span></div>`;
+    }
+    const proj = projectRun(run);
+    const div = proj.divergenceRatio;
+    const divLabel = div != null ? `${div.toFixed(2)}×` : "—";
+    const divClass = div == null ? "neutral"
+      : (div < 0.5 || div > 2.0) ? "bad"
+      : (div < 0.8 || div > 1.25) ? "warn"
+      : "good";
+    const tps = proj.tps != null ? proj.tps.toFixed(0) : "—";
+    const ttft = proj.ttftMs != null ? proj.ttftMs.toFixed(1) : "—";
+    const batch = proj.batchProxy != null ? proj.batchProxy.toFixed(1) : "—";
+    return `
+      <div class="lab-row">
+        <div class="lab-row-head">
+          <span class="lab-tag">${escapeHtml(run.engine?.name || "?")}</span>
+          <span class="lab-tag">${escapeHtml(run.workload?.name || "?")}</span>
+          <code>${escapeHtml(m.run_id)}</code>
+        </div>
+        <div class="lab-row-metrics">
+          <span>batch≈<strong>${batch}</strong></span>
+          <span>TTFT p50 <strong>${ttft} ms</strong></span>
+          <span>TPS <strong>${tps}</strong> tok/s</span>
+          <span class="lab-div lab-div-${divClass}">measured/predicted = <strong>${divLabel}</strong></span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const summary = `<div class="lab-summary">[lab] · ${matches.length} run(s) for <code>${escapeHtml(modelKey)}</code> × <code>${escapeHtml(hwKey)}</code></div>`;
+  el.innerHTML = summary + rows;
+}
+
 function paintSweep(out, input) {
   const tracks = [
     { label: "MAX_NUM_SEQS",        values: out.sweep.max_num_seqs,             rec: out.metrics.max_num_seqs },
@@ -3412,26 +3835,145 @@ function paintDiagnostics(out) {
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+// ──────────────────────────────────────────────────────────────────────────
+// Calc → lab mapping tables.
+//
+// The calc thinks in (model.key, weight_prec, hw.key, ngpus). The lab's
+// `exp run` CLI takes those plus a few engine-specific strings:
+//   --model       full HF repo id (depends on the quantization variant)
+//   --quant       lab's --quant token (none/awq/fp8/int8)
+//   --tp          tensor-parallel size
+//   --instance    AWS instance family.size string (metadata; informational)
+//   --gpu        GPU SKU string (metadata)
+//   --n-gpu       integer count
+//
+// These tables centralize the mapping so the snippet emits a runnable
+// command, not a half-fledged template.
+// ──────────────────────────────────────────────────────────────────────────
+
+// (model.key, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live
+// at separate HF paths because quantized weights are produced offline; the
+// engine can't downcast on the fly. Falls back to the unquantized path
+// when no special variant is published.
+const HF_PATHS = {
+  "llama-3-8b": {
+    BF16: "meta-llama/Meta-Llama-3-8B-Instruct",
+    FP16: "meta-llama/Meta-Llama-3-8B-Instruct",
+    INT4: "casperhansen/llama-3-8b-instruct-awq",
+    FP8:  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8",
+  },
+  "llama-3-70b": {
+    BF16: "meta-llama/Meta-Llama-3-70B-Instruct",
+    FP16: "meta-llama/Meta-Llama-3-70B-Instruct",
+    INT4: "casperhansen/llama-3-70b-instruct-awq",
+    FP8:  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8",
+  },
+  "qwen2.5-7b":  { BF16: "Qwen/Qwen2.5-7B-Instruct",  INT4: "Qwen/Qwen2.5-7B-Instruct-AWQ" },
+  "qwen2.5-14b": { BF16: "Qwen/Qwen2.5-14B-Instruct", INT4: "Qwen/Qwen2.5-14B-Instruct-AWQ" },
+  "mistral-7b":  { BF16: "mistralai/Mistral-7B-Instruct-v0.3" },
+  "deepseek-v3": { BF16: "deepseek-ai/DeepSeek-V3", FP8: "deepseek-ai/DeepSeek-V3" },
+};
+function modelHfPath(modelKey, weightPrec) {
+  const table = HF_PATHS[modelKey];
+  if (!table) return `<HF-REPO-FOR-${modelKey}>`;
+  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${modelKey}>`;
+}
+
+// weight_prec → lab --quant token. INT4 defaults to awq because that's the
+// most widely shipped int4 path; users running gptq can override on the CLI.
+const QUANT_FROM_PREC = { FP16: "none", BF16: "none", FP8: "fp8", INT8: "int8", INT4: "awq" };
+function quantArg(weightPrec) { return QUANT_FROM_PREC[weightPrec] || "none"; }
+
+// hw.key → AWS instance family. P-family ships only full 8-GPU nodes;
+// G-family ships smaller SKUs that scale 1/4/8 GPUs. Sizes verified
+// against the AWS EC2 console (Apr 2025): p4*.24xlarge, p5*.48xlarge.
+const INSTANCE_FAMILY = {
+  T4: "g4dn", L4: "g6", A10G: "g5",
+  "A100-40GB": "p4d", "A100-80GB": "p4de",
+  "H100-80GB": "p5",  "H200": "p5en",
+};
+// Per-family size suffix for an 8-GPU full node.
+const FULL_NODE_SUFFIX = {
+  p4d: "24xlarge", p4de: "24xlarge",
+  p5:  "48xlarge", p5en: "48xlarge",
+};
+function awsInstance(hwKey, ngpus) {
+  const fam = INSTANCE_FAMILY[hwKey];
+  if (!fam) return `<INSTANCE-${hwKey}>`;
+  if (fam === "g4dn" || fam === "g5" || fam === "g6") {
+    // G-family scales: 1 GPU = .xlarge, 4 = .12xlarge, 8 = .24xlarge.
+    if (ngpus === 1) return `${fam}.xlarge`;
+    if (ngpus === 4) return `${fam}.12xlarge`;
+    if (ngpus === 8) return `${fam}.24xlarge`;
+    return `${fam}.${ngpus}gpu`;          // odd count → placeholder
+  }
+  // P-family: only the full 8-GPU SKU exists. If the user picked fewer
+  // GPUs the instance type is still the full node; -gpu just tells the
+  // engine how many to bind. Emit with a TODO comment so the user knows
+  // they're paying for the whole box.
+  const suffix = FULL_NODE_SUFFIX[fam] || "48xlarge";
+  return `${fam}.${suffix}`;
+}
+
 function paintSnippet(out, input) {
   const m = out.metrics;
+  // Map the calc's workload-preset value to the lab's --workload name.
+  // Most names line up 1:1; the calc's split presets (chatbot_turn1 /
+  // chatbot_mid, agentic_step / agentic_edit) collapse onto the lab's
+  // single generator. "custom" means no preset is selected.
+  const presetEl = document.getElementById("workload-preset");
+  const preset = presetEl ? presetEl.value : "custom";
+  const LAB_WORKLOAD = {
+    chatbot_turn1: "chatbot", chatbot_mid: "chatbot",
+    rag: "rag",
+    summarize: "rag",                 // closest lab analog (long prompt + short answer)
+    extract: "rag",
+    copilot_inline: "chatbot",        // small ctx, short output — chatbot generator fits
+    tool_call: "agentic_coding",
+    agentic_step: "agentic_coding",
+    agentic_edit: "agentic_coding",
+    reason_easy: "chatbot",           // no dedicated reasoning workload yet
+    reason_hard: "chatbot",
+    embedding: null,                  // lab doesn't drive /v1/embeddings
+    custom: null,
+  };
+  const labWorkload = LAB_WORKLOAD[preset] ?? null;
+
   const lines = [
-    `# vLLM serving args (analytical recommendation — verify empirically).`,
-    `# Model:    ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
-    `# ISL/OSL: ${input.isl}/${input.osl}   TBT SLO: ${input.tbt_ms} ms   Precision: w=${input.weight_prec} kv=${input.kv_prec}`,
+    `# vLLM serve args — analytical recommendation; verify empirically below.`,
+    `# Model     : ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
+    `# Precision : w=${input.weight_prec}  kv=${input.kv_prec}  act=${input.act_prec}`,
+    `# Workload  : ISL=${input.isl} tok  OSL=${input.osl} tok  TBT SLO=${input.tbt_ms} ms`,
     ``,
     `vllm serve <model-id> \\`,
     `  --tensor-parallel-size ${m.parallelism.tp} \\`,
     `  --pipeline-parallel-size ${m.parallelism.pp} \\`,
     `  --max-num-seqs ${m.max_num_seqs} \\`,
     `  --max-num-batched-tokens ${m.max_num_batched_tokens} \\`,
-    `  --max-model-len ${input.isl + input.osl} \\`,
+    `  --max-model-len ${input.isl + input.osl}   # = ISL ${input.isl} + OSL ${input.osl} \\`,
     `  --gpu-memory-utilization ${(1 - 0.10).toFixed(2)}`,
     ``,
-    `# Empirical sweep grid:`,
-    `concurrency_list = [${out.sweep.concurrency.join(", ")}]`,
-    `max_num_seqs_grid = [${out.sweep.max_num_seqs.join(", ")}]`,
-    `mnbt_grid = [${out.sweep.max_num_batched_tokens.join(", ")}]`,
-  ];
+    `# ── Drive measured traffic at this shape (companion empirical lab) ──`,
+    labWorkload
+      ? `exp run --engine vllm --workload ${labWorkload} \\`
+      : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
+    // Model + quant + parallelism — derived from the calc inputs so the
+    // empirical run and the predicted curve use the same engine config.
+    labWorkload ? `  --model ${modelHfPath(input.model.key, input.weight_prec)} \\` : null,
+    labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
+    labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
+    labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
+    // Workload knobs.
+    labWorkload ? `  --rate <rps>  --duration 300  --warmup 30 \\` : null,
+    // Join keys — anchor the result back to this exact calc prediction.
+    labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
+    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
+    ``,
+    `# Empirical sweep grid (vary one, hold others at recommended):`,
+    `concurrency_list      = [${out.sweep.concurrency.join(", ")}]`,
+    `max_num_seqs_grid     = [${out.sweep.max_num_seqs.join(", ")}]`,
+    `max_num_batched_tok   = [${out.sweep.max_num_batched_tokens.join(", ")}]`,
+  ].filter((x) => x !== null);
   document.getElementById("snippet-body").textContent = lines.join("\n");
 }
 
@@ -3446,22 +3988,89 @@ function pulseTiles() {
 
 // ---------- wiring ----------
 
-function wireCopyButton() {
-  const btn = document.getElementById("copy-btn");
+// Extract just the `exp run …` block (the contiguous multi-line command,
+// with its trailing line-continuations stripped so the user can paste it
+// directly into a terminal).
+function extractExpRun(snippetText) {
+  const lines = snippetText.split("\n");
+  const start = lines.findIndex((l) => l.startsWith("exp run "));
+  if (start < 0) return null;
+  let end = start;
+  while (end + 1 < lines.length && lines[end].endsWith(" \\")) end++;
+  // Collect, normalize line continuations to single-line, then back into
+  // pretty multi-line so the paste reads well in a terminal.
+  const block = lines.slice(start, end + 1).join("\n");
+  return block;
+}
+
+function wireCopyButton(btnId, getText, restoreLabel) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const originalLabel = btn.textContent;
   btn.addEventListener("click", async () => {
+    const text = getText();
+    if (text == null) {
+      btn.textContent = "[ NO LAB MAPPING ]";
+      setTimeout(() => { btn.textContent = restoreLabel || originalLabel; }, 1200);
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(document.getElementById("snippet-body").textContent);
+      await navigator.clipboard.writeText(text);
       btn.classList.add("flash");
       btn.textContent = "[ COPIED ]";
-      setTimeout(() => { btn.classList.remove("flash"); btn.textContent = "[ COPY ]"; }, 1200);
+      setTimeout(() => {
+        btn.classList.remove("flash");
+        btn.textContent = restoreLabel || originalLabel;
+      }, 1200);
     } catch (e) {
       btn.textContent = "[ COPY FAILED ]";
+      setTimeout(() => { btn.textContent = restoreLabel || originalLabel; }, 1500);
     }
   });
 }
 
+function wireCopyButtons() {
+  const body = () => document.getElementById("snippet-body").textContent;
+  wireCopyButton("copy-btn",     () => body(),                  "[ COPY ALL ]");
+  wireCopyButton("copy-exp-btn", () => extractExpRun(body()),   "[ COPY EXP RUN ]");
+}
+
+// Workload preset → ISL/OSL wiring.
+// When the user picks a preset (anything other than "custom"), copy the
+// `data-isl` / `data-osl` from the chosen <option> onto the ISL/OSL
+// inputs and dispatch input events so the form-level listener
+// recomputes. When the user edits either input manually, snap the
+// preset select back to "custom" so the visible label doesn't lie.
+function wireWorkloadPreset() {
+  const sel = document.getElementById("workload-preset");
+  const isl = document.getElementById("isl");
+  const osl = document.getElementById("osl");
+  if (!sel || !isl || !osl) return;
+  let suppressRevert = false;     // set while WE are writing to the inputs
+  sel.addEventListener("change", () => {
+    const opt = sel.selectedOptions[0];
+    if (!opt) return;
+    const v_isl = opt.dataset.isl;
+    const v_osl = opt.dataset.osl;
+    if (!v_isl || !v_osl) return; // "Custom" — leave values alone
+    suppressRevert = true;
+    isl.value = v_isl;
+    osl.value = v_osl;
+    isl.dispatchEvent(new Event("input", { bubbles: true }));
+    osl.dispatchEvent(new Event("input", { bubbles: true }));
+    suppressRevert = false;
+  });
+  const revertToCustom = () => {
+    if (suppressRevert) return;
+    if (sel.value !== "custom") sel.value = "custom";
+  };
+  isl.addEventListener("input", revertToCustom);
+  osl.addEventListener("input", revertToCustom);
+}
+
 function bootstrap() {
   populatePresets();
+  wireWorkloadPreset();
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
@@ -3475,7 +4084,7 @@ function bootstrap() {
     const priceEl = document.getElementById("price-per-hour");
     if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  wireCopyButton();
+  wireCopyButtons();
   // Side-drawer for "show all formulas" — populated once from the inlined
   // formulas-data tag and kept hidden until the user opens it. Idempotent;
   // no-op if its DOM scaffold isn't present (test harnesses).

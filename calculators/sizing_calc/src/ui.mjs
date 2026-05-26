@@ -7,6 +7,28 @@
 
 import { compute, DTYPE_BYTES } from "./calc.mjs";
 import { createScope } from "./chart.mjs";
+import {
+  DEFAULT_BRIDGE_URL,
+  loadLabRuns,
+  filterRuns,
+  fetchRun,
+  projectRun,
+  emptyStateMessage,
+} from "./validation.mjs";
+
+// Lab-runs state: fetched once on first recompute, cached for the session.
+// `_promise` so concurrent recomputes don't refetch.
+const labRunsState = {
+  _promise: null,
+  _runCache: new Map(),
+  async get() {
+    if (!this._promise) this._promise = loadLabRuns({ bridgeUrl: DEFAULT_BRIDGE_URL });
+    return this._promise;
+  },
+  fetchRun(href) {
+    return fetchRun({ bridgeBase: "./sizing_calc/lab_runs", href, cache: this._runCache });
+  },
+};
 import { mountFormulasDrawer } from "./drawer.mjs";
 
 // ---------- data tables ----------
@@ -151,6 +173,13 @@ function recompute(skipPulse = false) {
   paintSweep(out, input);
   paintDiagnostics(out);
   paintSnippet(out, input);
+  // Lab runs: fire-and-forget against the bridge. Failures show an
+  // empty-state card; they never block the calc render.
+  paintLabRuns(input, out).catch((e) => {
+    // Last-resort safety net — paintLabRuns already swallows non-throwing
+    // failures, so this only fires on a genuine bug worth logging.
+    console.warn("paintLabRuns failed", e);
+  });
   if (!skipPulse) pulseTiles();
 }
 
@@ -258,6 +287,69 @@ function paintChart(out) {
   }
 }
 
+async function paintLabRuns(input, _calcOut) {
+  const el = document.getElementById("lab-runs");
+  if (!el) return;
+  const hwKey = input.hw?.key;
+  const modelKey = input.model?.key;
+  if (!hwKey || !modelKey) {
+    el.innerHTML = `<div class="empty">[lab] · custom hw/model — empirical runs join on stable keys only.</div>`;
+    return;
+  }
+
+  const { index, unavailable } = await labRunsState.get();
+  if (unavailable) {
+    el.innerHTML = `<div class="empty">[lab] · ${escapeHtml(emptyStateMessage({ unavailable }))}</div>`;
+    return;
+  }
+  const matches = filterRuns(index, modelKey, hwKey);
+  if (matches.length === 0) {
+    const combos = [...new Map(
+      index.map((r) => [`${r.model_ref}|${r.hw_ref}`, { model_ref: r.model_ref, hw_ref: r.hw_ref }])
+    ).values()];
+    el.innerHTML =
+      `<div class="empty">[lab] · ${emptyStateMessage({ unavailable: false, availableCombos: combos })}</div>`;
+    return;
+  }
+
+  // Fetch each matching run lazily, then render a compact list.
+  const fulls = await Promise.all(matches.map((m) => labRunsState.fetchRun(m.result_href)));
+  const rows = matches.map((m, i) => {
+    const run = fulls[i];
+    if (!run) {
+      return `<div class="lab-row missing">${escapeHtml(m.run_id)} · <span class="lab-tag">[404]</span></div>`;
+    }
+    const proj = projectRun(run);
+    const div = proj.divergenceRatio;
+    const divLabel = div != null ? `${div.toFixed(2)}×` : "—";
+    const divClass = div == null ? "neutral"
+      : (div < 0.5 || div > 2.0) ? "bad"
+      : (div < 0.8 || div > 1.25) ? "warn"
+      : "good";
+    const tps = proj.tps != null ? proj.tps.toFixed(0) : "—";
+    const ttft = proj.ttftMs != null ? proj.ttftMs.toFixed(1) : "—";
+    const batch = proj.batchProxy != null ? proj.batchProxy.toFixed(1) : "—";
+    return `
+      <div class="lab-row">
+        <div class="lab-row-head">
+          <span class="lab-tag">${escapeHtml(run.engine?.name || "?")}</span>
+          <span class="lab-tag">${escapeHtml(run.workload?.name || "?")}</span>
+          <code>${escapeHtml(m.run_id)}</code>
+        </div>
+        <div class="lab-row-metrics">
+          <span>batch≈<strong>${batch}</strong></span>
+          <span>TTFT p50 <strong>${ttft} ms</strong></span>
+          <span>TPS <strong>${tps}</strong> tok/s</span>
+          <span class="lab-div lab-div-${divClass}">measured/predicted = <strong>${divLabel}</strong></span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const summary = `<div class="lab-summary">[lab] · ${matches.length} run(s) for <code>${escapeHtml(modelKey)}</code> × <code>${escapeHtml(hwKey)}</code></div>`;
+  el.innerHTML = summary + rows;
+}
+
 function paintSweep(out, input) {
   const tracks = [
     { label: "MAX_NUM_SEQS",        values: out.sweep.max_num_seqs,             rec: out.metrics.max_num_seqs },
@@ -299,26 +391,145 @@ function paintDiagnostics(out) {
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+// ──────────────────────────────────────────────────────────────────────────
+// Calc → lab mapping tables.
+//
+// The calc thinks in (model.key, weight_prec, hw.key, ngpus). The lab's
+// `exp run` CLI takes those plus a few engine-specific strings:
+//   --model       full HF repo id (depends on the quantization variant)
+//   --quant       lab's --quant token (none/awq/fp8/int8)
+//   --tp          tensor-parallel size
+//   --instance    AWS instance family.size string (metadata; informational)
+//   --gpu        GPU SKU string (metadata)
+//   --n-gpu       integer count
+//
+// These tables centralize the mapping so the snippet emits a runnable
+// command, not a half-fledged template.
+// ──────────────────────────────────────────────────────────────────────────
+
+// (model.key, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live
+// at separate HF paths because quantized weights are produced offline; the
+// engine can't downcast on the fly. Falls back to the unquantized path
+// when no special variant is published.
+const HF_PATHS = {
+  "llama-3-8b": {
+    BF16: "meta-llama/Meta-Llama-3-8B-Instruct",
+    FP16: "meta-llama/Meta-Llama-3-8B-Instruct",
+    INT4: "casperhansen/llama-3-8b-instruct-awq",
+    FP8:  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8",
+  },
+  "llama-3-70b": {
+    BF16: "meta-llama/Meta-Llama-3-70B-Instruct",
+    FP16: "meta-llama/Meta-Llama-3-70B-Instruct",
+    INT4: "casperhansen/llama-3-70b-instruct-awq",
+    FP8:  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8",
+  },
+  "qwen2.5-7b":  { BF16: "Qwen/Qwen2.5-7B-Instruct",  INT4: "Qwen/Qwen2.5-7B-Instruct-AWQ" },
+  "qwen2.5-14b": { BF16: "Qwen/Qwen2.5-14B-Instruct", INT4: "Qwen/Qwen2.5-14B-Instruct-AWQ" },
+  "mistral-7b":  { BF16: "mistralai/Mistral-7B-Instruct-v0.3" },
+  "deepseek-v3": { BF16: "deepseek-ai/DeepSeek-V3", FP8: "deepseek-ai/DeepSeek-V3" },
+};
+function modelHfPath(modelKey, weightPrec) {
+  const table = HF_PATHS[modelKey];
+  if (!table) return `<HF-REPO-FOR-${modelKey}>`;
+  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${modelKey}>`;
+}
+
+// weight_prec → lab --quant token. INT4 defaults to awq because that's the
+// most widely shipped int4 path; users running gptq can override on the CLI.
+const QUANT_FROM_PREC = { FP16: "none", BF16: "none", FP8: "fp8", INT8: "int8", INT4: "awq" };
+function quantArg(weightPrec) { return QUANT_FROM_PREC[weightPrec] || "none"; }
+
+// hw.key → AWS instance family. P-family ships only full 8-GPU nodes;
+// G-family ships smaller SKUs that scale 1/4/8 GPUs. Sizes verified
+// against the AWS EC2 console (Apr 2025): p4*.24xlarge, p5*.48xlarge.
+const INSTANCE_FAMILY = {
+  T4: "g4dn", L4: "g6", A10G: "g5",
+  "A100-40GB": "p4d", "A100-80GB": "p4de",
+  "H100-80GB": "p5",  "H200": "p5en",
+};
+// Per-family size suffix for an 8-GPU full node.
+const FULL_NODE_SUFFIX = {
+  p4d: "24xlarge", p4de: "24xlarge",
+  p5:  "48xlarge", p5en: "48xlarge",
+};
+function awsInstance(hwKey, ngpus) {
+  const fam = INSTANCE_FAMILY[hwKey];
+  if (!fam) return `<INSTANCE-${hwKey}>`;
+  if (fam === "g4dn" || fam === "g5" || fam === "g6") {
+    // G-family scales: 1 GPU = .xlarge, 4 = .12xlarge, 8 = .24xlarge.
+    if (ngpus === 1) return `${fam}.xlarge`;
+    if (ngpus === 4) return `${fam}.12xlarge`;
+    if (ngpus === 8) return `${fam}.24xlarge`;
+    return `${fam}.${ngpus}gpu`;          // odd count → placeholder
+  }
+  // P-family: only the full 8-GPU SKU exists. If the user picked fewer
+  // GPUs the instance type is still the full node; -gpu just tells the
+  // engine how many to bind. Emit with a TODO comment so the user knows
+  // they're paying for the whole box.
+  const suffix = FULL_NODE_SUFFIX[fam] || "48xlarge";
+  return `${fam}.${suffix}`;
+}
+
 function paintSnippet(out, input) {
   const m = out.metrics;
+  // Map the calc's workload-preset value to the lab's --workload name.
+  // Most names line up 1:1; the calc's split presets (chatbot_turn1 /
+  // chatbot_mid, agentic_step / agentic_edit) collapse onto the lab's
+  // single generator. "custom" means no preset is selected.
+  const presetEl = document.getElementById("workload-preset");
+  const preset = presetEl ? presetEl.value : "custom";
+  const LAB_WORKLOAD = {
+    chatbot_turn1: "chatbot", chatbot_mid: "chatbot",
+    rag: "rag",
+    summarize: "rag",                 // closest lab analog (long prompt + short answer)
+    extract: "rag",
+    copilot_inline: "chatbot",        // small ctx, short output — chatbot generator fits
+    tool_call: "agentic_coding",
+    agentic_step: "agentic_coding",
+    agentic_edit: "agentic_coding",
+    reason_easy: "chatbot",           // no dedicated reasoning workload yet
+    reason_hard: "chatbot",
+    embedding: null,                  // lab doesn't drive /v1/embeddings
+    custom: null,
+  };
+  const labWorkload = LAB_WORKLOAD[preset] ?? null;
+
   const lines = [
-    `# vLLM serving args (analytical recommendation — verify empirically).`,
-    `# Model:    ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
-    `# ISL/OSL: ${input.isl}/${input.osl}   TBT SLO: ${input.tbt_ms} ms   Precision: w=${input.weight_prec} kv=${input.kv_prec}`,
+    `# vLLM serve args — analytical recommendation; verify empirically below.`,
+    `# Model     : ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
+    `# Precision : w=${input.weight_prec}  kv=${input.kv_prec}  act=${input.act_prec}`,
+    `# Workload  : ISL=${input.isl} tok  OSL=${input.osl} tok  TBT SLO=${input.tbt_ms} ms`,
     ``,
     `vllm serve <model-id> \\`,
     `  --tensor-parallel-size ${m.parallelism.tp} \\`,
     `  --pipeline-parallel-size ${m.parallelism.pp} \\`,
     `  --max-num-seqs ${m.max_num_seqs} \\`,
     `  --max-num-batched-tokens ${m.max_num_batched_tokens} \\`,
-    `  --max-model-len ${input.isl + input.osl} \\`,
+    `  --max-model-len ${input.isl + input.osl}   # = ISL ${input.isl} + OSL ${input.osl} \\`,
     `  --gpu-memory-utilization ${(1 - 0.10).toFixed(2)}`,
     ``,
-    `# Empirical sweep grid:`,
-    `concurrency_list = [${out.sweep.concurrency.join(", ")}]`,
-    `max_num_seqs_grid = [${out.sweep.max_num_seqs.join(", ")}]`,
-    `mnbt_grid = [${out.sweep.max_num_batched_tokens.join(", ")}]`,
-  ];
+    `# ── Drive measured traffic at this shape (companion empirical lab) ──`,
+    labWorkload
+      ? `exp run --engine vllm --workload ${labWorkload} \\`
+      : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
+    // Model + quant + parallelism — derived from the calc inputs so the
+    // empirical run and the predicted curve use the same engine config.
+    labWorkload ? `  --model ${modelHfPath(input.model.key, input.weight_prec)} \\` : null,
+    labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
+    labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
+    labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
+    // Workload knobs.
+    labWorkload ? `  --rate <rps>  --duration 300  --warmup 30 \\` : null,
+    // Join keys — anchor the result back to this exact calc prediction.
+    labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
+    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
+    ``,
+    `# Empirical sweep grid (vary one, hold others at recommended):`,
+    `concurrency_list      = [${out.sweep.concurrency.join(", ")}]`,
+    `max_num_seqs_grid     = [${out.sweep.max_num_seqs.join(", ")}]`,
+    `max_num_batched_tok   = [${out.sweep.max_num_batched_tokens.join(", ")}]`,
+  ].filter((x) => x !== null);
   document.getElementById("snippet-body").textContent = lines.join("\n");
 }
 
@@ -333,22 +544,89 @@ function pulseTiles() {
 
 // ---------- wiring ----------
 
-function wireCopyButton() {
-  const btn = document.getElementById("copy-btn");
+// Extract just the `exp run …` block (the contiguous multi-line command,
+// with its trailing line-continuations stripped so the user can paste it
+// directly into a terminal).
+function extractExpRun(snippetText) {
+  const lines = snippetText.split("\n");
+  const start = lines.findIndex((l) => l.startsWith("exp run "));
+  if (start < 0) return null;
+  let end = start;
+  while (end + 1 < lines.length && lines[end].endsWith(" \\")) end++;
+  // Collect, normalize line continuations to single-line, then back into
+  // pretty multi-line so the paste reads well in a terminal.
+  const block = lines.slice(start, end + 1).join("\n");
+  return block;
+}
+
+function wireCopyButton(btnId, getText, restoreLabel) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const originalLabel = btn.textContent;
   btn.addEventListener("click", async () => {
+    const text = getText();
+    if (text == null) {
+      btn.textContent = "[ NO LAB MAPPING ]";
+      setTimeout(() => { btn.textContent = restoreLabel || originalLabel; }, 1200);
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(document.getElementById("snippet-body").textContent);
+      await navigator.clipboard.writeText(text);
       btn.classList.add("flash");
       btn.textContent = "[ COPIED ]";
-      setTimeout(() => { btn.classList.remove("flash"); btn.textContent = "[ COPY ]"; }, 1200);
+      setTimeout(() => {
+        btn.classList.remove("flash");
+        btn.textContent = restoreLabel || originalLabel;
+      }, 1200);
     } catch (e) {
       btn.textContent = "[ COPY FAILED ]";
+      setTimeout(() => { btn.textContent = restoreLabel || originalLabel; }, 1500);
     }
   });
 }
 
+function wireCopyButtons() {
+  const body = () => document.getElementById("snippet-body").textContent;
+  wireCopyButton("copy-btn",     () => body(),                  "[ COPY ALL ]");
+  wireCopyButton("copy-exp-btn", () => extractExpRun(body()),   "[ COPY EXP RUN ]");
+}
+
+// Workload preset → ISL/OSL wiring.
+// When the user picks a preset (anything other than "custom"), copy the
+// `data-isl` / `data-osl` from the chosen <option> onto the ISL/OSL
+// inputs and dispatch input events so the form-level listener
+// recomputes. When the user edits either input manually, snap the
+// preset select back to "custom" so the visible label doesn't lie.
+function wireWorkloadPreset() {
+  const sel = document.getElementById("workload-preset");
+  const isl = document.getElementById("isl");
+  const osl = document.getElementById("osl");
+  if (!sel || !isl || !osl) return;
+  let suppressRevert = false;     // set while WE are writing to the inputs
+  sel.addEventListener("change", () => {
+    const opt = sel.selectedOptions[0];
+    if (!opt) return;
+    const v_isl = opt.dataset.isl;
+    const v_osl = opt.dataset.osl;
+    if (!v_isl || !v_osl) return; // "Custom" — leave values alone
+    suppressRevert = true;
+    isl.value = v_isl;
+    osl.value = v_osl;
+    isl.dispatchEvent(new Event("input", { bubbles: true }));
+    osl.dispatchEvent(new Event("input", { bubbles: true }));
+    suppressRevert = false;
+  });
+  const revertToCustom = () => {
+    if (suppressRevert) return;
+    if (sel.value !== "custom") sel.value = "custom";
+  };
+  isl.addEventListener("input", revertToCustom);
+  osl.addEventListener("input", revertToCustom);
+}
+
 export function bootstrap() {
   populatePresets();
+  wireWorkloadPreset();
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
@@ -362,7 +640,7 @@ export function bootstrap() {
     const priceEl = document.getElementById("price-per-hour");
     if (priceEl) priceEl.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  wireCopyButton();
+  wireCopyButtons();
   // Side-drawer for "show all formulas" — populated once from the inlined
   // formulas-data tag and kept hidden until the user opens it. Idempotent;
   // no-op if its DOM scaffold isn't present (test harnesses).

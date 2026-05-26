@@ -1,0 +1,58 @@
+---
+# One-shot Job that compiles a TensorRT-LLM engine for the requested
+# (model, quantization, tp) tuple and writes the artifacts to the
+# inference-lab-models S3 bucket. Skipped at the driver level if the
+# artifact already exists.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: trtllm-build
+  labels: { app: trtllm-build, project: inference-lab }
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: { app: trtllm-build, project: inference-lab }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { gpu: a10g }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+      containers:
+        - name: build
+          image: "{{BUILDER_IMAGE}}"
+          command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
+          args:
+            - |
+              MODEL="{{MODEL}}"
+              QUANT="{{QUANTIZATION}}"
+              TP="{{TENSOR_PARALLEL}}"
+              MAXLEN="{{MAX_MODEL_LEN}}"
+              ART_PREFIX="engines/${MODEL}/${QUANT}/tp${TP}"
+              if aws s3 ls "s3://inference-lab-models-${AWS_ACCOUNT}/${ART_PREFIX}/rank0.engine" >/dev/null 2>&1; then
+                echo "Engine already built at s3://.../${ART_PREFIX}; skipping."
+                exit 0
+              fi
+              mkdir -p /work && cd /work
+              aws s3 sync "s3://inference-lab-models-${AWS_ACCOUNT}/${MODEL}" hf-model
+              trtllm-build \
+                --checkpoint_dir hf-model \
+                --output_dir engine \
+                --tp_size "${TP}" \
+                --max_input_len "${MAXLEN}" \
+                --max_seq_len $((MAXLEN * 2)) \
+                --gemm_plugin auto
+              aws s3 sync engine "s3://inference-lab-models-${AWS_ACCOUNT}/${ART_PREFIX}"
+          resources:
+            limits:
+              nvidia.com/gpu: "{{TENSOR_PARALLEL}}"
+              memory: 96Gi
+            requests:
+              cpu: "8"
+              memory: 64Gi
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - name: work
+          emptyDir: { sizeLimit: 200Gi }

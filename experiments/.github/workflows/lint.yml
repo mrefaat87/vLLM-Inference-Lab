@@ -1,0 +1,47 @@
+name: lint
+on:
+  pull_request:
+    paths: ["experiments/**"]
+  push:
+    branches: [main]
+    paths: ["experiments/**"]
+
+defaults:
+  run:
+    working-directory: experiments
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: Black
+        run: black --check .
+      - name: Mypy
+        run: mypy --strict experiments tests
+      - uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: experiments
+        continue-on-error: false
+      - uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: experiments
+          config_data: |
+            extends: default
+            rules:
+              line-length: { max: 200 }
+              document-start: disable
+              truthy: { check-keys: false }
+      - name: Terraform fmt
+        uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.7.5" }
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive eks/terraform || echo "no terraform files yet"

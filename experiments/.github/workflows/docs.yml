@@ -1,0 +1,27 @@
+name: docs
+on:
+  pull_request:
+    paths: ["experiments/portal/**", "experiments/results/fixtures/**", "experiments/tools/**"]
+  push:
+    branches: [main]
+    paths: ["experiments/portal/**", "experiments/results/fixtures/**", "experiments/tools/**"]
+
+defaults:
+  run:
+    working-directory: experiments
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - run: pip install -e ".[dev]"
+      - name: Build portal pages
+        run: python -m experiments.portal.build --out _site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portal-preview
+          path: experiments/_site
+          if-no-files-found: error

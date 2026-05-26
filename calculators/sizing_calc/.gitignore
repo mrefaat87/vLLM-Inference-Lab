@@ -3,3 +3,12 @@ test-results/
 playwright-report/
 .pytest_cache/
 _screenshot*
+
+# Generated artifacts — emitted by scripts/emit_predictions.mjs.
+# Schema is checked in; the grid itself is large and machine-built.
+predictions/grid.json
+
+# Runtime bridge data — written by the lab's `exp build-portal --calc-bridge`.
+# index.json and per-run blobs are runtime artifacts; do not commit.
+lab_runs/index.json
+lab_runs/runs/

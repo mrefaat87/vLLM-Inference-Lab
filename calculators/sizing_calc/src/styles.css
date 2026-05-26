@@ -83,6 +83,68 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Bench switcher — three-position selector linking the sizing calculator
+   to the empirical lab's command center and results explorer. The same
+   component appears on every bench (calc, command, results) so the user
+   always knows where they are and can flip with a single click.
+   ────────────────────────────────────────────────────────────────────────── */
+.bench-switcher {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--rule);
+  background: var(--bg-deep);
+  font-family: var(--font-mono);
+}
+.bench-switcher .bs-label {
+  display: flex; align-items: center;
+  padding: 0 12px;
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--dim);
+  border-right: 1px solid var(--rule);
+  background: linear-gradient(to right, rgba(88,166,255,0.04), transparent);
+}
+.bench-switcher .bs-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  border-right: 1px solid var(--rule);
+  position: relative;
+  transition: color 120ms, background 120ms;
+}
+.bench-switcher .bs-item:last-child { border-right: 0; }
+.bench-switcher .bs-num {
+  font-size: 9px; letter-spacing: 0.18em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.bench-switcher .bs-item:hover {
+  color: var(--text);
+  background: rgba(88,166,255,0.04);
+}
+.bench-switcher .bs-item:hover .bs-num { color: var(--muted); }
+.bench-switcher .bs-item.active {
+  color: var(--accent);
+  background:
+    linear-gradient(to bottom, rgba(88,166,255,0.10), rgba(88,166,255,0.02));
+}
+.bench-switcher .bs-item.active .bs-num { color: var(--accent); }
+.bench-switcher .bs-item.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+@media (max-width: 900px) {
+  .bench-switcher .bs-name { display: none; }
+  .bench-switcher .bs-item { padding: 7px 10px; }
+  .bench-switcher .bs-label { padding: 0 8px; }
+}
+@media (max-width: 640px) {
+  .bench-switcher .bs-label { display: none; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Two-column layout. Sticky control panel on the left, readout deck right.
    ────────────────────────────────────────────────────────────────────────── */
 .bench {
@@ -391,6 +453,12 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 }
 .copy-btn:hover { color: var(--text); border-color: var(--muted); }
 .copy-btn.flash { color: var(--b-kv); border-color: var(--b-kv); }
+/* Two adjacent copy buttons — the more specific "EXP RUN" first
+   (recommended for the lab handoff), then the full-snippet fallback. */
+.snippet-btns { display: inline-flex; gap: 6px; }
+#copy-exp-btn { border-color: var(--accent); color: var(--accent); }
+#copy-exp-btn:hover { background: rgba(88,166,255,0.06); color: var(--text); }
+#copy-exp-btn.flash { background: rgba(63,185,80,0.10); color: var(--b-kv); border-color: var(--b-kv); }
 
 /* ──────────────────────────────────────────────────────────────────────────
    Diagnostics log — kernel-log styling. Persistent, never a toast.
@@ -642,3 +710,57 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   .formulas-drawer, .formula-where { background: Canvas; border-color: CanvasText; }
   .formula-cite, .formulas-trigger { color: LinkText; border-color: LinkText; }
 }
+
+/* ---------- lab-runs panel ----------
+ * Shown under "Lab runs" heading. Mirrors the snippet + patchbay
+ * aesthetic: deep-bg row tiles, monospace metric strip, accent-bordered
+ * tags. Each row is one measured experiment whose join keys matched the
+ * current calc inputs.
+ */
+.lab-runs { margin: 22px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.lab-runs .empty {
+  font-family: var(--font-mono); font-size: 12px; color: var(--dim);
+  padding: 12px 14px; border: 1px dashed #21262d; border-radius: 4px;
+  background: var(--bg-deep);
+}
+.lab-summary {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 4px;
+}
+.lab-summary code { color: var(--accent); }
+.lab-row {
+  background: var(--bg-deep);
+  border: 1px solid #21262d;
+  border-radius: 4px;
+  padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color 120ms;
+}
+.lab-row:hover { border-color: var(--muted); }
+.lab-row.missing { color: var(--dim); font-style: italic; }
+.lab-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lab-row-head code {
+  font-family: var(--font-mono); font-size: 11px; color: var(--dim);
+  margin-left: auto;
+}
+.lab-tag {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 7px;
+  border: 1px solid #30363d; border-radius: 3px;
+  color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.lab-row-metrics {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted);
+}
+.lab-row-metrics strong {
+  color: var(--text);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lab-div { padding-left: 12px; border-left: 1px solid #21262d; }
+.lab-div-good strong { color: #3fb950; }
+.lab-div-warn strong { color: #d29922; }
+.lab-div-bad  strong { color: #f85149; }
+.lab-div-neutral strong { color: var(--dim); }

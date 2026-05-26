@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+kubeconfig
+**/kubeconfig
+aws-credentials*
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# Kubernetes
+**/secrets/
+
+# Model weights / large blobs
+*.safetensors
+*.bin
+*.gguf
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# Results - only the fixtures committed
+results/*
+!results/.gitkeep
+!results/fixtures/
+!results/fixtures/**
+
+# Manifests - command center writes here at runtime; commit nothing
+results/manifests/*
+!results/manifests/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Local notes
+.notes/
+SCRATCH.md

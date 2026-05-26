@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trtllm-engine
+  labels: { app: trtllm-engine, project: inference-lab }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: trtllm-engine }
+  template:
+    metadata:
+      labels: { app: trtllm-engine, project: inference-lab }
+    spec:
+      nodeSelector: { gpu: a10g }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Equal, value: "true", effect: NoSchedule }
+      containers:
+        - name: trtllm
+          image: "{{IMAGE}}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - >-
+              trtllm-serve --host 0.0.0.0 --port 8000
+              --tp_size {{TENSOR_PARALLEL}}
+              --max_model_len {{MAX_MODEL_LEN}}
+              --engine_dir /engine
+          ports:
+            - { name: http, containerPort: 8000 }
+          resources:
+            limits:
+              nvidia.com/gpu: "{{TENSOR_PARALLEL}}"
+              memory: 96Gi
+            requests:
+              cpu: "4"
+              memory: 32Gi
+          readinessProbe:
+            httpGet: { path: /v2/health/ready, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /v2/health/live, port: http }
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - { name: engine, mountPath: /engine }
+            - { name: shm,    mountPath: /dev/shm }
+      volumes:
+        - name: engine
+          emptyDir: { sizeLimit: 200Gi }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 16Gi }
+      initContainers:
+        - name: fetch-engine
+          image: amazon/aws-cli:2.17.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              aws s3 sync
+              s3://inference-lab-models-${AWS_ACCOUNT}/engines/{{MODEL}}/{{QUANTIZATION}}/tp{{TENSOR_PARALLEL}}
+              /engine
+          volumeMounts:
+            - { name: engine, mountPath: /engine }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trtllm-engine
+  labels: { app: trtllm-engine, project: inference-lab }
+spec:
+  selector: { app: trtllm-engine }
+  ports:
+    - { name: http, port: 8000, targetPort: http }

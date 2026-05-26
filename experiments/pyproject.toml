@@ -1,0 +1,164 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inference-lab"
+version = "0.1.0"
+description = "Empirical inference experiments across engines and workloads, paired with a roofline-prediction portal."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Mohamed Refaat" }]
+keywords = ["llm", "inference", "vllm", "sglang", "tensorrt-llm", "benchmarking", "roofline"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "aiohttp>=3.9",
+  "pydantic>=2.6",
+  "numpy>=1.26",
+  "click>=8.1",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=4.1",
+  "pytest-randomly>=3.15",
+  "hypothesis>=6.100",
+  "scipy>=1.12",         # KS test for workload distribution checks
+  "fastapi>=0.110",      # stub OpenAI server fixture
+  "uvicorn>=0.29",
+  "httpx>=0.27",
+  "ruff>=0.4",
+  "black>=24.3",
+  "mypy>=1.10",
+  "types-PyYAML",
+  "pre-commit>=3.7",
+  "beautifulsoup4>=4.12",  # HTML build tests
+]
+
+[project.scripts]
+exp = "experiments.cli.exp:main"
+
+[project.urls]
+Repository = "https://github.com/your-org/vLLM_Inference"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["experiments*"]
+exclude = ["tests*", "results*", "eks*", "portal*"]
+
+[tool.setuptools.package-data]
+"experiments" = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "build", "dist", "eks/terraform"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",   # pycodestyle / pyflakes
+  "I",             # isort
+  "B",             # bugbear
+  "UP",            # pyupgrade
+  "SIM",           # simplify
+  "RUF",           # ruff-specific
+  "ASYNC",         # async correctness
+  "S",             # bandit
+  "PTH",           # pathlib
+]
+ignore = [
+  "S101",  # use of assert (fine in tests)
+  "S603",  # subprocess (we shell out to kubectl/aws on purpose)
+  "S607",  # partial executable path (kubectl/aws on PATH)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PTH"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["experiments"]
+
+# ---------------------------------------------------------------------------
+# Black
+# ---------------------------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+disallow_any_unimported = false
+namespace_packages = true
+explicit_package_bases = true
+files = ["experiments", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "uvicorn.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+]
+markers = [
+  "unit: pure-function unit tests (default)",
+  "contract: abstract-contract tests across driver/workload implementations",
+  "integration: multi-component tests with a stub OpenAI server (no cloud)",
+  "build: build-output validation (HTML, terraform plan, CLI --help)",
+  "e2e: end-to-end tests that hit a real cluster (require RUN_E2E=1)",
+]
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:pydantic.*",
+]
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["experiments"]
+branch = true
+omit = ["experiments/cli/*"]  # CLI is exercised via build tests
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@abstractmethod",
+  "pragma: no cover",
+]
+fail_under = 85
+show_missing = true

@@ -20,3 +20,16 @@ apply.tfplan
 
 # Raw AWS API dumps — contain account IDs, role names, temp access key IDs
 *.cloudtrail.json
+
+# Scratch screenshots from interactive playwright sessions. Real
+# documentation screenshots live under docs/ subdirs and are added
+# explicitly when authored.
+/calc*.png
+/lab*.png
+/results_explorer.png
+/sizing_calc*.png
+/snippet*.png
+/strip*.png
+
+# Built portal output — regenerated via `exp build-portal`.
+experiments/_site/

@@ -51,9 +51,19 @@ def bundle_modules() -> str:
     chart = strip_module_syntax((SRC / "chart.mjs").read_text())
     drawer = strip_module_syntax((SRC / "drawer.mjs").read_text())
     ui = strip_module_syntax((SRC / "ui.mjs").read_text())
+    # validation.mjs is optional — present only when the lab integration
+    # has landed in this checkout. Build still produces a working calc
+    # if it's absent.
+    validation_path = SRC / "validation.mjs"
+    validation = (
+        strip_module_syntax(validation_path.read_text())
+        if validation_path.exists()
+        else ""
+    )
     bundle = "\n// ===== calc.mjs =====\n" + calc + \
              "\n// ===== chart.mjs =====\n" + chart + \
              "\n// ===== drawer.mjs =====\n" + drawer + \
+             ("\n// ===== validation.mjs =====\n" + validation if validation else "") + \
              "\n// ===== ui.mjs =====\n" + ui
     return _escape_for_inline_script(bundle)
 
@@ -69,13 +79,25 @@ def body_html() -> str:
   <div class="strip-left">
     <span class="brand">SIZING CALCULATOR</span>
     <span class="sep"></span>
-    <span>vLLM · Inference · Roofline analysis</span>
+    <span>vLLM · Roofline</span>
   </div>
+  <nav class="bench-switcher" aria-label="bench selector">
+    <span class="bs-label">BENCH</span>
+    <a href="sizing_calculator.html" class="bs-item active">
+      <span class="bs-num">01</span><span class="bs-name">SIZING CALC</span>
+    </a>
+    <a href="../experiments/_site/command_center.html" class="bs-item">
+      <span class="bs-num">02</span><span class="bs-name">COMMAND</span>
+    </a>
+    <a href="../experiments/_site/results_explorer.html" class="bs-item">
+      <span class="bs-num">03</span><span class="bs-name">RESULTS</span>
+    </a>
+  </nav>
   <div class="strip-right">
     <button id="formulas-trigger" class="formulas-trigger" type="button"
             aria-controls="formulas-drawer" aria-expanded="false"
             title="Show every formula the calculator uses (shortcut: f)">[ FORMULAS ]</button>
-    <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ MODEL SIZING REFERENCE</a>
+    <a href="../reference/MODEL_SIZING_SCALING_REFERENCE.html">↗ REFERENCE</a>
   </div>
 </header>
 
@@ -128,6 +150,35 @@ def body_html() -> str:
             <div class="field"><label>Attention</label><select id="c-attn"><option>GQA</option><option>MHA</option><option>MQA</option><option>MLA</option></select></div>
           </div>
         </details>
+      </div>
+
+      <div class="field">
+        <label>Workload <span class="unit">preset → ISL/OSL</span></label>
+        <select id="workload-preset" title="Workload presets — ISL/OSL anchored to real production traces (Azure Splitwise, Mooncake/Kimi, MLPerf R1, DistServe). Selecting fills the fields; editing either switches back to Custom.">
+          <option value="custom"           data-isl=""      data-osl=""    >Custom</option>
+          <optgroup label="── Chat & assistants">
+            <option value="chatbot_turn1"  data-isl="500"   data-osl="200" >Chatbot · turn 1 · 500 / 200</option>
+            <option value="chatbot_mid"    data-isl="2000"  data-osl="200" >Chatbot · mid-session · 2 000 / 200</option>
+          </optgroup>
+          <optgroup label="── Retrieval & long doc">
+            <option value="rag"            data-isl="8000"  data-osl="200" >RAG / long-ctx QA · 8 000 / 200</option>
+            <option value="summarize"      data-isl="16000" data-osl="400" >Summarize long doc · 16 000 / 400</option>
+            <option value="extract"        data-isl="6000"  data-osl="400" >Structured extraction · 6 000 / 400</option>
+          </optgroup>
+          <optgroup label="── Coding & agents">
+            <option value="copilot_inline" data-isl="2000"  data-osl="30"  >Code completion (inline FIM) · 2 000 / 30</option>
+            <option value="tool_call"      data-isl="8000"  data-osl="50"  >Agent · tool-call step · 8 000 / 50</option>
+            <option value="agentic_step"   data-isl="20000" data-osl="500" >Agentic coding · step · 20 000 / 500</option>
+            <option value="agentic_edit"   data-isl="40000" data-osl="1500">Agentic coding · code edit · 40 000 / 1 500</option>
+          </optgroup>
+          <optgroup label="── Reasoning (hidden CoT)">
+            <option value="reason_easy"    data-isl="800"   data-osl="4000" >Reasoning · math/code · 800 / 4 000</option>
+            <option value="reason_hard"    data-isl="1000"  data-osl="16000">Reasoning · hard (AIME) · 1 000 / 16 000</option>
+          </optgroup>
+          <optgroup label="── Embedding / classification">
+            <option value="embedding"      data-isl="512"   data-osl="1"   >Embedding / classify · 512 / 1</option>
+          </optgroup>
+        </select>
       </div>
 
       <div class="field-row">
@@ -284,10 +335,23 @@ def body_html() -> str:
 
     <div class="snippet">
       <div class="snippet-head">
-        <span>↓ vLLM serve · empirical grid</span>
-        <button class="copy-btn" id="copy-btn" type="button">[ COPY ]</button>
+        <span>↓ vLLM serve · exp run · empirical grid</span>
+        <span class="snippet-btns">
+          <button class="copy-btn" id="copy-exp-btn" type="button"
+                  title="Copy only the `exp run …` lines so you can paste straight into the lab terminal">[ COPY EXP RUN ]</button>
+          <button class="copy-btn" id="copy-btn" type="button"
+                  title="Copy the full snippet (serve args + exp run + sweep grid)">[ COPY ALL ]</button>
+        </span>
       </div>
       <pre id="snippet-body">—</pre>
+    </div>
+
+    <h2>Lab runs</h2>
+    <p class="lede">Empirical measurements from the inference lab. Filtered to the
+      selected hardware × model; the calc's predicted curves stay where they are
+      and these scatter on top.</p>
+    <div class="lab-runs" id="lab-runs">
+      <div class="empty">[lab] · waiting for first calc render…</div>
     </div>
 
     <h2>Diagnostics</h2>

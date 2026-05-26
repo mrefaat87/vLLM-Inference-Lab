@@ -1,0 +1,64 @@
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: inference-lab-gpu
+spec:
+  template:
+    metadata:
+      labels:
+        gpu: a10g
+        pool: inference-lab-gpu
+    spec:
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["g5"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["12xlarge"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: inference-lab-gpu
+      expireAfter: 24h
+  limits:
+    cpu: "192"  # 4x g5.12xlarge headroom
+    nvidia.com/gpu: "16"
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 60s
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: inference-lab-gpu
+spec:
+  amiFamily: AL2023
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: "inference-lab-karpenter-node"
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-lab"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "inference-lab"
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 200Gi
+        volumeType: gp3
+        deleteOnTermination: true
+  tags:
+    Project: inference-lab

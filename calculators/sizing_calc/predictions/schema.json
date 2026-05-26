@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mrefaat/vllm-inference/calculators/sizing_calc/predictions/schema.json",
+  "title": "Sizing-calc prediction artifacts",
+  "description": "JSON-Schema for predictions/grid.json and the per-run Prediction block inside RunResult JSONs. Consumed by both the calc's npm tests and the lab's pytest tests so the shape can't drift across the two codebases.",
+  "$defs": {
+    "predictionInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_key", "hw_key", "weight_prec", "kv_prec", "act_prec",
+        "isl", "osl", "ngpus", "tbt_ms"
+      ],
+      "properties": {
+        "model_key": { "type": "string", "minLength": 1 },
+        "hw_key":    { "type": "string", "minLength": 1 },
+        "weight_prec": { "type": "string" },
+        "kv_prec":     { "type": "string" },
+        "act_prec":    { "type": "string" },
+        "isl":   { "type": "integer", "minimum": 1 },
+        "osl":   { "type": "integer", "minimum": 1 },
+        "ngpus": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "tbt_ms": { "type": "number", "exclusiveMinimum": 0 },
+        "price_per_hour_usd": { "type": ["number", "null"] }
+      }
+    },
+
+    "curvePoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["batch", "step_ms", "tps"],
+      "properties": {
+        "batch":   { "type": "integer", "minimum": 1 },
+        "step_ms": { "type": "number",  "minimum": 0 },
+        "tps":     { "type": "number",  "minimum": 0 },
+        "cost_per_mtok": { "type": ["number", "null"] }
+      }
+    },
+
+    "warning": {
+      "type": "object",
+      "required": ["level", "msg"],
+      "properties": {
+        "level": { "enum": ["info", "warn", "error"] },
+        "msg":   { "type": "string" }
+      }
+    },
+
+    "prediction": {
+      "type": "object",
+      "description": "Full prediction record — what the lab ultimately stores inside RunResult. `calc_version` and `data_hash` are mandatory here so any leaked-out result file remains self-describing. Grid rows omit them (see gridRow); the lab copies them back at materialization time.",
+      "required": ["calc_version", "data_hash", "inputs", "curve"],
+      "properties": {
+        "calc_version": { "type": "string", "minLength": 1 },
+        "data_hash":    { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "inputs":       { "$ref": "#/$defs/predictionInputs" },
+        "b_crit":       { "type": ["number", "null"], "minimum": 0 },
+        "b_slo":        { "type": ["number", "null"], "minimum": 0 },
+        "b_kv":         { "type": ["number", "null"], "minimum": 0 },
+        "recommended_batch": { "type": ["number", "null"], "minimum": 0 },
+        "y_max":        { "type": ["integer", "null"], "minimum": 0 },
+        "curve":        { "type": "array", "items": { "$ref": "#/$defs/curvePoint" } },
+        "warnings":     { "type": "array", "items": { "$ref": "#/$defs/warning" } },
+        "unavailable_reason": { "type": ["string", "null"] }
+      }
+    },
+
+    "gridRow": {
+      "type": "object",
+      "description": "Compact row shape for predictions/grid.json — omits calc_version and data_hash (those live on the envelope) to keep the file small.",
+      "required": ["inputs", "curve"],
+      "properties": {
+        "inputs":  { "$ref": "#/$defs/predictionInputs" },
+        "b_crit":  { "type": ["number", "null"], "minimum": 0 },
+        "b_slo":   { "type": ["number", "null"], "minimum": 0 },
+        "b_kv":    { "type": ["number", "null"], "minimum": 0 },
+        "recommended_batch": { "type": ["number", "null"], "minimum": 0 },
+        "y_max":   { "type": ["integer", "null"], "minimum": 0 },
+        "curve":   { "type": "array", "items": { "$ref": "#/$defs/curvePoint" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } },
+        "unavailable_reason": { "type": ["string", "null"] }
+      }
+    }
+  },
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["calc_version", "data_hash", "rows"],
+  "properties": {
+    "calc_version": { "type": "string", "minLength": 1 },
+    "data_hash":    { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "rows": {
+      "type": "array",
+      "description": "Each row is a (model, hw, precision-tuple, ngpus, isl, osl, tbt_ms) input plus the compute() output. Materialized to a full Prediction by the lab.",
+      "items": { "$ref": "#/$defs/gridRow" }
+    }
+  }
+}
