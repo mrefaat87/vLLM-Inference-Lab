@@ -186,3 +186,52 @@ test("copy button copies the snippet to clipboard", async ({ page, context }) =>
   expect(clipboard).toContain("vllm serve");
   expect(clipboard).toContain("--tensor-parallel-size");
 });
+
+// [ COPY EXP RUN ] must yield a paste-and-go command:
+// - verb is `exp launch` (the orchestrator that auto-rebuilds + opens the browser)
+// - `--rate` is a positive number, not the `<rps>` placeholder
+// - all join keys land in the command so the lab result re-anchors to this prediction
+test("copy exp button emits a launch command with numeric rate", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(pathToFileURL(HTML).href);
+  await page.waitForFunction(() => window.__sizingChart != null);
+
+  // Pick a preset that maps to a lab workload so the snippet's exp block exists.
+  await page.locator("#workload-preset").selectOption("chatbot_turn1");
+  await page.waitForTimeout(80);
+
+  await page.locator("#copy-exp-btn").click();
+  await expect(page.locator("#copy-exp-btn")).toHaveText("[ COPIED ]");
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+
+  expect(clipboard.startsWith("exp launch ")).toBe(true);
+  expect(clipboard).not.toContain("<rps>");
+  // Rate appears as a number on the --rate line.
+  const rateMatch = clipboard.match(/--rate\s+([0-9.]+)/);
+  expect(rateMatch).not.toBeNull();
+  const rate = parseFloat(rateMatch[1]);
+  expect(rate).toBeGreaterThan(0);
+  expect(Number.isFinite(rate)).toBe(true);
+  // Join keys present so the lab result lines up with this prediction.
+  expect(clipboard).toContain("--model-ref");
+  expect(clipboard).toContain("--hw-ref");
+  expect(clipboard).toContain("--tbt-target-ms");
+});
+
+// The lab supports vllm/sglang/trtllm; the calc must emit the selected
+// engine in the exp launch command (not just vllm).
+test("engine selector flows into the exp launch command", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(pathToFileURL(HTML).href);
+  await page.waitForFunction(() => window.__sizingChart != null);
+  await page.locator("#workload-preset").selectOption("chatbot_turn1");
+  await page.waitForTimeout(80);
+
+  for (const engine of ["vllm", "sglang", "trtllm"]) {
+    await page.locator("#lab-engine").selectOption(engine);
+    await page.waitForTimeout(80);
+    await page.locator("#copy-exp-btn").click();
+    const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboard).toMatch(new RegExp(`exp launch --engine ${engine}\\b`));
+  }
+});

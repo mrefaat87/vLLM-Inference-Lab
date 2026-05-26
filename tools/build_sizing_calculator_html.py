@@ -50,6 +50,7 @@ def bundle_modules() -> str:
     calc = strip_module_syntax((SRC / "calc.mjs").read_text())
     chart = strip_module_syntax((SRC / "chart.mjs").read_text())
     drawer = strip_module_syntax((SRC / "drawer.mjs").read_text())
+    lab_cmd = strip_module_syntax((SRC / "lab_command.mjs").read_text())
     ui = strip_module_syntax((SRC / "ui.mjs").read_text())
     # validation.mjs is optional — present only when the lab integration
     # has landed in this checkout. Build still produces a working calc
@@ -63,6 +64,7 @@ def bundle_modules() -> str:
     bundle = "\n// ===== calc.mjs =====\n" + calc + \
              "\n// ===== chart.mjs =====\n" + chart + \
              "\n// ===== drawer.mjs =====\n" + drawer + \
+             "\n// ===== lab_command.mjs =====\n" + lab_cmd + \
              ("\n// ===== validation.mjs =====\n" + validation if validation else "") + \
              "\n// ===== ui.mjs =====\n" + ui
     return _escape_for_inline_script(bundle)
@@ -184,6 +186,15 @@ def body_html() -> str:
       <div class="field-row">
         <div class="field"><label>ISL <span class="unit">tokens</span></label><input id="isl" type="number" value="1024" min="1"></div>
         <div class="field"><label>OSL <span class="unit">tokens</span></label><input id="osl" type="number" value="256" min="1"></div>
+      </div>
+
+      <div class="field">
+        <label>Lab engine <span class="unit">drives the empirical run</span></label>
+        <select id="lab-engine" title="Which inference engine the lab spins up. Affects the [ COPY EXP RUN ] command only — the analytical model is engine-agnostic.">
+          <option value="vllm">vLLM</option>
+          <option value="sglang">SGLang</option>
+          <option value="trtllm">TensorRT-LLM</option>
+        </select>
       </div>
 
       <div class="field-row">

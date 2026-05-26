@@ -7,6 +7,7 @@
 
 import { compute, DTYPE_BYTES } from "./calc.mjs";
 import { createScope } from "./chart.mjs";
+import { recommendedRate } from "./lab_command.mjs";
 import {
   DEFAULT_BRIDGE_URL,
   loadLabRuns,
@@ -495,6 +496,17 @@ function paintSnippet(out, input) {
   };
   const labWorkload = LAB_WORKLOAD[preset] ?? null;
 
+  // Which lab driver to spin up — vllm / sglang / trtllm. The
+  // analytical model is engine-agnostic (it only knows roofline +
+  // KV math), so this knob only affects the exp launch command.
+  const engineEl = document.getElementById("lab-engine");
+  const labEngine = engineEl ? engineEl.value : "vllm";
+
+  // Recommended arrival rate for the lab. See lab_command.mjs for the
+  // derivation — kept in a sibling module so it stays unit-testable.
+  const recBatch = (m && (m.recommended_batch ?? m.b_crit)) || 1;
+  const rateRps = recommendedRate(recBatch, input.tbt_ms);
+
   const lines = [
     `# vLLM serve args — analytical recommendation; verify empirically below.`,
     `# Model     : ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
@@ -511,7 +523,7 @@ function paintSnippet(out, input) {
     ``,
     `# ── Drive measured traffic at this shape (companion empirical lab) ──`,
     labWorkload
-      ? `exp run --engine vllm --workload ${labWorkload} \\`
+      ? `exp launch --engine ${labEngine} --workload ${labWorkload} \\`
       : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
     // Model + quant + parallelism — derived from the calc inputs so the
     // empirical run and the predicted curve use the same engine config.
@@ -520,7 +532,7 @@ function paintSnippet(out, input) {
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
     // Workload knobs.
-    labWorkload ? `  --rate <rps>  --duration 300  --warmup 30 \\` : null,
+    labWorkload ? `  --rate ${rateRps}  --duration 300  --warmup 30 \\` : null,
     // Join keys — anchor the result back to this exact calc prediction.
     labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
     labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
@@ -549,7 +561,12 @@ function pulseTiles() {
 // directly into a terminal).
 function extractExpRun(snippetText) {
   const lines = snippetText.split("\n");
-  const start = lines.findIndex((l) => l.startsWith("exp run "));
+  // Accept either verb so older snippets (or someone manually editing
+  // back to `exp run`) still work. Match `exp launch ` first since
+  // that's what we now emit by default.
+  const start = lines.findIndex(
+    (l) => l.startsWith("exp launch ") || l.startsWith("exp run "),
+  );
   if (start < 0) return null;
   let end = start;
   while (end + 1 < lines.length && lines[end].endsWith(" \\")) end++;
