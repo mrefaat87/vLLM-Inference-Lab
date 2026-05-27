@@ -1,5 +1,8 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # Matches sibling phase4* stacks. 1.5+ covers the moved/import blocks
+  # this stack uses; 1.6 was aspirational and blocked CI runners that
+  # ship 1.5.7.
+  required_version = ">= 1.5.0"
   required_providers {
     aws        = { source = "hashicorp/aws", version = "~> 5.50" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.30" }
