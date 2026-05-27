@@ -77,6 +77,20 @@ class EngineConfig(_Strict):
     )
     tensor_parallel: int = Field(default=1, ge=1, le=16)
     max_model_len: int = Field(default=8192, ge=128, le=1_000_000)
+    # Karpenter scheduling hints. The K8s driver translates these to
+    # node-affinity selectors so a request for g4dn.xlarge does not get
+    # silently rescheduled onto a g4dn.12xlarge by the NodePool.
+    instance: str | None = Field(
+        default=None,
+        description="AWS EC2 instance type, e.g. g5.12xlarge. Drives Karpenter node affinity.",
+    )
+    gpu: str | None = Field(
+        default=None,
+        description="GPU model name, e.g. A10G. Used for resource sizing and observability.",
+    )
+    n_gpu: int | None = Field(
+        default=None, ge=1, le=16, description="number of GPUs requested on the node",
+    )
     extra_args: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("name")
