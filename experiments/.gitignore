@@ -9,7 +9,10 @@ venv/
 env/
 *.egg-info/
 .eggs/
-build/
+# Anchored to the experiments root so it only matches setuptools' build/
+# artifact dir at this level — without the leading slash it would also
+# eat `tests/build/`, which is a tracked test stage, not a build artifact.
+/build/
 dist/
 .pytest_cache/
 .mypy_cache/
