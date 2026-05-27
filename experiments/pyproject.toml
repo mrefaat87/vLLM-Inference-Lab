@@ -48,6 +48,7 @@ dev = [
   "types-PyYAML",
   "pre-commit>=3.7",
   "beautifulsoup4>=4.12",  # HTML build tests
+  "watchdog>=3.0",         # `exp serve` rebuild-on-change (optional at runtime)
 ]
 
 [project.scripts]

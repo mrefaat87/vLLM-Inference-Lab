@@ -896,6 +896,15 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
         <div class="field"><label>OSL <span class="unit">tokens</span></label><input id="osl" type="number" value="256" min="1"></div>
       </div>
 
+      <div class="field">
+        <label>Lab engine <span class="unit">drives the empirical run</span></label>
+        <select id="lab-engine" title="Which inference engine the lab spins up. Affects the [ COPY EXP RUN ] command only — the analytical model is engine-agnostic.">
+          <option value="vllm">vLLM</option>
+          <option value="sglang">SGLang</option>
+          <option value="trtllm">TensorRT-LLM</option>
+        </select>
+      </div>
+
       <div class="field-row">
         <div class="field"><label>Weight prec</label>
           <select id="weight-prec"><option>FP16</option><option>BF16</option><option>FP8</option><option>INT8</option><option>INT4</option></select></div>
@@ -3287,6 +3296,36 @@ function mountFormulasDrawer() {
   });
 }
 
+// ===== lab_command.mjs =====
+// Pure helpers that build the lab-command snippet bits. Extracted from
+// ui.mjs so they can be unit-tested without a DOM.
+//
+// Single source of truth for the calc↔lab rate convention. The lab's
+// `exp plan` (experiments/cli/exp.py:_build_run_grid) uses the same
+// formula — keep them in sync.
+
+/**
+ * Recommend an arrival RPS via Little's Law: λ ≈ batch / per-request-time.
+ * We proxy per-request-time with the per-token SLO (TBT in ms). The
+ * approximation is rough — a long-output request takes many tokens —
+ * but it lines up with how the lab's `exp plan` advises rates, so the
+ * calc-emitted command and the lab-suggested grid agree on the formula.
+ *
+ * Returned value:
+ *   - floored at 1 rps (a degraded prediction with batch=0 must not
+ *     produce `--rate 0` or `--rate NaN`),
+ *   - rounded to 2 decimals for paste readability.
+ *
+ * @param {number} batch  recommended in-flight batch size
+ * @param {number} tbtMs  target inter-token latency in ms
+ * @returns {number}
+ */
+function recommendedRate(batch, tbtMs) {
+  const tbtSec = Math.max(tbtMs / 1000, 1e-3);
+  const b = Number.isFinite(batch) && batch > 0 ? batch : 1;
+  return Math.max(1, +((b / tbtSec).toFixed(2)));
+}
+
 // ===== validation.mjs =====
 // Validation overlay: loads measured runs from the lab's bridge dir and
 // projects them onto the calculator's scope panels.
@@ -3457,6 +3496,7 @@ function emptyStateMessage({ unavailable, availableCombos = [] } = {}) {
 //
 // All numeric formatting funnels through `fmt()` so display rounding stays
 // consistent across tiles, chart axes, and the copy-paste snippet.
+
 
 
 
@@ -3939,6 +3979,17 @@ function paintSnippet(out, input) {
   };
   const labWorkload = LAB_WORKLOAD[preset] ?? null;
 
+  // Which lab driver to spin up — vllm / sglang / trtllm. The
+  // analytical model is engine-agnostic (it only knows roofline +
+  // KV math), so this knob only affects the exp launch command.
+  const engineEl = document.getElementById("lab-engine");
+  const labEngine = engineEl ? engineEl.value : "vllm";
+
+  // Recommended arrival rate for the lab. See lab_command.mjs for the
+  // derivation — kept in a sibling module so it stays unit-testable.
+  const recBatch = (m && (m.recommended_batch ?? m.b_crit)) || 1;
+  const rateRps = recommendedRate(recBatch, input.tbt_ms);
+
   const lines = [
     `# vLLM serve args — analytical recommendation; verify empirically below.`,
     `# Model     : ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
@@ -3955,7 +4006,7 @@ function paintSnippet(out, input) {
     ``,
     `# ── Drive measured traffic at this shape (companion empirical lab) ──`,
     labWorkload
-      ? `exp run --engine vllm --workload ${labWorkload} \\`
+      ? `exp launch --engine ${labEngine} --workload ${labWorkload} \\`
       : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
     // Model + quant + parallelism — derived from the calc inputs so the
     // empirical run and the predicted curve use the same engine config.
@@ -3964,7 +4015,7 @@ function paintSnippet(out, input) {
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
     // Workload knobs.
-    labWorkload ? `  --rate <rps>  --duration 300  --warmup 30 \\` : null,
+    labWorkload ? `  --rate ${rateRps}  --duration 300  --warmup 30 \\` : null,
     // Join keys — anchor the result back to this exact calc prediction.
     labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
     labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
@@ -3993,7 +4044,12 @@ function pulseTiles() {
 // directly into a terminal).
 function extractExpRun(snippetText) {
   const lines = snippetText.split("\n");
-  const start = lines.findIndex((l) => l.startsWith("exp run "));
+  // Accept either verb so older snippets (or someone manually editing
+  // back to `exp run`) still work. Match `exp launch ` first since
+  // that's what we now emit by default.
+  const start = lines.findIndex(
+    (l) => l.startsWith("exp launch ") || l.startsWith("exp run "),
+  );
   if (start < 0) return null;
   let end = start;
   while (end + 1 < lines.length && lines[end].endsWith(" \\")) end++;

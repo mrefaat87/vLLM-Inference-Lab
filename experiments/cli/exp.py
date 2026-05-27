@@ -11,7 +11,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 import sys
+import threading
+import webbrowser
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import click
@@ -80,44 +85,65 @@ def cli() -> None:
     """Empirical Inference Lab CLI."""
 
 
+def _run_options(f):
+    """Apply the shared --engine / --workload / … option set.
+
+    Used by both `exp run` and `exp launch`. Kept as a stacked-decorator
+    function (not @click.pass_context) so the wrapped functions receive
+    the options as plain keyword args.
+    """
+    for opt in reversed([
+        click.option("--engine", type=click.Choice(list(DRIVERS)), required=True),
+        click.option(
+            "--workload",
+            type=click.Choice(["chatbot", "agentic_coding", "rag", "multi_turn", "mix"]),
+            required=True,
+        ),
+        click.option("--rate", type=float, default=8.0, help="target arrival RPS"),
+        click.option("--duration", type=float, default=300.0, help="run duration (s)"),
+        click.option("--warmup", type=float, default=10.0),
+        click.option("--seed", type=int, default=1),
+        click.option("--model", default="meta-llama/Llama-3-70B-Instruct-AWQ"),
+        click.option("--quant", default="awq"),
+        click.option("--tp", type=int, default=4),
+        click.option("--instance", default="g5.12xlarge"),
+        click.option("--gpu", default="A10G"),
+        click.option("--n-gpu", type=int, default=4),
+        click.option(
+            "--model-ref",
+            default="llama-3-70b",
+            help="join key into calculators/sizing_calc/src/data/models.json (the model's `key` field)",
+        ),
+        click.option(
+            "--hw-ref",
+            default="A10G",
+            help="join key into calculators/sizing_calc/src/data/hardware.json (the hardware's `key` field)",
+        ),
+        click.option("--tbt-target-ms", type=float, default=50.0,
+                     help="target inter-token latency (used by the calc bridge for predicted curves)"),
+        click.option(
+            "--preflight",
+            type=click.Choice(["off", "advisory", "strict"]),
+            default="advisory",
+            help="consult the sizing calculator before launching: advisory (default) prints warnings, strict exits non-zero",
+        ),
+        click.option("--results-dir", type=click.Path(path_type=Path), default=Path("results")),
+        click.option("--notes", default=None),
+    ]):
+        f = opt(f)
+    return f
+
+
 @cli.command("run")
-@click.option("--engine", type=click.Choice(list(DRIVERS)), required=True)
-@click.option(
-    "--workload",
-    type=click.Choice(["chatbot", "agentic_coding", "rag", "multi_turn", "mix"]),
-    required=True,
-)
-@click.option("--rate", type=float, default=8.0, help="target arrival RPS")
-@click.option("--duration", type=float, default=300.0, help="run duration (s)")
-@click.option("--warmup", type=float, default=10.0)
-@click.option("--seed", type=int, default=1)
-@click.option("--model", default="meta-llama/Llama-3-70B-Instruct-AWQ")
-@click.option("--quant", default="awq")
-@click.option("--tp", type=int, default=4)
-@click.option("--instance", default="g5.12xlarge")
-@click.option("--gpu", default="A10G")
-@click.option("--n-gpu", type=int, default=4)
-@click.option(
-    "--model-ref",
-    default="llama-3-70b",
-    help="join key into calculators/sizing_calc/src/data/models.json (the model's `key` field)",
-)
-@click.option(
-    "--hw-ref",
-    default="A10G",
-    help="join key into calculators/sizing_calc/src/data/hardware.json (the hardware's `key` field)",
-)
-@click.option("--tbt-target-ms", type=float, default=50.0,
-              help="target inter-token latency (used by the calc bridge for predicted curves)")
-@click.option(
-    "--preflight",
-    type=click.Choice(["off", "advisory", "strict"]),
-    default="advisory",
-    help="consult the sizing calculator before launching: advisory (default) prints warnings, strict exits non-zero",
-)
-@click.option("--results-dir", type=click.Path(path_type=Path), default=Path("results"))
-@click.option("--notes", default=None)
-def run_cmd(
+@_run_options
+def run_cmd(**kwargs) -> None:
+    """Run one (engine, workload, rate) experiment."""
+    path = _do_run(**kwargs)
+    click.echo(f"wrote {path}")
+
+
+def _do_run(
+    *,
     engine: str,
     workload: str,
     rate: float,
@@ -136,8 +162,10 @@ def run_cmd(
     preflight: str,
     results_dir: Path,
     notes: str | None,
-) -> None:
-    """Run one (engine, workload, rate) experiment."""
+) -> Path:
+    """Body of `exp run`, returning the result-JSON path so other
+    subcommands (e.g. `exp launch`) can chain off it.
+    """
     driver_cls = DRIVERS[engine]
     driver = driver_cls()
     engine_cfg = EngineConfig(
@@ -180,8 +208,7 @@ def run_cmd(
             tbt_target_ms=tbt_target_ms,
         )
 
-    path = asyncio.run(_go())
-    click.echo(f"wrote {path}")
+    return asyncio.run(_go())
 
 
 def _do_preflight(
@@ -259,10 +286,207 @@ def list_cmd(results_dir: Path) -> None:
 )
 def build_portal_cmd(results_dir: Path, out: Path, calc_bridge: Path | None) -> None:
     """Build the static portal pages."""
+    _do_build_portal(results_dir=results_dir, out=out, calc_bridge=calc_bridge)
+
+
+def _do_build_portal(*, results_dir: Path, out: Path, calc_bridge: Path | None) -> None:
     build_portal(BuildInputs(results_dir=results_dir, out_dir=out, calc_bridge=calc_bridge))
     click.echo(f"built {out}")
     if calc_bridge:
         click.echo(f"calc bridge → {calc_bridge}")
+
+
+def _default_calc_bridge(results_dir: Path) -> Path:
+    """Resolve the default ``--calc-bridge`` path: a sibling
+    ``calculators/sizing_calc/lab_runs`` directory of the experiments
+    package. This matches where the calc's Validation panel looks.
+    """
+    # results_dir is typically `experiments/results`. The repo layout
+    # places `calculators/` as a sibling of `experiments/`.
+    repo_root = results_dir.resolve().parent.parent
+    return repo_root / "calculators" / "sizing_calc" / "lab_runs"
+
+
+def _port_in_use(host: str, port: int) -> bool:
+    """Return True if something is already listening on host:port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.2)
+        return s.connect_ex((host, port)) == 0
+
+
+def _start_portal_server(portal_dir: Path, port: int) -> ThreadingHTTPServer:
+    """Spin up a static file server rooted at ``portal_dir``.
+
+    Returns the server (caller is responsible for ``serve_forever`` or
+    ``shutdown``). Bound to 127.0.0.1 — this is dev ergonomics, not a
+    deployment target.
+    """
+    handler = partial(SimpleHTTPRequestHandler, directory=str(portal_dir))
+    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    return server
+
+
+@cli.command("launch")
+@_run_options
+@click.option("--portal-dir", type=click.Path(path_type=Path), default=Path("_site"),
+              help="where to build the static portal")
+@click.option("--calc-bridge", type=click.Path(path_type=Path), default=None,
+              help="bridge dir for the calc's Validation panel (default: ../calculators/sizing_calc/lab_runs)")
+@click.option("--serve/--no-serve", default=True,
+              help="start a local http.server so the browser can load the portal (default on)")
+@click.option("--open/--no-open", "open_browser", default=True,
+              help="open the default browser to the result URL (default on)")
+@click.option("--port", type=int, default=8765,
+              help="port for the static server; auto-bumps to next free if taken")
+def launch_cmd(
+    portal_dir: Path,
+    calc_bridge: Path | None,
+    serve: bool,
+    open_browser: bool,
+    port: int,
+    **run_kwargs,
+) -> None:
+    """One-shot: run an experiment, rebuild the portal, open the browser.
+
+    Designed for the pasted command coming out of the sizing calculator's
+    ``[ COPY EXP RUN ]`` button — everything from launch to "tab open on
+    measured-vs-predicted overlay" in a single invocation.
+    """
+    results_dir: Path = run_kwargs["results_dir"]
+    # 1. Run the experiment (blocks until result JSON is written).
+    result_path = _do_run(**run_kwargs)
+    run_id = result_path.stem
+    click.echo(f"wrote {result_path}")
+
+    # 2. Rebuild portal + bridge dir. Default bridge path is the calc's
+    # `lab_runs/` sibling unless the caller overrode it.
+    bridge = calc_bridge if calc_bridge is not None else _default_calc_bridge(results_dir)
+    _do_build_portal(results_dir=results_dir, out=portal_dir, calc_bridge=bridge)
+
+    # 3. Pick a port. If our preferred port is in use, assume an existing
+    # `exp serve` is already up and reuse it (don't spawn a competing server).
+    reused = False
+    chosen_port = port
+    if serve and _port_in_use("127.0.0.1", chosen_port):
+        reused = True
+        click.echo(f"port {chosen_port} already in use — reusing existing server")
+
+    url = f"http://127.0.0.1:{chosen_port}/results_explorer.html#{run_id}"
+    click.echo(f"open: {url}")
+
+    if open_browser:
+        webbrowser.open(url)
+
+    if serve and not reused:
+        server = _start_portal_server(portal_dir, chosen_port)
+        click.echo(f"serving {portal_dir} at http://127.0.0.1:{chosen_port}/ (Ctrl-C to stop)")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            click.echo("stopping server")
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
+@cli.command("serve")
+@click.option("--results-dir", type=click.Path(path_type=Path), default=Path("results"))
+@click.option("--portal-dir", type=click.Path(path_type=Path), default=Path("_site"))
+@click.option("--calc-bridge", type=click.Path(path_type=Path), default=None,
+              help="bridge dir for the calc's Validation panel (default: ../calculators/sizing_calc/lab_runs)")
+@click.option("--port", type=int, default=8765)
+@click.option("--watch/--no-watch", default=True,
+              help="rebuild portal whenever a result/bridge file changes (requires watchdog)")
+def serve_cmd(
+    results_dir: Path,
+    portal_dir: Path,
+    calc_bridge: Path | None,
+    port: int,
+    watch: bool,
+) -> None:
+    """Long-running static server + rebuild-on-change.
+
+    Run this in a separate terminal once per session. Subsequent
+    `exp launch` invocations will detect the running server and reuse
+    it instead of spawning a competing one on the same port.
+    """
+    bridge = calc_bridge if calc_bridge is not None else _default_calc_bridge(results_dir)
+
+    # Build once up front so the portal is browsable before any new run.
+    _do_build_portal(results_dir=results_dir, out=portal_dir, calc_bridge=bridge)
+
+    observer = None
+    if watch:
+        observer = _try_start_watcher(
+            results_dir=results_dir, portal_dir=portal_dir, bridge=bridge
+        )
+
+    server = _start_portal_server(portal_dir, port)
+    click.echo(f"serving {portal_dir} at http://127.0.0.1:{port}/ (Ctrl-C to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        click.echo("stopping server")
+    finally:
+        server.shutdown()
+        if observer is not None:
+            observer.stop()
+            observer.join(timeout=2.0)
+
+
+def _try_start_watcher(
+    *, results_dir: Path, portal_dir: Path, bridge: Path | None
+):
+    """Start a watchdog Observer that rebuilds the portal on changes.
+
+    Returns the Observer (already started) or ``None`` if watchdog is
+    not installed — that's an optional dev dep, so missing it degrades
+    to "static serve, no auto-rebuild" rather than aborting.
+    """
+    try:
+        from watchdog.events import FileSystemEventHandler
+        from watchdog.observers import Observer
+    except ImportError:
+        click.echo(
+            "watchdog not installed — running without auto-rebuild. "
+            "Install with `pip install 'inference-lab[dev]'` to enable.",
+            err=True,
+        )
+        return None
+
+    runs_dir = results_dir / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Debounce: filesystem events arrive in bursts (e.g. write + flush +
+    # rename). Coalesce anything within 200ms into one rebuild.
+    debounce_lock = threading.Lock()
+    pending = {"timer": None}
+
+    def rebuild() -> None:
+        with debounce_lock:
+            pending["timer"] = None
+        try:
+            _do_build_portal(results_dir=results_dir, out=portal_dir, calc_bridge=bridge)
+        except Exception as exc:  # noqa: BLE001 — keep the watcher alive past one bad rebuild
+            click.echo(f"rebuild failed: {exc}", err=True)
+
+    class _Handler(FileSystemEventHandler):
+        def on_any_event(self, event) -> None:  # type: ignore[override]
+            if event.is_directory:
+                return
+            with debounce_lock:
+                if pending["timer"] is not None:
+                    pending["timer"].cancel()
+                t = threading.Timer(0.2, rebuild)
+                t.daemon = True
+                pending["timer"] = t
+                t.start()
+
+    observer = Observer()
+    observer.schedule(_Handler(), str(runs_dir), recursive=False)
+    observer.start()
+    click.echo(f"watching {runs_dir} for changes")
+    return observer
 
 
 @cli.command("plan")
