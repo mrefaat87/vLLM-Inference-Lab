@@ -37,15 +37,20 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --version "$KARPENTER_VERSION" \
   --namespace kube-system \
   --set "settings.clusterName=$CLUSTER" \
-  --set "settings.interruptionQueue=$CLUSTER" \
+  --set "settings.interruptionQueue=Karpenter-$CLUSTER" \
   --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=$(terraform -chdir=terraform output -raw karpenter_iam_role_arn)" \
   --wait
 
 echo "==> NodePool"
 kubectl apply -f manifests/karpenter-nodepool.yaml
 
+echo "==> engines namespace (workload pods land here)"
+kubectl create namespace engines --dry-run=client -o yaml | kubectl apply -f -
+
 echo "==> NVIDIA device plugin"
-kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.15.0/nvidia-device-plugin.yml
+# The plugin manifest moved under /deployments/static/ in v0.15.0 — the
+# bare /nvidia-device-plugin.yml URL returns the README, not YAML.
+kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.15.0/deployments/static/nvidia-device-plugin.yml
 
 echo
 echo "Bringup complete. Verify with:"

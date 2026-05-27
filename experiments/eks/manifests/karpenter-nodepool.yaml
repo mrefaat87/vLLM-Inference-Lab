@@ -7,20 +7,30 @@ spec:
   template:
     metadata:
       labels:
-        gpu: a10g
+        # No literal gpu-type label here — pods select on Karpenter's
+        # built-in karpenter.k8s.aws/instance-gpu-name instead, so we
+        # don't need to know the GPU at NodePool render time. Adding a
+        # fixed `gpu: a10g` label here would silently mislabel g4dn
+        # (T4) and g6 (L4) nodes.
         pool: inference-lab-gpu
     spec:
       taints:
         - key: nvidia.com/gpu
           value: "true"
           effect: NoSchedule
+      # Broaden the allow-list so a request for g4dn.xlarge (cheap T4)
+      # doesn't trigger NoNodeFound and fall through to whatever a
+      # narrower NodePool happens to allow. The vLLM Deployment pins
+      # the EXACT type via nodeAffinity (see eks/manifests/engines/vllm.yaml),
+      # so widening here is safe — Karpenter can only pick what the pod
+      # also accepts.
       requirements:
         - key: karpenter.k8s.aws/instance-family
           operator: In
-          values: ["g5"]
+          values: ["g4dn", "g5", "g6"]
         - key: karpenter.k8s.aws/instance-size
           operator: In
-          values: ["12xlarge"]
+          values: ["xlarge", "2xlarge", "4xlarge", "8xlarge", "12xlarge", "16xlarge", "24xlarge", "48xlarge"]
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["spot", "on-demand"]
@@ -48,6 +58,15 @@ spec:
   amiSelectorTerms:
     - alias: al2023@latest
   role: "inference-lab-karpenter-node"
+  # AL2023 defaults httpPutResponseHopLimit to 1, which blocks pods from
+  # reaching IMDS (one hop is consumed by the pod network namespace).
+  # The fetch-weights init container calls `aws s3 sync` and needs the
+  # node's IAM role via IMDSv2 — hop limit 2 unblocks it.
+  # Reference: https://github.com/aws/amazon-vpc-cni-k8s/issues/2227
+  metadataOptions:
+    httpEndpoint: enabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
   subnetSelectorTerms:
     - tags:
         karpenter.sh/discovery: "inference-lab"

@@ -16,6 +16,18 @@ teardown.sh        # reverse, with --dry-run support
 preflight.sh       # quota + auth check (run before bringup)
 ```
 
+## Prerequisites
+
+- **Terraform ≥ 1.5.0** — pinned in `terraform/versions.tf`. We need
+  ≥ 1.5 for the `moved`/`import` blocks this stack uses, but stay below
+  the aspirational 1.6 floor that broke CI runners shipping 1.5.7. The
+  CI `terraform validate` step runs on 1.5.7 as the canary.
+- **AWS CLI v2** with credentials for an account that has at least the
+  permissions probed by `./preflight.sh` (IAM/EKS/EC2/ECR/S3/DynamoDB/KMS
+  + the `servicequotas:GetServiceQuota` action).
+- **Service-quotas headroom:** ≥ 48 vCPU for "All G and VT Spot Instance
+  Requests" in the target region (default `us-east-1`).
+
 ## Quickstart
 
 ```bash
