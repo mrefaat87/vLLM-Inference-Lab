@@ -7,22 +7,29 @@
 
 /**
  * Recommend an arrival RPS via Little's Law: λ ≈ batch / per-request-time.
- * We proxy per-request-time with the per-token SLO (TBT in ms). The
- * approximation is rough — a long-output request takes many tokens —
- * but it lines up with how the lab's `exp plan` advises rates, so the
- * calc-emitted command and the lab-suggested grid agree on the formula.
+ *
+ * Per-request latency is TTFT (one-shot prefill cost) plus OSL × TBT
+ * (streaming the output tokens). Using only TBT here is wrong by a
+ * factor of OSL — for OSL=200 that pushes the emitted --rate ~200×
+ * past what the engine can actually drain, drowning the run.
  *
  * Returned value:
  *   - floored at 1 rps (a degraded prediction with batch=0 must not
  *     produce `--rate 0` or `--rate NaN`),
  *   - rounded to 2 decimals for paste readability.
  *
- * @param {number} batch  recommended in-flight batch size
- * @param {number} tbtMs  target inter-token latency in ms
+ * @param {number} batch       recommended in-flight batch size
+ * @param {number} tbtMs       target inter-token latency in ms
+ * @param {number} oslTokens   expected output sequence length in tokens
+ * @param {number} ttftMs      target time-to-first-token in ms
  * @returns {number}
  */
-export function recommendedRate(batch, tbtMs) {
-  const tbtSec = Math.max(tbtMs / 1000, 1e-3);
+export function recommendedRate(batch, tbtMs, oslTokens, ttftMs) {
+  const tbtSec = Number.isFinite(tbtMs) && tbtMs > 0 ? tbtMs / 1000 : 0;
+  const ttftSec = Number.isFinite(ttftMs) && ttftMs > 0 ? ttftMs / 1000 : 0;
+  const osl = Number.isFinite(oslTokens) && oslTokens > 0 ? oslTokens : 1;
+  // Floor at 1ms so a fully-degraded input (all zeros) still divides cleanly.
+  const perReqSec = Math.max(ttftSec + osl * tbtSec, 1e-3);
   const b = Number.isFinite(batch) && batch > 0 ? batch : 1;
-  return Math.max(1, +((b / tbtSec).toFixed(2)));
+  return Math.max(1, +((b / perReqSec).toFixed(2)));
 }
