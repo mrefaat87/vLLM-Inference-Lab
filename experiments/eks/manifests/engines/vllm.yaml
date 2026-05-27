@@ -17,8 +17,27 @@ spec:
         app: vllm-engine
         project: inference-lab
     spec:
-      nodeSelector:
-        gpu: a10g
+      # Karpenter scheduling: bind this pod to the EXACT instance type
+      # the user asked for. Without these selectors Karpenter picks any
+      # allowed type from the NodePool — a request for g4dn.xlarge can
+      # silently land on a g4dn.12xlarge (~8× the cost). The driver
+      # populates INSTANCE_FAMILY / INSTANCE_SIZE from cfg.instance and
+      # GPU_NAME from cfg.gpu; if any are empty the matchExpression is
+      # omitted so the legacy nodeSelector-only behavior still works.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: In
+                    values: ["{{INSTANCE_FAMILY}}"]
+                  - key: karpenter.k8s.aws/instance-size
+                    operator: In
+                    values: ["{{INSTANCE_SIZE}}"]
+                  - key: karpenter.k8s.aws/instance-gpu-name
+                    operator: In
+                    values: ["{{GPU_NAME}}"]
       tolerations:
         - key: nvidia.com/gpu
           operator: Equal
@@ -27,23 +46,28 @@ spec:
       containers:
         - name: vllm
           image: "{{IMAGE}}"
+          # vLLM ≥ 0.7 expects "serve" + positional model path. We mount
+          # weights at /weights via the init-container and pass the model
+          # path positionally; --served-model-name keeps the HF id as the
+          # OpenAI-API model handle so clients don't have to know about /weights.
+          command: ["vllm", "serve"]
           args:
-            - "--model={{MODEL}}"
+            - "/weights"
+            - "--served-model-name={{MODEL}}"
             - "--quantization={{QUANTIZATION}}"
             - "--tensor-parallel-size={{TENSOR_PARALLEL}}"
             - "--max-model-len={{MAX_MODEL_LEN}}"
             - "--host=0.0.0.0"
             - "--port=8000"
-            - "--disable-log-requests"
           ports:
             - { name: http, containerPort: 8000 }
           resources:
             limits:
-              nvidia.com/gpu: "{{TENSOR_PARALLEL}}"
-              memory: 96Gi
+              nvidia.com/gpu: "{{N_GPU}}"
+              memory: "{{MEMORY_LIMIT}}"
             requests:
-              cpu: "4"
-              memory: 32Gi
+              cpu: "{{CPU_REQUEST}}"
+              memory: "{{MEMORY_REQUEST}}"
           readinessProbe:
             httpGet: { path: /health, port: http }
             initialDelaySeconds: 60
@@ -71,7 +95,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - >-
-              aws s3 sync s3://inference-lab-models-${AWS_ACCOUNT}/{{MODEL}} /weights
+              aws s3 sync s3://inference-lab-models-{{AWS_ACCOUNT}}/{{MODEL}} /weights
               || (echo "FAIL: weights bucket missing"; exit 1)
           volumeMounts:
             - { name: weights, mountPath: /weights }

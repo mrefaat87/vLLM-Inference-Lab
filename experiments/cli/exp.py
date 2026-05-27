@@ -174,6 +174,9 @@ def _do_run(
         model=model,
         quantization=quant,
         tensor_parallel=tp,
+        instance=instance,
+        gpu=gpu,
+        n_gpu=n_gpu,
     )
     workload_cfg = WorkloadConfig(
         name=workload, rate_rps=rate, duration_s=duration, warmup_s=warmup, seed=seed
