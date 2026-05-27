@@ -500,6 +500,8 @@ def _try_start_watcher(
 @click.option("--isl", type=int, default=200)
 @click.option("--osl", type=int, default=150)
 @click.option("--tbt-target-ms", type=float, default=50.0)
+@click.option("--ttft-target-ms", type=float, default=500.0,
+              help="target time-to-first-token (ms); part of the per-request latency denominator")
 @click.option("--rows", type=int, default=5, help="number of grid rows to emit")
 @click.option("--out", type=click.Path(path_type=Path), default=None,
               help="write JSON to this path; defaults to stdout")
@@ -511,6 +513,7 @@ def plan_cmd(
     isl: int,
     osl: int,
     tbt_target_ms: float,
+    ttft_target_ms: float,
     rows: int,
     out: Path | None,
 ) -> None:
@@ -532,7 +535,13 @@ def plan_cmd(
             "calc bridge unavailable; cannot plan. Build "
             "calculators/sizing_calc/predictions/grid.json or install Node."
         )
-    grid = _build_run_grid(pred, rows=rows, tbt_ms=tbt_target_ms)
+    grid = _build_run_grid(
+        pred,
+        rows=rows,
+        tbt_ms=tbt_target_ms,
+        osl_tokens=osl,
+        ttft_ms=ttft_target_ms,
+    )
     blob = json.dumps(grid, indent=2)
     if out is None:
         click.echo(blob)
@@ -541,13 +550,26 @@ def plan_cmd(
         click.echo(f"wrote {out}")
 
 
-def _build_run_grid(pred: Prediction, *, rows: int, tbt_ms: float) -> list[dict[str, float]]:
+def _build_run_grid(
+    pred: Prediction,
+    *,
+    rows: int,
+    tbt_ms: float,
+    osl_tokens: int,
+    ttft_ms: float,
+) -> list[dict[str, float]]:
     """Pick `rows` batch targets in geometric steps around b_crit.
 
     The lab's load driver controls *arrival rate*, not batch. So we map
-    each batch target to a rate via Little's Law: rate ≈ batch / tbt_s.
-    The result is an advisory grid: at this rate, you should observe a
-    steady-state batch near the target.
+    each batch target to a rate via Little's Law:
+
+        per_req_s = ttft_ms/1000 + osl * tbt_ms/1000
+        rate     ≈ batch / per_req_s
+
+    Using only ``tbt_s`` (the per-token streaming budget) as the
+    denominator overshoots by ~OSL×, which is what burned the calc-side
+    snippet before the contract was tightened. Keep this in lockstep
+    with ``calculators/sizing_calc/src/lab_command.mjs::recommendedRate``.
     """
     if not pred.curve:
         return []
@@ -562,7 +584,9 @@ def _build_run_grid(pred: Prediction, *, rows: int, tbt_ms: float) -> list[dict[
     # Geometric span: factor 4× either side, log-spaced.
     lo = max(1.0, center / 4.0)
     hi = center * 4.0
-    tbt_s = max(tbt_ms / 1000.0, 1e-3)
+    # Floor at 1ms so degenerate (osl=0, ttft=0, tbt=0) inputs still divide.
+    osl = osl_tokens if osl_tokens and osl_tokens > 0 else 1
+    per_req_s = max(ttft_ms / 1000.0 + osl * tbt_ms / 1000.0, 1e-3)
     batches: list[int] = []
     for i in range(rows):
         # Log spacing in [lo, hi].
@@ -575,7 +599,7 @@ def _build_run_grid(pred: Prediction, *, rows: int, tbt_ms: float) -> list[dict[
         p = min(pred.curve, key=lambda pt: abs(pt.batch - b))
         out.append({
             "batch_target": float(b),
-            "rate_rps": round(b / tbt_s, 3),
+            "rate_rps": round(b / per_req_s, 3),
             "predicted_tps": round(p.tps, 2),
             "predicted_step_ms": round(p.step_ms, 3),
         })

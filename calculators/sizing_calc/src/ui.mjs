@@ -505,7 +505,7 @@ function paintSnippet(out, input) {
   // Recommended arrival rate for the lab. See lab_command.mjs for the
   // derivation — kept in a sibling module so it stays unit-testable.
   const recBatch = (m && (m.recommended_batch ?? m.b_crit)) || 1;
-  const rateRps = recommendedRate(recBatch, input.tbt_ms);
+  const rateRps = recommendedRate(recBatch, input.tbt_ms, input.osl, input.ttft_ms);
 
   const lines = [
     `# vLLM serve args — analytical recommendation; verify empirically below.`,
@@ -535,7 +535,7 @@ function paintSnippet(out, input) {
     labWorkload ? `  --rate ${rateRps}  --duration 300  --warmup 30 \\` : null,
     // Join keys — anchor the result back to this exact calc prediction.
     labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
-    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
+    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}  --ttft-target-ms ${input.ttft_ms}` : null,
     ``,
     `# Empirical sweep grid (vary one, hold others at recommended):`,
     `concurrency_list      = [${out.sweep.concurrency.join(", ")}]`,
