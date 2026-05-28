@@ -176,6 +176,12 @@ class SweepRunner:
         if analysis_isl is None or analysis_osl is None:
             return None
         weight_prec, kv_prec, act_prec = _precision_from_quant(engine_cfg.quantization)
+        # Look up the calc's default $/hr for this hw row and pass it through
+        # so Prediction.inputs.price_per_hour_usd is non-null. The Results
+        # Explorer uses this to compute measured cost-per-Mtok without having
+        # to re-load the hardware.json client-side. None means clone-only-lab
+        # (calc data unavailable) — cost panels then degrade to predicted-only.
+        price = self._calc_bridge.lookup_hw_price(roofline_link.hw_ref)
         inputs = CalcInputs(
             model_key=roofline_link.model_ref,
             hw_key=roofline_link.hw_ref,
@@ -186,6 +192,7 @@ class SweepRunner:
             osl=int(analysis_osl),
             ngpus=hardware.n_gpu,
             tbt_ms=float(tbt_target_ms),
+            price_per_hour_usd=price,
         )
         return self._calc_bridge.predict(inputs)
 

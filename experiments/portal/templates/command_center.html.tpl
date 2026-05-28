@@ -19,18 +19,18 @@
   </div>
   <nav class="bench-switcher" aria-label="bench selector">
     <span class="bs-label">BENCH</span>
-    <a href="../../calculators/sizing_calculator.html" class="bs-item">
+    <a href="/calculators/sizing_calculator.html" class="bs-item">
       <span class="bs-num">01</span><span class="bs-name">SIZING CALC</span>
     </a>
-    <a href="command_center.html" class="bs-item active">
+    <a href="/experiments/_site/command_center.html" class="bs-item active">
       <span class="bs-num">02</span><span class="bs-name">COMMAND</span>
     </a>
-    <a href="results_explorer.html" class="bs-item">
+    <a href="/experiments/_site/results_explorer.html" class="bs-item">
       <span class="bs-num">03</span><span class="bs-name">RESULTS</span>
     </a>
   </nav>
   <div class="strip-right">
-    <a href="../../index.html">← ROOT</a>
+    <a href="/index.html">← ROOT</a>
   </div>
 </div>
 
@@ -80,7 +80,7 @@
 
 <footer class="foot">
   <span>EMPIRICAL LAB · MIT</span>
-  <span><a href="../../calculators/sizing_calculator.html">↗ SIZING CALCULATOR (sibling bench)</a></span>
+  <span><a href="/calculators/sizing_calculator.html">↗ SIZING CALCULATOR (sibling bench)</a></span>
 </footer>
 
 <script>
@@ -109,7 +109,7 @@
   for (const run of runs) {
     const tr = document.createElement('tr');
     const link = run.result_href
-      ? `<a href="results_explorer.html#${encodeURIComponent(run.run_id)}">[ VIEW ]</a>`
+      ? `<a href="/experiments/_site/results_explorer.html#${encodeURIComponent(run.run_id)}">[ VIEW ]</a>`
       : '';
     tr.innerHTML = `
       <td><span class="status status-${run.status}">${run.status}</span></td>

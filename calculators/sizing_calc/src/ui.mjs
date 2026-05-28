@@ -641,9 +641,83 @@ function wireWorkloadPreset() {
   osl.addEventListener("input", revertToCustom);
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Query-string prefill (Flow B: lab → calc).
+//
+// When the calc is opened from the Results Explorer's "open this run in
+// calc" link, the URL carries the same input fields the lab's Prediction
+// snapshot was built from. We seed each <input>/<select> from the query
+// before the first `recompute()` so the first paint already reflects the
+// run. Unknown / malformed params are silently ignored — the form keeps
+// its built-in defaults, mirroring how unrecognized URLs degrade to a
+// "fresh calc" rather than blocking the page.
+//
+// Field map (query key → DOM id):
+//   model       → #model        (select; ignored if value isn't a known option)
+//   hw          → #hw
+//   weight_prec → #weight-prec
+//   kv_prec     → #kv-prec
+//   act_prec    → #act-prec
+//   isl, osl, ngpus → numeric inputs
+//   tbt_ms      → #tbt
+//
+// Returns a dict of {appliedKey: appliedValue} — useful for unit tests
+// asserting which fields actually round-tripped.
+// ──────────────────────────────────────────────────────────────────────────
+export function prefillFromQueryString(search) {
+  // Accept an explicit search string for unit tests; default to the
+  // live URL when called without args (the bootstrap path).
+  const raw = search ?? (typeof window !== "undefined" ? window.location.search : "");
+  if (!raw) return {};
+  const params = new URLSearchParams(raw);
+  const applied = {};
+
+  // Setter for <select>: only write when the requested value is one of
+  // the offered <option>s. Assigning an unknown value would silently set
+  // the empty string and mask the form's preset default.
+  const setSelect = (id, key) => {
+    if (!params.has(key)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const want = params.get(key);
+    const ok = Array.from(el.options).some((o) => o.value === want);
+    if (!ok) return;
+    el.value = want;
+    applied[key] = want;
+  };
+  const setNumber = (id, key) => {
+    if (!params.has(key)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const n = Number(params.get(key));
+    if (!Number.isFinite(n)) return;          // ignore non-numeric
+    el.value = String(n);
+    applied[key] = n;
+  };
+
+  setSelect("model",       "model");
+  setSelect("hw",          "hw");
+  setSelect("weight-prec", "weight_prec");
+  setSelect("kv-prec",     "kv_prec");
+  setSelect("act-prec",    "act_prec");
+  setNumber("isl",         "isl");
+  setNumber("osl",         "osl");
+  setNumber("ngpus",       "ngpus");
+  setNumber("tbt",         "tbt_ms");
+  return applied;
+}
+
 export function bootstrap() {
   populatePresets();
   wireWorkloadPreset();
+  // Prefill from ?model=…&hw=… before the first recompute so the initial
+  // paint reflects the deep link (e.g. "open this run in calc" from the
+  // Results Explorer). Must run AFTER populatePresets so the option lists
+  // exist; BEFORE recompute so the first chart uses the prefilled values.
+  // After a hw change we also re-sync the $/hr field so the cost tile
+  // matches the new row's default price.
+  const applied = prefillFromQueryString();
+  if (applied.hw) syncPriceToHardware();
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
@@ -669,4 +743,11 @@ export function bootstrap() {
 // Bootstrap automatically when the script tag executes after DOM ready. The
 // build script places <script type="module">…bootstrap()…</script> at the end
 // of <body>, so the DOM is already parsed.
-bootstrap();
+//
+// Skip the auto-bootstrap when we're not in a browser (e.g. node --test
+// imports for unit tests). The presence of `window` is the canonical
+// real-DOM signal; `globalThis.Option` is undefined under bare Node so
+// even a stubbed document can't fully fake the form-bootstrap path.
+if (typeof window !== "undefined" && typeof Option !== "undefined") {
+  bootstrap();
+}
