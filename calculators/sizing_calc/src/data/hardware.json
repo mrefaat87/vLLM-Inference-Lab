@@ -9,6 +9,7 @@
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
+      "arch": "GPU microarchitecture family: turing (T4) | ada (L4) | ampere (consumer/single-GPU Ampere e.g. A10G) | ampere_dc (datacenter Ampere with NVLink e.g. A100) | hopper (H100/H200). Drives kernel-availability rules in compatibility.json.",
       "price_per_hour_usd": "AWS on-demand list price per GPU per hour. Derived from the canonical EC2 instance price for this card (us-east-1 list) divided by GPU count on that instance. Default; the UI accepts overrides for spot / reserved / contract pricing.",
       "notes": "free-form provenance / caveat string"
     },
@@ -29,6 +30,7 @@
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
+      "arch": "turing",
       "price_per_hour_usd": 0.526,
       "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g4dn.xlarge on-demand list; override in UI for spot / contract."
     },
@@ -41,6 +43,7 @@
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
+      "arch": "ada",
       "price_per_hour_usd": 0.805,
       "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g6.xlarge on-demand list; override in UI for spot / contract."
     },
@@ -53,6 +56,7 @@
       "fp16_tflops": 70,
       "fp8_tflops": null,
       "nvlink": false,
+      "arch": "ampere",
       "price_per_hour_usd": 1.006,
       "notes": "Price: g5.xlarge on-demand list; override in UI for spot / contract. Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
     },
@@ -65,6 +69,7 @@
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
+      "arch": "ampere_dc",
       "price_per_hour_usd": 2.745,
       "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8. Price: p4d.24xlarge on-demand list ($21.958/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -77,6 +82,7 @@
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
+      "arch": "ampere_dc",
       "price_per_hour_usd": 3.431,
       "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir. Price: p4de.24xlarge on-demand list ($27.447/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -89,6 +95,7 @@
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
+      "arch": "hopper",
       "price_per_hour_usd": 6.88,
       "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7. Price: p5.48xlarge on-demand list ($55.04/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -101,6 +108,7 @@
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
+      "arch": "hopper",
       "price_per_hour_usd": 7.91,
       "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: derived from AWS Capacity Blocks ratio H200/H100 = $4.975/$4.326 = 1.15× (https://aws.amazon.com/ec2/capacityblocks/pricing/) applied to known H100 on-demand $6.88/GPU → $7.91/GPU. p5en.48xlarge enhanced-networking variant runs higher (~$9/GPU). Override in UI for spot / Capacity Blocks / contract."
     }

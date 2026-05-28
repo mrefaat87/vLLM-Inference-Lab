@@ -1,0 +1,120 @@
+{
+  "_schema": {
+    "intent": "Declarative compatibility rules for (model, hardware, precision, ngpus) combinations the calc can emit. compute() stays pure physics/math; this layer captures kernel-availability and HF-repo-existence facts that the analytical model doesn't see. Rules are evaluated by src/compatibility.mjs::validate() and returned as { errors, warns }. The ui.mjs copy-button is gated on errors.",
+    "predicate_vocabulary": {
+      "weight_prec": "array of weight precisions the rule fires on (e.g. [\"INT8\"])",
+      "kv_prec": "array of KV-cache precisions the rule fires on",
+      "act_prec": "array of activation precisions the rule fires on",
+      "gpu_arch": "array of hardware.arch values (turing | ada | ampere | ampere_dc | hopper)",
+      "gpu_fp8_tflops_null": "boolean: true means rule fires when the selected hardware has no FP8 path (hw.fp8_tflops === null)",
+      "model_moe": "boolean: true means rule fires on MoE models; false means dense-only",
+      "model_family": "array of model.family values",
+      "model_quant_variants_missing": "string: rule fires when the model's quant_variants array does NOT contain this token (e.g. \"AWQ\")",
+      "ngpus_lt": "rule fires when input.ngpus < this number",
+      "ngpus_gt": "rule fires when input.ngpus > this number",
+      "isl_plus_osl_gt_model_max_context": "boolean: rule fires when ISL+OSL > model.max_context",
+      "weight_act_prec_mismatch_non_fp8": "boolean: fires when weight_prec ≠ act_prec AND not both FP8 (i.e. config silently rides FP16 compute path)"
+    },
+    "match_semantics": "A rule fires only if EVERY key in its `when` block matches. Mismatched/missing input fields don't match. Severity is either \"error\" (gates the copy button) or \"warn\" (advisory only).",
+    "suggest_block": "Optional. Free-form key/value hints rendered as the 'Try:' line under the reason. Keys mirror input field names (weight_prec, kv_prec, ngpus) plus a free-form 'note' string."
+  },
+  "rules": [
+    {
+      "id": "int8-non-hopper",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT8"],
+        "gpu_arch": ["turing", "ada", "ampere", "ampere_dc"]
+      },
+      "reason": "INT8 via bitsandbytes dequantizes weights every forward pass on non-Hopper GPUs — there is no fast INT8 kernel. Expect TBT far above the predicted value.",
+      "suggest": { "weight_prec": "INT4", "note": "AWQ (INT4) has a Marlin kernel on Ampere+ and pre-quantized HF repos for most popular models." }
+    },
+    {
+      "id": "int8-hopper-suboptimal",
+      "severity": "warn",
+      "when": {
+        "weight_prec": ["INT8"],
+        "gpu_arch": ["hopper"]
+      },
+      "reason": "INT8 works on Hopper but FP8 is the faster native tensor-core path.",
+      "suggest": { "weight_prec": "FP8" }
+    },
+    {
+      "id": "fp8-no-hardware",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["FP8"],
+        "gpu_fp8_tflops_null": true
+      },
+      "reason": "Selected GPU has no hardware FP8 path. vLLM will reject the config or fall back to slow emulation.",
+      "suggest": { "weight_prec": "FP16", "note": "Or AWQ (INT4) for a real memory saving with a fast kernel on Ampere+." }
+    },
+    {
+      "id": "awq-no-repo",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT4"],
+        "model_quant_variants_missing": "AWQ"
+      },
+      "reason": "AWQ (INT4) requires a pre-quantized HuggingFace repo; the selected model has no community AWQ variant.",
+      "suggest": { "weight_prec": "FP16" }
+    },
+    {
+      "id": "awq-marlin-needs-ampere",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT4"],
+        "gpu_arch": ["turing"]
+      },
+      "reason": "AWQ Marlin kernel requires sm_80+ (Ampere or later). On Turing (T4) AWQ falls back to a slow dequant path.",
+      "suggest": { "weight_prec": "FP16" }
+    },
+    {
+      "id": "fp8-kv-no-hardware",
+      "severity": "error",
+      "when": {
+        "kv_prec": ["FP8"],
+        "gpu_arch": ["turing"]
+      },
+      "reason": "FP8 KV cache requires Ampere or later; Turing has no FP8 KV support in vLLM.",
+      "suggest": { "kv_prec": "FP16" }
+    },
+    {
+      "id": "kv-prec-int-not-supported",
+      "severity": "error",
+      "when": {
+        "kv_prec": ["INT8"]
+      },
+      "reason": "vLLM does not implement INT8 KV cache. Only FP8 (e5m2 / e4m3) and FP16/BF16 KV are real.",
+      "suggest": { "kv_prec": "FP8" }
+    },
+    {
+      "id": "moe-needs-many-gpus",
+      "severity": "error",
+      "when": {
+        "model_moe": true,
+        "ngpus_lt": 8
+      },
+      "reason": "MoE models need ≥8 GPUs for reasonable expert distribution; per-GPU capacity for the expert pool is otherwise too small.",
+      "suggest": { "ngpus": 8 }
+    },
+    {
+      "id": "context-exceeds-model-max",
+      "severity": "error",
+      "when": {
+        "isl_plus_osl_gt_model_max_context": true
+      },
+      "reason": "ISL+OSL exceeds the model's trained max_context — vLLM will reject requests at this length.",
+      "suggest": { "note": "Reduce ISL or OSL, or pick a model with longer context." }
+    },
+    {
+      "id": "weight-act-mismatch-no-fp8-path",
+      "severity": "warn",
+      "when": {
+        "weight_act_prec_mismatch_non_fp8": true
+      },
+      "reason": "vLLM uses the paired FP8 weight+activation tensor-core path only when both are FP8. Mismatched precisions silently ride the FP16 compute roofline — predicted throughput will overestimate.",
+      "suggest": { "note": "Set act_prec = weight_prec, or accept the FP16 compute path." }
+    }
+  ]
+}

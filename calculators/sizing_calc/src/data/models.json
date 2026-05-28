@@ -17,6 +17,10 @@
       "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
       "kv_lora_rank": "MLA latent dim (d_c). Required when attn_type=MLA; omitted otherwise.",
       "qk_rope_head_dim": "MLA rope key dim (d_rope). Required when attn_type=MLA; omitted otherwise.",
+      "family": "model family slug: llama | qwen | mistral | deepseek. Used by compatibility rules.",
+      "moe": "boolean: true for mixture-of-experts (deepseek-v3), false for dense. Read by compatibility rules; redundant with (params_b_active < params_b_total) but explicit makes the rule cleaner.",
+      "quant_variants": "array of pre-quantized HF repo flavors that exist for this model: [\"AWQ\", \"GPTQ\", \"FP8\"]. Empty means no community-quantized variant — the compatibility validator gates on this so the calc doesn't emit unrunnable commands.",
+      "hf_repos": "map of precision token → full HF repo id. Keys: BF16 / FP16 (base), INT4 (AWQ variant), FP8, INT8. Read by ui.mjs paintSnippet() when emitting --model. If a precision is missing the snippet falls back to BF16 — the compatibility validator will already have gated the button in the truly-unrunnable case.",
       "notes": "provenance / caveats"
     },
     "_sources": [
@@ -38,6 +42,15 @@
       "d_ff": 14336,
       "max_context": 8192,
       "attn_type": "GQA",
+      "family": "llama",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ", "FP8"],
+      "hf_repos": {
+        "BF16": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "FP16": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "INT4": "casperhansen/llama-3-8b-instruct-awq",
+        "FP8":  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8"
+      },
       "notes": "Meta Llama-3 base. GQA 4:1 grouping. SwiGLU FFW with d_ff=14336 (HF config intermediate_size)."
     },
     {
@@ -53,6 +66,15 @@
       "d_ff": 28672,
       "max_context": 8192,
       "attn_type": "GQA",
+      "family": "llama",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ", "FP8"],
+      "hf_repos": {
+        "BF16": "meta-llama/Meta-Llama-3-70B-Instruct",
+        "FP16": "meta-llama/Meta-Llama-3-70B-Instruct",
+        "INT4": "casperhansen/llama-3-70b-instruct-awq",
+        "FP8":  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8"
+      },
       "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV. SwiGLU FFW d_ff=28672."
     },
     {
@@ -68,6 +90,13 @@
       "d_ff": 18944,
       "max_context": 32768,
       "attn_type": "GQA",
+      "family": "qwen",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ"],
+      "hf_repos": {
+        "BF16": "Qwen/Qwen2.5-7B-Instruct",
+        "INT4": "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      },
       "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default). SwiGLU FFW d_ff=18944."
     },
     {
@@ -82,7 +111,14 @@
       "head_dim": 128,
       "d_ff": 13824,
       "max_context": 32768,
-      "attn_type": "GQA"
+      "attn_type": "GQA",
+      "family": "qwen",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ"],
+      "hf_repos": {
+        "BF16": "Qwen/Qwen2.5-14B-Instruct",
+        "INT4": "Qwen/Qwen2.5-14B-Instruct-AWQ"
+      }
     },
     {
       "key": "mistral-7b",
@@ -97,7 +133,13 @@
       "d_ff": 14336,
       "max_context": 32768,
       "attn_type": "GQA",
-      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336."
+      "family": "mistral",
+      "moe": false,
+      "quant_variants": [],
+      "hf_repos": {
+        "BF16": "mistralai/Mistral-7B-Instruct-v0.3"
+      },
+      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336. No widely-shipped community AWQ/GPTQ variant for v0.3 (older v0.1 has them) — INT4 selection will be blocked by the compatibility validator."
     },
     {
       "key": "deepseek-v3",
@@ -116,7 +158,14 @@
       "attn_type": "MLA",
       "kv_lora_rank": 512,
       "qk_rope_head_dim": 64,
-      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
+      "family": "deepseek",
+      "moe": true,
+      "quant_variants": ["FP8"],
+      "hf_repos": {
+        "BF16": "deepseek-ai/DeepSeek-V3",
+        "FP8":  "deepseek-ai/DeepSeek-V3"
+      },
+      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7. No community AWQ (INT4) variant — DeepSeek-V3 ships natively in FP8."
     }
   ]
 }
