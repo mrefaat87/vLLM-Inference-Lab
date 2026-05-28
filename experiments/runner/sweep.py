@@ -15,16 +15,28 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from collections.abc import Callable
+
+import click
+
 from experiments.drivers.base import EngineDriver
 from experiments.runner.analysis import analyze
 from experiments.runner.calc_bridge import CalcBridge, CalcInputs
+from experiments.runner.calibration import (
+    DEFAULT_TTFT_SLO_MS,
+    PROBE_S,
+    calibrate,
+    explicit_calibration,
+)
 from experiments.runner.driver_loop import LoopConfig, run_loop
 from experiments.runner.manifest_store import ManifestStore
 from experiments.runner.schema import (
+    Calibration,
     EngineConfig,
     HardwareSpec,
     ModelSpec,
     Prediction,
+    RequestRecord,
     RooflineLink,
     RunManifest,
     RunResult,
@@ -80,7 +92,7 @@ class SweepRunner:
         *,
         engine: EngineDriver,
         engine_cfg: EngineConfig,
-        workload: WorkloadGenerator,
+        workload: WorkloadGenerator | None = None,
         workload_cfg: WorkloadConfig,
         model: ModelSpec,
         hardware: HardwareSpec,
@@ -88,6 +100,8 @@ class SweepRunner:
         run_id: str | None = None,
         notes: str | None = None,
         tbt_target_ms: float = 50.0,
+        ttft_slo_ms: float = DEFAULT_TTFT_SLO_MS,
+        workload_factory: Callable[[float, int], WorkloadGenerator] | None = None,
     ) -> Path:
         """Execute one run end-to-end and return the result JSON path."""
         run_id = run_id or _new_run_id(engine_cfg.name, workload_cfg.name)
@@ -106,9 +120,36 @@ class SweepRunner:
             self._await_ready(engine, timeout_s=300.0)
             self._manifests.mark_running(run_id, log_path=None)
 
+            loop_cfg = LoopConfig(endpoint=endpoint, model=engine_cfg.model)
+
+            # Calibration phase: when a workload_factory is supplied we probe
+            # the engine to find its real capacity ceiling and override the
+            # placeholder rate_rps on workload_cfg. Explicit-rate runs (caller
+            # passes a constructed workload) bypass the probe sweep and just
+            # record the explicit rate so downstream readers have a uniform
+            # shape.
+            if workload_factory is not None:
+                calibration_block = await self._calibrate(
+                    loop_cfg=loop_cfg,
+                    workload_factory=workload_factory,
+                    workload_cfg=workload_cfg,
+                    ttft_slo_ms=ttft_slo_ms,
+                )
+                workload_cfg = workload_cfg.model_copy(
+                    update={"rate_rps": calibration_block.selected_rate}
+                )
+                workload = workload_factory(
+                    calibration_block.selected_rate, workload_cfg.seed
+                )
+            else:
+                if workload is None:
+                    raise ValueError(
+                        "run_one requires either workload or workload_factory"
+                    )
+                calibration_block = explicit_calibration(workload_cfg.rate_rps)
+
             t0 = time.monotonic()
             started_at = datetime.now(timezone.utc)
-            loop_cfg = LoopConfig(endpoint=endpoint, model=engine_cfg.model)
             records = await run_loop(
                 workload.requests(duration_s=workload_cfg.duration_s),
                 loop_cfg,
@@ -140,6 +181,7 @@ class SweepRunner:
                 analysis=analysis,
                 roofline_link=roofline_link,
                 prediction=prediction,
+                calibration=calibration_block,
                 raw_results=records,
                 engine_metrics=engine.metrics(),
                 notes=notes,
@@ -195,6 +237,43 @@ class SweepRunner:
             price_per_hour_usd=price,
         )
         return self._calc_bridge.predict(inputs)
+
+    async def _calibrate(
+        self,
+        *,
+        loop_cfg: LoopConfig,
+        workload_factory: Callable[[float, int], WorkloadGenerator],
+        workload_cfg: WorkloadConfig,
+        ttft_slo_ms: float,
+    ) -> Calibration:
+        """Run the probe sweep and emit a stdout summary.
+
+        Each probe builds a fresh workload via the factory (so the
+        calibration-phase RNG/conversation state is isolated from the
+        measurement window).
+        """
+        async def _probe(rate: float, seed: int) -> list[RequestRecord]:
+            # Each burst gets its own t0 so its arrival schedule starts
+            # at offset 0 (driver_loop sleeps until req.arrival_offset_s).
+            probe_workload = workload_factory(rate, seed)
+            t0_probe = time.monotonic()
+            return await run_loop(
+                probe_workload.requests(duration_s=PROBE_S),
+                loop_cfg,
+                t0=t0_probe,
+            )
+
+        result = await calibrate(probe_fn=_probe, ttft_slo_ms=ttft_slo_ms)
+        # Echo to stdout so paste-and-go users see what rate was picked.
+        probe_summary = ", ".join(
+            f"{p.rate:g}={'sat' if p.saturated else 'ok'}" for p in result.probes
+        )
+        click.echo(
+            f"rate auto → calibrated to {result.selected_rate:.2f} rps "
+            f"(ceiling ~{result.capacity_ceiling:.2f} rps; probes: {probe_summary})",
+            err=True,
+        )
+        return result
 
     def _await_ready(self, engine: EngineDriver, *, timeout_s: float) -> None:
         deadline = time.monotonic() + timeout_s

@@ -189,9 +189,11 @@ test("copy button copies the snippet to clipboard", async ({ page, context }) =>
 
 // [ COPY EXP RUN ] must yield a paste-and-go command:
 // - verb is `exp launch` (the orchestrator that auto-rebuilds + opens the browser)
-// - `--rate` is a positive number, not the `<rps>` placeholder
+// - `--rate` is OMITTED (the lab calibrates against real engine capacity; the
+//   calc's analytical recommendation runs 5–10× over real ceiling for combos
+//   like INT8/T4 that fall back to slow kernels)
 // - all join keys land in the command so the lab result re-anchors to this prediction
-test("copy exp button emits a launch command with numeric rate", async ({ page, context }) => {
+test("copy exp button emits a launch command without --rate (lab calibrates)", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(pathToFileURL(HTML).href);
   await page.waitForFunction(() => window.__sizingChart != null);
@@ -206,12 +208,11 @@ test("copy exp button emits a launch command with numeric rate", async ({ page, 
 
   expect(clipboard.startsWith("exp launch ")).toBe(true);
   expect(clipboard).not.toContain("<rps>");
-  // Rate appears as a number on the --rate line.
-  const rateMatch = clipboard.match(/--rate\s+([0-9.]+)/);
-  expect(rateMatch).not.toBeNull();
-  const rate = parseFloat(rateMatch[1]);
-  expect(rate).toBeGreaterThan(0);
-  expect(Number.isFinite(rate)).toBe(true);
+  // Regression guard: no --rate flag — lab side calibrates against the real engine.
+  expect(clipboard).not.toMatch(/--rate(\s|$)/);
+  // Duration / warmup still present so the run shape is fully specified.
+  expect(clipboard).toContain("--duration");
+  expect(clipboard).toContain("--warmup");
   // Join keys present so the lab result lines up with this prediction.
   expect(clipboard).toContain("--model-ref");
   expect(clipboard).toContain("--hw-ref");
