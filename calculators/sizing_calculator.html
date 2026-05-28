@@ -470,6 +470,32 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 }
 .copy-btn:hover { color: var(--text); border-color: var(--muted); }
 .copy-btn.flash { color: var(--b-kv); border-color: var(--b-kv); }
+/* Disabled state — the compatibility validator greys the button when the
+   current (model × hw × precision) combo cannot run. Hover doesn't restore
+   colour; cursor signals not-clickable. */
+.copy-btn:disabled,
+.copy-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--rule);
+}
+.copy-btn:disabled:hover,
+.copy-btn[disabled]:hover { color: var(--muted); border-color: var(--rule); background: transparent; }
+
+/* Inline error block under the snippet, populated when the copy button is
+   gated. Mirrors .diag-line aesthetics but lives directly beneath the
+   <pre> so the disabled button has visible adjacent context. */
+.snippet-block {
+  border-top: 1px solid var(--danger);
+  background: rgba(248, 81, 73, 0.06);
+  padding: 10px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.snippet-block[hidden] { display: none; }
+.snippet-block-line { display: flex; gap: 10px; padding: 2px 0; }
+.snippet-block-line .glyph { width: 12px; text-align: center; color: var(--danger); }
+.snippet-block-line .msg { color: var(--text); flex: 1; }
 /* Two adjacent copy buttons — the more specific "EXP RUN" first
    (recommended for the lab handoff), then the full-snippet fallback. */
 .snippet-btns { display: inline-flex; gap: 6px; }
@@ -1063,6 +1089,11 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
         </span>
       </div>
       <pre id="snippet-body">—</pre>
+      <!-- Inline compatibility-error block. Populated by gateSnippetButtons()
+           when the current (model × hw × precision) combo cannot run; the
+           copy buttons above are disabled in the same pass. Hidden when
+           there are no errors. -->
+      <div id="snippet-block" class="snippet-block" hidden></div>
     </div>
 
     <h2>Lab runs</h2>
@@ -1104,6 +1135,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": "peak dense BF16/FP16 tensor TFLOPs (no sparsity)",
       "fp8_tflops": "peak dense FP8 tensor TFLOPs; null if hardware has no FP8 path",
       "nvlink": "true if multi-GPU TP within node has high-bandwidth interconnect",
+      "arch": "GPU microarchitecture family: turing (T4) | ada (L4) | ampere (consumer/single-GPU Ampere e.g. A10G) | ampere_dc (datacenter Ampere with NVLink e.g. A100) | hopper (H100/H200). Drives kernel-availability rules in compatibility.json.",
       "price_per_hour_usd": "AWS on-demand list price per GPU per hour. Derived from the canonical EC2 instance price for this card (us-east-1 list) divided by GPU count on that instance. Default; the UI accepts overrides for spot / reserved / contract pricing.",
       "notes": "free-form provenance / caveat string"
     },
@@ -1124,6 +1156,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 65,
       "fp8_tflops": null,
       "nvlink": false,
+      "arch": "turing",
       "price_per_hour_usd": 0.526,
       "notes": "Turing; no hardware FP8 path. Reference for Stage 2 g4dn.xlarge spot work. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g4dn.xlarge on-demand list; override in UI for spot / contract."
     },
@@ -1136,6 +1169,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 121,
       "fp8_tflops": 242,
       "nvlink": false,
+      "arch": "ada",
       "price_per_hour_usd": 0.805,
       "notes": "Ada Lovelace; FP8 supported. PCIe only — no NVLink even in multi-GPU configs. ici_bw_gbs is PCIe-bidir, not NVLink (no NVLink on this card). Price: g6.xlarge on-demand list; override in UI for spot / contract."
     },
@@ -1148,6 +1182,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 70,
       "fp8_tflops": null,
       "nvlink": false,
+      "arch": "ampere",
       "price_per_hour_usd": 1.006,
       "notes": "Price: g5.xlarge on-demand list; override in UI for spot / contract. Ampere; AWS-custom variant — verified against official AWS/NVIDIA A10G datasheet (https://d1.awsstatic.com/product-marketing/ec2/NVIDIA_AWS_A10G_DataSheet_FINAL_02_17_2022.pdf) on 2026-05-23: 24 GB GDDR6 (field is named hbm_gb but A10G uses GDDR6, not HBM), 600 GB/s memory bandwidth, PCIe Gen4 64 GB/s bidir interconnect (no NVLink), BFLOAT16/FP16 Tensor Core = 70 TF dense (140 TF with 2:4 sparsity — we store dense). No FP8 — Hopper introduced FP8. Note: A10G is the AWS-custom variant; dense FP16 is ~half the regular A10's 125 TF (cross-checked against https://www.baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference/). Previous value of 125 TF was the A10, not A10G — corrected 2026-05-23."
     },
@@ -1160,6 +1195,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
+      "arch": "ampere_dc",
       "price_per_hour_usd": 2.745,
       "notes": "Ampere; NVLink 3.0 = 600 GB/s bidir within DGX/HGX. No FP8 — Hopper introduced FP8. Price: p4d.24xlarge on-demand list ($21.958/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -1172,6 +1208,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 312,
       "fp8_tflops": null,
       "nvlink": true,
+      "arch": "ampere_dc",
       "price_per_hour_usd": 3.431,
       "notes": "Same compute as 40GB; doubled HBM lifts the roofline ridge point. NVLink 3.0 = 600 GB/s bidir. Price: p4de.24xlarge on-demand list ($27.447/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -1184,6 +1221,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
+      "arch": "hopper",
       "price_per_hour_usd": 6.88,
       "notes": "Hopper SXM; per reference §1, B_crit ≈ 295 (bf16) / 590 (fp8 weights, bf16 acts). NVLink 4.0 = 900 GB/s bidir → β ≈ 3.7. Price: p5.48xlarge on-demand list ($55.04/hr ÷ 8 GPUs); override in UI for spot / contract."
     },
@@ -1196,6 +1234,7 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "fp16_tflops": 990,
       "fp8_tflops": 1979,
       "nvlink": true,
+      "arch": "hopper",
       "price_per_hour_usd": 7.91,
       "notes": "Same compute as H100, ~43% more HBM and ~43% more bandwidth. Reference §1: B_crit ≈ 205 (bf16). NVLink 4.0 = 900 GB/s bidir → β ≈ 5.3. Price: derived from AWS Capacity Blocks ratio H200/H100 = $4.975/$4.326 = 1.15× (https://aws.amazon.com/ec2/capacityblocks/pricing/) applied to known H100 on-demand $6.88/GPU → $7.91/GPU. p5en.48xlarge enhanced-networking variant runs higher (~$9/GPU). Override in UI for spot / Capacity Blocks / contract."
     }
@@ -1221,6 +1260,10 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "attn_type": "MHA | GQA | MLA — KV per-token formula differs for MLA",
       "kv_lora_rank": "MLA latent dim (d_c). Required when attn_type=MLA; omitted otherwise.",
       "qk_rope_head_dim": "MLA rope key dim (d_rope). Required when attn_type=MLA; omitted otherwise.",
+      "family": "model family slug: llama | qwen | mistral | deepseek. Used by compatibility rules.",
+      "moe": "boolean: true for mixture-of-experts (deepseek-v3), false for dense. Read by compatibility rules; redundant with (params_b_active < params_b_total) but explicit makes the rule cleaner.",
+      "quant_variants": "array of pre-quantized HF repo flavors that exist for this model: [\"AWQ\", \"GPTQ\", \"FP8\"]. Empty means no community-quantized variant — the compatibility validator gates on this so the calc doesn't emit unrunnable commands.",
+      "hf_repos": "map of precision token → full HF repo id. Keys: BF16 / FP16 (base), INT4 (AWQ variant), FP8, INT8. Read by ui.mjs paintSnippet() when emitting --model. If a precision is missing the snippet falls back to BF16 — the compatibility validator will already have gated the button in the truly-unrunnable case.",
       "notes": "provenance / caveats"
     },
     "_sources": [
@@ -1242,6 +1285,15 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "d_ff": 14336,
       "max_context": 8192,
       "attn_type": "GQA",
+      "family": "llama",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ", "FP8"],
+      "hf_repos": {
+        "BF16": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "FP16": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "INT4": "casperhansen/llama-3-8b-instruct-awq",
+        "FP8":  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8"
+      },
       "notes": "Meta Llama-3 base. GQA 4:1 grouping. SwiGLU FFW with d_ff=14336 (HF config intermediate_size)."
     },
     {
@@ -1257,6 +1309,15 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "d_ff": 28672,
       "max_context": 8192,
       "attn_type": "GQA",
+      "family": "llama",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ", "FP8"],
+      "hf_repos": {
+        "BF16": "meta-llama/Meta-Llama-3-70B-Instruct",
+        "FP16": "meta-llama/Meta-Llama-3-70B-Instruct",
+        "INT4": "casperhansen/llama-3-70b-instruct-awq",
+        "FP8":  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8"
+      },
       "notes": "Reference worked example (§3, §5): KV/token int8 ≈ 160 kB; 32 batch × 8k ≈ 42 GB KV. SwiGLU FFW d_ff=28672."
     },
     {
@@ -1272,6 +1333,13 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "d_ff": 18944,
       "max_context": 32768,
       "attn_type": "GQA",
+      "family": "qwen",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ"],
+      "hf_repos": {
+        "BF16": "Qwen/Qwen2.5-7B-Instruct",
+        "INT4": "Qwen/Qwen2.5-7B-Instruct-AWQ"
+      },
       "notes": "Aggressive GQA 7:1; long context up to 128k with YaRN (use 32k default). SwiGLU FFW d_ff=18944."
     },
     {
@@ -1286,7 +1354,14 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "head_dim": 128,
       "d_ff": 13824,
       "max_context": 32768,
-      "attn_type": "GQA"
+      "attn_type": "GQA",
+      "family": "qwen",
+      "moe": false,
+      "quant_variants": ["AWQ", "GPTQ"],
+      "hf_repos": {
+        "BF16": "Qwen/Qwen2.5-14B-Instruct",
+        "INT4": "Qwen/Qwen2.5-14B-Instruct-AWQ"
+      }
     },
     {
       "key": "mistral-7b",
@@ -1301,7 +1376,13 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "d_ff": 14336,
       "max_context": 32768,
       "attn_type": "GQA",
-      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336."
+      "family": "mistral",
+      "moe": false,
+      "quant_variants": [],
+      "hf_repos": {
+        "BF16": "mistralai/Mistral-7B-Instruct-v0.3"
+      },
+      "notes": "Mistral-7B-v0.3. Sliding-window attention not modelled — KV estimate is full-context upper bound. SwiGLU FFW d_ff=14336. No widely-shipped community AWQ/GPTQ variant for v0.3 (older v0.1 has them) — INT4 selection will be blocked by the compatibility validator."
     },
     {
       "key": "deepseek-v3",
@@ -1320,7 +1401,14 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
       "attn_type": "MLA",
       "kv_lora_rank": 512,
       "qk_rope_head_dim": 64,
-      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7."
+      "family": "deepseek",
+      "moe": true,
+      "quant_variants": ["FP8"],
+      "hf_repos": {
+        "BF16": "deepseek-ai/DeepSeek-V3",
+        "FP8":  "deepseek-ai/DeepSeek-V3"
+      },
+      "notes": "MoE: 671B total weights stream from HBM; 37B active per token drives compute. MLA cache: (512+64) × bytes × 61 layers per token. Reference §3 table + §7. No community AWQ (INT4) variant — DeepSeek-V3 ships natively in FP8."
     }
   ]
 }
@@ -1925,6 +2013,127 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
     }
   ]
 }</script>
+<script type="application/json" id="compatibility-data">{
+  "_schema": {
+    "intent": "Declarative compatibility rules for (model, hardware, precision, ngpus) combinations the calc can emit. compute() stays pure physics/math; this layer captures kernel-availability and HF-repo-existence facts that the analytical model doesn't see. Rules are evaluated by src/compatibility.mjs::validate() and returned as { errors, warns }. The ui.mjs copy-button is gated on errors.",
+    "predicate_vocabulary": {
+      "weight_prec": "array of weight precisions the rule fires on (e.g. [\"INT8\"])",
+      "kv_prec": "array of KV-cache precisions the rule fires on",
+      "act_prec": "array of activation precisions the rule fires on",
+      "gpu_arch": "array of hardware.arch values (turing | ada | ampere | ampere_dc | hopper)",
+      "gpu_fp8_tflops_null": "boolean: true means rule fires when the selected hardware has no FP8 path (hw.fp8_tflops === null)",
+      "model_moe": "boolean: true means rule fires on MoE models; false means dense-only",
+      "model_family": "array of model.family values",
+      "model_quant_variants_missing": "string: rule fires when the model's quant_variants array does NOT contain this token (e.g. \"AWQ\")",
+      "ngpus_lt": "rule fires when input.ngpus < this number",
+      "ngpus_gt": "rule fires when input.ngpus > this number",
+      "isl_plus_osl_gt_model_max_context": "boolean: rule fires when ISL+OSL > model.max_context",
+      "weight_act_prec_mismatch_non_fp8": "boolean: fires when weight_prec ≠ act_prec AND not both FP8 (i.e. config silently rides FP16 compute path)"
+    },
+    "match_semantics": "A rule fires only if EVERY key in its `when` block matches. Mismatched/missing input fields don't match. Severity is either \"error\" (gates the copy button) or \"warn\" (advisory only).",
+    "suggest_block": "Optional. Free-form key/value hints rendered as the 'Try:' line under the reason. Keys mirror input field names (weight_prec, kv_prec, ngpus) plus a free-form 'note' string."
+  },
+  "rules": [
+    {
+      "id": "int8-non-hopper",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT8"],
+        "gpu_arch": ["turing", "ada", "ampere", "ampere_dc"]
+      },
+      "reason": "INT8 via bitsandbytes dequantizes weights every forward pass on non-Hopper GPUs — there is no fast INT8 kernel. Expect TBT far above the predicted value.",
+      "suggest": { "weight_prec": "INT4", "note": "AWQ (INT4) has a Marlin kernel on Ampere+ and pre-quantized HF repos for most popular models." }
+    },
+    {
+      "id": "int8-hopper-suboptimal",
+      "severity": "warn",
+      "when": {
+        "weight_prec": ["INT8"],
+        "gpu_arch": ["hopper"]
+      },
+      "reason": "INT8 works on Hopper but FP8 is the faster native tensor-core path.",
+      "suggest": { "weight_prec": "FP8" }
+    },
+    {
+      "id": "fp8-no-hardware",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["FP8"],
+        "gpu_fp8_tflops_null": true
+      },
+      "reason": "Selected GPU has no hardware FP8 path. vLLM will reject the config or fall back to slow emulation.",
+      "suggest": { "weight_prec": "FP16", "note": "Or AWQ (INT4) for a real memory saving with a fast kernel on Ampere+." }
+    },
+    {
+      "id": "awq-no-repo",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT4"],
+        "model_quant_variants_missing": "AWQ"
+      },
+      "reason": "AWQ (INT4) requires a pre-quantized HuggingFace repo; the selected model has no community AWQ variant.",
+      "suggest": { "weight_prec": "FP16" }
+    },
+    {
+      "id": "awq-marlin-needs-ampere",
+      "severity": "error",
+      "when": {
+        "weight_prec": ["INT4"],
+        "gpu_arch": ["turing"]
+      },
+      "reason": "AWQ Marlin kernel requires sm_80+ (Ampere or later). On Turing (T4) AWQ falls back to a slow dequant path.",
+      "suggest": { "weight_prec": "FP16" }
+    },
+    {
+      "id": "fp8-kv-no-hardware",
+      "severity": "error",
+      "when": {
+        "kv_prec": ["FP8"],
+        "gpu_arch": ["turing"]
+      },
+      "reason": "FP8 KV cache requires Ampere or later; Turing has no FP8 KV support in vLLM.",
+      "suggest": { "kv_prec": "FP16" }
+    },
+    {
+      "id": "kv-prec-int-not-supported",
+      "severity": "error",
+      "when": {
+        "kv_prec": ["INT8"]
+      },
+      "reason": "vLLM does not implement INT8 KV cache. Only FP8 (e5m2 / e4m3) and FP16/BF16 KV are real.",
+      "suggest": { "kv_prec": "FP8" }
+    },
+    {
+      "id": "moe-needs-many-gpus",
+      "severity": "error",
+      "when": {
+        "model_moe": true,
+        "ngpus_lt": 8
+      },
+      "reason": "MoE models need ≥8 GPUs for reasonable expert distribution; per-GPU capacity for the expert pool is otherwise too small.",
+      "suggest": { "ngpus": 8 }
+    },
+    {
+      "id": "context-exceeds-model-max",
+      "severity": "error",
+      "when": {
+        "isl_plus_osl_gt_model_max_context": true
+      },
+      "reason": "ISL+OSL exceeds the model's trained max_context — vLLM will reject requests at this length.",
+      "suggest": { "note": "Reduce ISL or OSL, or pick a model with longer context." }
+    },
+    {
+      "id": "weight-act-mismatch-no-fp8-path",
+      "severity": "warn",
+      "when": {
+        "weight_act_prec_mismatch_non_fp8": true
+      },
+      "reason": "vLLM uses the paired FP8 weight+activation tensor-core path only when both are FP8. Mismatched precisions silently ride the FP16 compute roofline — predicted throughput will overestimate.",
+      "suggest": { "note": "Set act_prec = weight_prec, or accept the FP16 compute path." }
+    }
+  ]
+}
+</script>
 <script type="module">
 
 // ===== calc.mjs =====
@@ -3333,6 +3542,137 @@ function recommendedRate(batch, tbtMs, oslTokens, ttftMs) {
   return Math.max(1, +((b / perReqSec).toFixed(2)));
 }
 
+// ===== compatibility.mjs =====
+// Compatibility validator: declarative rules from data/compatibility.json
+// classify (model × hardware × precision × ngpus) combos as runnable or not.
+//
+// Why a separate layer (not inside compute()): compute() is pure
+// physics/math — roofline, KV bytes, parallelism. Kernel availability and
+// HF-repo existence are *facts about the deployment ecosystem*, not facts
+// about the math. Mixing them would couple the analytical model to
+// fast-moving engine/vendor state.
+//
+// The output drives both diagnostic rendering and copy-button gating in
+// ui.mjs. Each rule is data-driven: `when` describes what must match,
+// `severity` is "error" | "warn", `reason` is human-readable, `suggest`
+// is a remediation hint.
+
+/**
+ * Evaluate every rule against the calculator input.
+ *
+ * @param {object} input  — same shape compute() consumes
+ *                          (hw, model, weight_prec, kv_prec, act_prec, ngpus, isl, osl, …)
+ * @param {Array<object>} rules — parsed compatibility.json `rules` array
+ * @returns {{ errors: Issue[], warns: Issue[] }}
+ *   Issue: { id, level, msg, reason, suggest, rule }
+ *   `msg` is `reason` + a one-line "Try: …" derived from `suggest`, suitable
+ *   for direct display.
+ */
+function validate(input, rules) {
+  const errors = [];
+  const warns = [];
+  if (!input || !Array.isArray(rules)) return { errors, warns };
+  for (const rule of rules) {
+    if (!rule || !rule.when) continue;
+    if (!ruleMatches(rule.when, input)) continue;
+    const issue = {
+      id: rule.id,
+      level: rule.severity === "error" ? "error" : "warn",
+      reason: rule.reason || "",
+      suggest: rule.suggest || null,
+      rule,
+      msg: formatMessage(rule),
+    };
+    if (issue.level === "error") errors.push(issue);
+    else warns.push(issue);
+  }
+  return { errors, warns };
+}
+
+/** Render `reason` + a one-line "Try: …" so the validator owns the wording. */
+function formatMessage(rule) {
+  const parts = [rule.reason || ""];
+  const tip = formatSuggestion(rule.suggest);
+  if (tip) parts.push(`Try: ${tip}`);
+  return parts.join(" ");
+}
+
+function formatSuggestion(suggest) {
+  if (!suggest || typeof suggest !== "object") return "";
+  const bits = [];
+  // Known input-field hints first so they read as "change this knob".
+  const keyOrder = ["weight_prec", "kv_prec", "act_prec", "ngpus"];
+  for (const k of keyOrder) {
+    if (suggest[k] != null) bits.push(`${k.replace(/_/g, " ")} = ${suggest[k]}`);
+  }
+  if (suggest.note) bits.push(suggest.note);
+  return bits.join(" · ");
+}
+
+/** All `when` keys must match. Unknown keys fail closed (treated as no-match
+ *  so a typo in compatibility.json doesn't accidentally fire every rule). */
+function ruleMatches(when, input) {
+  for (const [key, expected] of Object.entries(when)) {
+    const pred = PREDICATES[key];
+    if (!pred) return false;            // unknown predicate → don't fire
+    if (!pred(expected, input)) return false;
+  }
+  return true;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Predicate table — one entry per `when` key documented in compatibility.json.
+// Each predicate is (expected, input) → boolean.
+// ──────────────────────────────────────────────────────────────────────────
+const PREDICATES = {
+  weight_prec: (vals, i) => Array.isArray(vals) && vals.includes(i.weight_prec),
+  kv_prec:     (vals, i) => Array.isArray(vals) && vals.includes(i.kv_prec),
+  act_prec:    (vals, i) => Array.isArray(vals) && vals.includes(i.act_prec),
+
+  // Hardware arch must come from a preset row; custom hw has no arch and
+  // therefore can't fire any kernel-availability rule. That's intentional —
+  // users in custom mode have opted out of the GPU-knowledge layer.
+  gpu_arch: (vals, i) => Array.isArray(vals) && i.hw && vals.includes(i.hw.arch),
+
+  // True when GPU has no hardware FP8 path. Encoded as a boolean predicate so
+  // the rule reads naturally; flip in the future if we add "has FP8" rules.
+  gpu_fp8_tflops_null: (expect, i) => Boolean(expect) === (i.hw?.fp8_tflops == null),
+
+  model_moe:    (expect, i) => Boolean(expect) === Boolean(i.model?.moe),
+  model_family: (vals, i)   => Array.isArray(vals) && vals.includes(i.model?.family),
+
+  // Fires when the model's quant_variants does NOT contain the named token.
+  // (Inverted on purpose — "missing" is the failure case we want to surface.)
+  // Models without a quant_variants array are treated as missing-all so the
+  // rule still fires (safer default — assume not available unless declared).
+  model_quant_variants_missing: (token, i) => {
+    const arr = Array.isArray(i.model?.quant_variants) ? i.model.quant_variants : [];
+    return !arr.includes(token);
+  },
+
+  ngpus_lt: (n, i) => Number.isFinite(i.ngpus) && i.ngpus < n,
+  ngpus_gt: (n, i) => Number.isFinite(i.ngpus) && i.ngpus > n,
+
+  isl_plus_osl_gt_model_max_context: (expect, i) => {
+    if (!expect) return true;           // rule disabled
+    const isl = +i.isl || 0;
+    const osl = +i.osl || 0;
+    const max = +i.model?.max_context || 0;
+    return max > 0 && (isl + osl) > max;
+  },
+
+  // weight_prec ≠ act_prec AND not both FP8. (When both are FP8 vLLM uses
+  // the native FP8 tensor-core path — that's the "good" case.) The FP8+FP8
+  // case is filtered out so the warn only surfaces actual mismatch.
+  weight_act_prec_mismatch_non_fp8: (expect, i) => {
+    if (!expect) return true;
+    if (!i.weight_prec || !i.act_prec) return false;
+    if (i.weight_prec === i.act_prec) return false;
+    if (i.weight_prec === "FP8" && i.act_prec === "FP8") return false;
+    return true;
+  },
+};
+
 // ===== validation.mjs =====
 // Validation overlay: loads measured runs from the lab's bridge dir and
 // projects them onto the calculator's scope panels.
@@ -3365,7 +3705,7 @@ const DEV_BRIDGE_URL = "./lab_runs/index.json";
  * `unavailable: "<reason>"` so the caller can render an empty-state
  * card without try/catch boilerplate.
  */
-export async function loadLabRuns({
+async function loadLabRuns({
   bridgeUrl = DEFAULT_BRIDGE_URL,
   fetchImpl = globalThis.fetch,
 } = {}) {
@@ -3446,7 +3786,7 @@ function projectRun(run) {
  * Lazily fetch a per-run blob by href (relative to the bridge dir).
  * Caches in the `runs` Map so the same run isn't re-fetched.
  */
-export async function fetchRun({
+async function fetchRun({
   bridgeBase = "./lab_runs",
   href,
   cache,
@@ -3507,6 +3847,11 @@ function emptyStateMessage({ unavailable, availableCombos = [] } = {}) {
 
 
 
+// NOTE: the build script strips imports and relies on each export being a
+// free top-level identifier in the concatenated bundle. So we import by the
+// exact exported name (`validate`) without an alias — that lets both the
+// ESM dev path and the bundled path resolve to the same function.
+
 
 // Lab-runs state: fetched once on first recompute, cached for the session.
 // `_promise` so concurrent recomputes don't refetch.
@@ -3527,6 +3872,15 @@ const labRunsState = {
 // test guarantees these round-trip cleanly.
 const HARDWARE = JSON.parse(document.getElementById("hardware-data").textContent).hardware;
 const MODELS = JSON.parse(document.getElementById("models-data").textContent).models;
+// Compatibility rules are bundled by the build script alongside hardware/models.
+// Defensive default: if the JSON tag is absent (older standalone HTML),
+// validate() with an empty rules array is a no-op.
+const COMPAT_RULES = (() => {
+  const el = document.getElementById("compatibility-data");
+  if (!el) return [];
+  try { return JSON.parse(el.textContent).rules || []; }
+  catch { return []; }
+})();
 
 const HW_BY_KEY    = Object.fromEntries(HARDWARE.map((h) => [h.key, h]));
 const MODEL_BY_KEY = Object.fromEntries(MODELS.map((m) => [m.key, m]));
@@ -3659,11 +4013,23 @@ let scopes = null;
 function recompute(skipPulse = false) {
   const input = readForm();
   const out = compute(input);
+  // Compatibility layer: a pure declarative pass over (hw, model, prec, ngpus)
+  // that classifies issues compute() can't see (kernel availability, HF-repo
+  // existence, etc). Merged with out.warnings before painting so diagnostics
+  // and copy-button gating both see one consistent issue list.
+  const compat = validate(input, COMPAT_RULES);
+  // out.warnings already carry {level, msg}; compat issues carry the same
+  // shape (+ id, reason, suggest). Errors from either source gate the button.
+  const allErrors = [
+    ...out.warnings.filter((w) => w.level === "error"),
+    ...compat.errors,
+  ];
   paintMetrics(out, input);
   paintChart(out);
   paintSweep(out, input);
-  paintDiagnostics(out);
+  paintDiagnostics(out, compat);
   paintSnippet(out, input);
+  gateSnippetButtons(allErrors);
   // Lab runs: fire-and-forget against the bridge. Failures show an
   // empty-state card; they never block the calc render.
   paintLabRuns(input, out).catch((e) => {
@@ -3856,9 +4222,16 @@ function paintSweep(out, input) {
   setHTML("patchbay", html);
 }
 
-function paintDiagnostics(out) {
+function paintDiagnostics(out, compat = { errors: [], warns: [] }) {
   const el = document.getElementById("diagnostics");
-  if (!out.warnings.length) {
+  // Merge: compute() errors/warns first (math constraints), then compat
+  // errors (kernel/repo blockers), then compat warns (advisories).
+  const merged = [
+    ...out.warnings,
+    ...compat.errors,
+    ...compat.warns,
+  ];
+  if (!merged.length) {
     el.innerHTML = `<div class="empty">[--:--:--] · no issues.</div>`;
     return;
   }
@@ -3870,11 +4243,45 @@ function paintDiagnostics(out) {
   const ss = String(t.getSeconds()).padStart(2, "0");
   const ms = String(t.getMilliseconds()).padStart(3, "0");
   const stamp = `${hh}:${mm}:${ss}.${ms}`;
-  el.innerHTML = out.warnings.map((w) => `
+  el.innerHTML = merged.map((w) => `
     <div class="diag-line">
       <time>[${stamp}]</time>
       <span class="glyph ${w.level === "error" ? "error" : "warn"}">${w.level === "error" ? "■" : "▲"}</span>
       <span class="msg">${escapeHtml(w.msg)}</span>
+    </div>
+  `).join("");
+}
+
+// Disable/enable the copy buttons based on the merged error list, and surface
+// the first error inline under the snippet so users don't have to scroll to
+// diagnostics to understand why the button is greyed.
+function gateSnippetButtons(errors) {
+  const block = document.getElementById("snippet-block");
+  const copyBtn = document.getElementById("copy-btn");
+  const expBtn = document.getElementById("copy-exp-btn");
+  const blocked = errors.length > 0;
+  if (copyBtn) {
+    copyBtn.disabled = blocked;
+    copyBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)";
+  }
+  if (expBtn) {
+    expBtn.disabled = blocked;
+    expBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal";
+  }
+  if (!block) return;
+  if (!blocked) {
+    block.hidden = true;
+    block.innerHTML = "";
+    return;
+  }
+  // Render every error so users see all blockers at once, not just the first.
+  // The button tooltip still shows the first; the inline block is the canonical
+  // place to read the full list.
+  block.hidden = false;
+  block.innerHTML = errors.map((e) => `
+    <div class="snippet-block-line">
+      <span class="glyph error">■</span>
+      <span class="msg">${escapeHtml(e.msg)}</span>
     </div>
   `).join("");
 }
@@ -3898,32 +4305,16 @@ const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
 // command, not a half-fledged template.
 // ──────────────────────────────────────────────────────────────────────────
 
-// (model.key, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live
-// at separate HF paths because quantized weights are produced offline; the
-// engine can't downcast on the fly. Falls back to the unquantized path
-// when no special variant is published.
-const HF_PATHS = {
-  "llama-3-8b": {
-    BF16: "meta-llama/Meta-Llama-3-8B-Instruct",
-    FP16: "meta-llama/Meta-Llama-3-8B-Instruct",
-    INT4: "casperhansen/llama-3-8b-instruct-awq",
-    FP8:  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8",
-  },
-  "llama-3-70b": {
-    BF16: "meta-llama/Meta-Llama-3-70B-Instruct",
-    FP16: "meta-llama/Meta-Llama-3-70B-Instruct",
-    INT4: "casperhansen/llama-3-70b-instruct-awq",
-    FP8:  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8",
-  },
-  "qwen2.5-7b":  { BF16: "Qwen/Qwen2.5-7B-Instruct",  INT4: "Qwen/Qwen2.5-7B-Instruct-AWQ" },
-  "qwen2.5-14b": { BF16: "Qwen/Qwen2.5-14B-Instruct", INT4: "Qwen/Qwen2.5-14B-Instruct-AWQ" },
-  "mistral-7b":  { BF16: "mistralai/Mistral-7B-Instruct-v0.3" },
-  "deepseek-v3": { BF16: "deepseek-ai/DeepSeek-V3", FP8: "deepseek-ai/DeepSeek-V3" },
-};
-function modelHfPath(modelKey, weightPrec) {
-  const table = HF_PATHS[modelKey];
-  if (!table) return `<HF-REPO-FOR-${modelKey}>`;
-  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${modelKey}>`;
+// (model, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live at
+// separate HF paths because quantized weights are produced offline; the
+// engine can't downcast on the fly. The map lives in models.json as
+// `hf_repos` (single source of truth alongside model architecture facts).
+// Falls back to the unquantized path when no special variant is published —
+// the compatibility validator gates the copy button in the unrunnable case.
+function modelHfPath(model, weightPrec) {
+  if (!model) return `<HF-REPO-UNKNOWN>`;
+  const table = model.hf_repos || {};
+  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${model.key}>`;
 }
 
 // weight_prec → lab --quant token. INT4 defaults to awq because that's the
@@ -4017,7 +4408,7 @@ function paintSnippet(out, input) {
       : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
     // Model + quant + parallelism — derived from the calc inputs so the
     // empirical run and the predicted curve use the same engine config.
-    labWorkload ? `  --model ${modelHfPath(input.model.key, input.weight_prec)} \\` : null,
+    labWorkload ? `  --model ${modelHfPath(input.model, input.weight_prec)} \\` : null,
     labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
@@ -4071,6 +4462,10 @@ function wireCopyButton(btnId, getText, restoreLabel) {
   if (!btn) return;
   const originalLabel = btn.textContent;
   btn.addEventListener("click", async () => {
+    // Compat layer disables the button when the current combo can't run; the
+    // browser already swallows the click on a true `disabled` button, but
+    // belt-and-braces here in case styling drifts to aria-only.
+    if (btn.disabled) return;
     const text = getText();
     if (text == null) {
       btn.textContent = "[ NO LAB MAPPING ]";

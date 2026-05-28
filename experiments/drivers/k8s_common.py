@@ -65,7 +65,7 @@ class K8sEngineDriver(EngineDriver):
     def __init__(
         self,
         kubectl: KubectlConfig | None = None,
-        readiness_timeout_s: float = 600.0,
+        readiness_timeout_s: float = 1200.0,
         port_forward: bool = True,
     ) -> None:
         self._kubectl = kubectl or KubectlConfig()
@@ -304,9 +304,11 @@ def _vars_for_cfg(cfg: EngineConfig, engine_name: str) -> dict[str, str]:
     # when we have to fall back.
     mem_req_gib = spec.pod_memory_request_gib if spec else 8
     mem_limit_gib = spec.allocatable_memory_gib if spec else 12
-    # CPU request: 4 cores is a safe floor for vLLM's async loops; scale
-    # to half the typical core count per GPU on the chosen node when known.
-    cpu_req = "4" if not spec else str(max(4, spec.allocatable_memory_gib // 8))
+    # CPU request: scale to mem_gib//8 (rough proxy for typical core
+    # count). Floor at 3 — Karpenter reserves ~210m for DaemonSets, so
+    # requesting 4 on a 4-vCPU box (g4dn.xlarge) is unschedulable.
+    # Floor of 3 leaves ~790m headroom on the smallest GPU instance.
+    cpu_req = "3" if not spec else str(max(3, spec.allocatable_memory_gib // 8))
     return {
         "ENGINE_NAME": engine_name,
         "MODEL": cfg.model,

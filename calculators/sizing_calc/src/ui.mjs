@@ -8,6 +8,11 @@
 import { compute, DTYPE_BYTES } from "./calc.mjs";
 import { createScope } from "./chart.mjs";
 import { recommendedRate } from "./lab_command.mjs";
+// NOTE: the build script strips imports and relies on each export being a
+// free top-level identifier in the concatenated bundle. So we import by the
+// exact exported name (`validate`) without an alias — that lets both the
+// ESM dev path and the bundled path resolve to the same function.
+import { validate } from "./compatibility.mjs";
 import {
   DEFAULT_BRIDGE_URL,
   loadLabRuns,
@@ -37,6 +42,15 @@ import { mountFormulasDrawer } from "./drawer.mjs";
 // test guarantees these round-trip cleanly.
 const HARDWARE = JSON.parse(document.getElementById("hardware-data").textContent).hardware;
 const MODELS = JSON.parse(document.getElementById("models-data").textContent).models;
+// Compatibility rules are bundled by the build script alongside hardware/models.
+// Defensive default: if the JSON tag is absent (older standalone HTML),
+// validate() with an empty rules array is a no-op.
+const COMPAT_RULES = (() => {
+  const el = document.getElementById("compatibility-data");
+  if (!el) return [];
+  try { return JSON.parse(el.textContent).rules || []; }
+  catch { return []; }
+})();
 
 const HW_BY_KEY    = Object.fromEntries(HARDWARE.map((h) => [h.key, h]));
 const MODEL_BY_KEY = Object.fromEntries(MODELS.map((m) => [m.key, m]));
@@ -169,11 +183,23 @@ let scopes = null;
 function recompute(skipPulse = false) {
   const input = readForm();
   const out = compute(input);
+  // Compatibility layer: a pure declarative pass over (hw, model, prec, ngpus)
+  // that classifies issues compute() can't see (kernel availability, HF-repo
+  // existence, etc). Merged with out.warnings before painting so diagnostics
+  // and copy-button gating both see one consistent issue list.
+  const compat = validate(input, COMPAT_RULES);
+  // out.warnings already carry {level, msg}; compat issues carry the same
+  // shape (+ id, reason, suggest). Errors from either source gate the button.
+  const allErrors = [
+    ...out.warnings.filter((w) => w.level === "error"),
+    ...compat.errors,
+  ];
   paintMetrics(out, input);
   paintChart(out);
   paintSweep(out, input);
-  paintDiagnostics(out);
+  paintDiagnostics(out, compat);
   paintSnippet(out, input);
+  gateSnippetButtons(allErrors);
   // Lab runs: fire-and-forget against the bridge. Failures show an
   // empty-state card; they never block the calc render.
   paintLabRuns(input, out).catch((e) => {
@@ -366,9 +392,16 @@ function paintSweep(out, input) {
   setHTML("patchbay", html);
 }
 
-function paintDiagnostics(out) {
+function paintDiagnostics(out, compat = { errors: [], warns: [] }) {
   const el = document.getElementById("diagnostics");
-  if (!out.warnings.length) {
+  // Merge: compute() errors/warns first (math constraints), then compat
+  // errors (kernel/repo blockers), then compat warns (advisories).
+  const merged = [
+    ...out.warnings,
+    ...compat.errors,
+    ...compat.warns,
+  ];
+  if (!merged.length) {
     el.innerHTML = `<div class="empty">[--:--:--] · no issues.</div>`;
     return;
   }
@@ -380,11 +413,45 @@ function paintDiagnostics(out) {
   const ss = String(t.getSeconds()).padStart(2, "0");
   const ms = String(t.getMilliseconds()).padStart(3, "0");
   const stamp = `${hh}:${mm}:${ss}.${ms}`;
-  el.innerHTML = out.warnings.map((w) => `
+  el.innerHTML = merged.map((w) => `
     <div class="diag-line">
       <time>[${stamp}]</time>
       <span class="glyph ${w.level === "error" ? "error" : "warn"}">${w.level === "error" ? "■" : "▲"}</span>
       <span class="msg">${escapeHtml(w.msg)}</span>
+    </div>
+  `).join("");
+}
+
+// Disable/enable the copy buttons based on the merged error list, and surface
+// the first error inline under the snippet so users don't have to scroll to
+// diagnostics to understand why the button is greyed.
+function gateSnippetButtons(errors) {
+  const block = document.getElementById("snippet-block");
+  const copyBtn = document.getElementById("copy-btn");
+  const expBtn = document.getElementById("copy-exp-btn");
+  const blocked = errors.length > 0;
+  if (copyBtn) {
+    copyBtn.disabled = blocked;
+    copyBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)";
+  }
+  if (expBtn) {
+    expBtn.disabled = blocked;
+    expBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal";
+  }
+  if (!block) return;
+  if (!blocked) {
+    block.hidden = true;
+    block.innerHTML = "";
+    return;
+  }
+  // Render every error so users see all blockers at once, not just the first.
+  // The button tooltip still shows the first; the inline block is the canonical
+  // place to read the full list.
+  block.hidden = false;
+  block.innerHTML = errors.map((e) => `
+    <div class="snippet-block-line">
+      <span class="glyph error">■</span>
+      <span class="msg">${escapeHtml(e.msg)}</span>
     </div>
   `).join("");
 }
@@ -408,32 +475,16 @@ const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
 // command, not a half-fledged template.
 // ──────────────────────────────────────────────────────────────────────────
 
-// (model.key, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live
-// at separate HF paths because quantized weights are produced offline; the
-// engine can't downcast on the fly. Falls back to the unquantized path
-// when no special variant is published.
-const HF_PATHS = {
-  "llama-3-8b": {
-    BF16: "meta-llama/Meta-Llama-3-8B-Instruct",
-    FP16: "meta-llama/Meta-Llama-3-8B-Instruct",
-    INT4: "casperhansen/llama-3-8b-instruct-awq",
-    FP8:  "neuralmagic/Meta-Llama-3-8B-Instruct-FP8",
-  },
-  "llama-3-70b": {
-    BF16: "meta-llama/Meta-Llama-3-70B-Instruct",
-    FP16: "meta-llama/Meta-Llama-3-70B-Instruct",
-    INT4: "casperhansen/llama-3-70b-instruct-awq",
-    FP8:  "neuralmagic/Meta-Llama-3-70B-Instruct-FP8",
-  },
-  "qwen2.5-7b":  { BF16: "Qwen/Qwen2.5-7B-Instruct",  INT4: "Qwen/Qwen2.5-7B-Instruct-AWQ" },
-  "qwen2.5-14b": { BF16: "Qwen/Qwen2.5-14B-Instruct", INT4: "Qwen/Qwen2.5-14B-Instruct-AWQ" },
-  "mistral-7b":  { BF16: "mistralai/Mistral-7B-Instruct-v0.3" },
-  "deepseek-v3": { BF16: "deepseek-ai/DeepSeek-V3", FP8: "deepseek-ai/DeepSeek-V3" },
-};
-function modelHfPath(modelKey, weightPrec) {
-  const table = HF_PATHS[modelKey];
-  if (!table) return `<HF-REPO-FOR-${modelKey}>`;
-  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${modelKey}>`;
+// (model, weight_prec) → HF repo id. INT4 / INT8 / FP8 variants live at
+// separate HF paths because quantized weights are produced offline; the
+// engine can't downcast on the fly. The map lives in models.json as
+// `hf_repos` (single source of truth alongside model architecture facts).
+// Falls back to the unquantized path when no special variant is published —
+// the compatibility validator gates the copy button in the unrunnable case.
+function modelHfPath(model, weightPrec) {
+  if (!model) return `<HF-REPO-UNKNOWN>`;
+  const table = model.hf_repos || {};
+  return table[weightPrec] || table.BF16 || table.FP16 || `<HF-REPO-FOR-${model.key}>`;
 }
 
 // weight_prec → lab --quant token. INT4 defaults to awq because that's the
@@ -527,7 +578,7 @@ function paintSnippet(out, input) {
       : `# (no lab workload maps to preset "${preset}" — pick a preset above)`,
     // Model + quant + parallelism — derived from the calc inputs so the
     // empirical run and the predicted curve use the same engine config.
-    labWorkload ? `  --model ${modelHfPath(input.model.key, input.weight_prec)} \\` : null,
+    labWorkload ? `  --model ${modelHfPath(input.model, input.weight_prec)} \\` : null,
     labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
@@ -581,6 +632,10 @@ function wireCopyButton(btnId, getText, restoreLabel) {
   if (!btn) return;
   const originalLabel = btn.textContent;
   btn.addEventListener("click", async () => {
+    // Compat layer disables the button when the current combo can't run; the
+    // browser already swallows the click on a true `disabled` button, but
+    // belt-and-braces here in case styling drifts to aria-only.
+    if (btn.disabled) return;
     const text = getText();
     if (text == null) {
       btn.textContent = "[ NO LAB MAPPING ]";

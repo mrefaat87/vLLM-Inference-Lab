@@ -30,7 +30,10 @@ def strip_module_syntax(js: str) -> str:
     # Remove every `import ... from "..."` statement (multi-line aware).
     js = re.sub(r"^import\s+[^;]+from\s+['\"][^'\"]+['\"];\s*$", "", js, flags=re.MULTILINE)
     # Strip the `export` keyword from declarations; the names stay defined.
-    js = re.sub(r"^export\s+(function|const|let|class)\s+", r"\1 ", js, flags=re.MULTILINE)
+    # Includes `export async function …` (the plain regex missed the async case
+    # and left a literal `export` in the bundle — caught by test_build.py).
+    js = re.sub(r"^export\s+(async\s+function|function|const|let|class)\s+",
+                r"\1 ", js, flags=re.MULTILINE)
     return js
 
 
@@ -51,6 +54,8 @@ def bundle_modules() -> str:
     chart = strip_module_syntax((SRC / "chart.mjs").read_text())
     drawer = strip_module_syntax((SRC / "drawer.mjs").read_text())
     lab_cmd = strip_module_syntax((SRC / "lab_command.mjs").read_text())
+    # compatibility.mjs is required — ui.mjs imports validate() from it.
+    compatibility = strip_module_syntax((SRC / "compatibility.mjs").read_text())
     ui = strip_module_syntax((SRC / "ui.mjs").read_text())
     # validation.mjs is optional — present only when the lab integration
     # has landed in this checkout. Build still produces a working calc
@@ -65,6 +70,7 @@ def bundle_modules() -> str:
              "\n// ===== chart.mjs =====\n" + chart + \
              "\n// ===== drawer.mjs =====\n" + drawer + \
              "\n// ===== lab_command.mjs =====\n" + lab_cmd + \
+             "\n// ===== compatibility.mjs =====\n" + compatibility + \
              ("\n// ===== validation.mjs =====\n" + validation if validation else "") + \
              "\n// ===== ui.mjs =====\n" + ui
     return _escape_for_inline_script(bundle)
@@ -355,6 +361,11 @@ def body_html() -> str:
         </span>
       </div>
       <pre id="snippet-body">—</pre>
+      <!-- Inline compatibility-error block. Populated by gateSnippetButtons()
+           when the current (model × hw × precision) combo cannot run; the
+           copy buttons above are disabled in the same pass. Hidden when
+           there are no errors. -->
+      <div id="snippet-block" class="snippet-block" hidden></div>
     </div>
 
     <h2>Lab runs</h2>
@@ -387,7 +398,7 @@ def body_html() -> str:
 """
 
 
-def wrap_template(css: str, hw_json: str, model_json: str, formulas_json: str, bundle: str) -> str:
+def wrap_template(css: str, hw_json: str, model_json: str, formulas_json: str, compat_json: str, bundle: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -412,6 +423,7 @@ def wrap_template(css: str, hw_json: str, model_json: str, formulas_json: str, b
 <script type="application/json" id="hardware-data">{hw_json}</script>
 <script type="application/json" id="models-data">{model_json}</script>
 <script type="application/json" id="formulas-data">{formulas_json}</script>
+<script type="application/json" id="compatibility-data">{compat_json}</script>
 <script type="module">
 {bundle}
 </script>
@@ -425,8 +437,9 @@ def main() -> None:
     hw_json = (SRC / "data" / "hardware.json").read_text()
     model_json = (SRC / "data" / "models.json").read_text()
     formulas_json = (SRC / "data" / "formulas.json").read_text()
+    compat_json = (SRC / "data" / "compatibility.json").read_text()
     bundle = bundle_modules()
-    html = wrap_template(css, hw_json, model_json, formulas_json, bundle)
+    html = wrap_template(css, hw_json, model_json, formulas_json, compat_json, bundle)
     DST.write_text(html)
     print(f"wrote {DST} ({len(html):,} bytes)")
 

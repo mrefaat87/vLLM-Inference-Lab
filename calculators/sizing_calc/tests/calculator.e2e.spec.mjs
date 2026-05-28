@@ -218,6 +218,47 @@ test("copy exp button emits a launch command with numeric rate", async ({ page, 
   expect(clipboard).toContain("--tbt-target-ms");
 });
 
+// Compatibility validator gates the copy buttons when the current combo
+// cannot run. INT8 + T4 is the canonical case: bitsandbytes dequantizes
+// every forward pass, so the calc must refuse to emit the lab command.
+test("INT8 + A10G disables copy buttons and surfaces remediation inline", async ({ page }) => {
+  await page.goto(pathToFileURL(HTML).href);
+  await page.waitForFunction(() => window.__sizingChart != null);
+  // Pick a preset so a lab `exp launch` block would otherwise be emitted —
+  // the gating must work regardless of preset.
+  await page.locator("#workload-preset").selectOption("chatbot_turn1");
+  // A10G + Qwen2.5-7B at FP16 is a clean combo (no b_slo/HBM blockers).
+  // INT8 should be the *only* failing variable, so flipping it back to FP16
+  // re-enables the button — that's the contract we're testing.
+  await page.locator("#hw").selectOption("A10G");
+  await page.locator("#model").selectOption("qwen2.5-7b");
+  await page.locator("#weight-prec").selectOption("INT8");
+  await page.waitForTimeout(150); // let recompute settle
+
+  // Both copy buttons should be disabled by the int8-non-hopper rule.
+  await expect(page.locator("#copy-exp-btn")).toBeDisabled();
+  await expect(page.locator("#copy-btn")).toBeDisabled();
+
+  // Inline error block visible with the remediation hint.
+  const block = page.locator("#snippet-block");
+  await expect(block).toBeVisible();
+  const blockText = await block.textContent();
+  expect(blockText).toMatch(/INT8/);
+  expect(blockText).toMatch(/INT4|AWQ/i);  // suggest hint
+
+  // Tooltip on the gated button carries the error reason.
+  const title = await page.locator("#copy-exp-btn").getAttribute("title");
+  expect(title).toMatch(/^Blocked:/);
+
+  // Switching to FP16 (the clean fallback for A10G + Qwen-7B) re-enables the
+  // buttons and clears the block.
+  await page.locator("#weight-prec").selectOption("FP16");
+  await page.waitForTimeout(150);
+  await expect(page.locator("#copy-exp-btn")).toBeEnabled();
+  await expect(page.locator("#copy-btn")).toBeEnabled();
+  await expect(page.locator("#snippet-block")).toBeHidden();
+});
+
 // The lab supports vllm/sglang/trtllm; the calc must emit the selected
 // engine in the exp launch command (not just vllm).
 test("engine selector flows into the exp launch command", async ({ page, context }) => {

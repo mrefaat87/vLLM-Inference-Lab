@@ -453,6 +453,32 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
 }
 .copy-btn:hover { color: var(--text); border-color: var(--muted); }
 .copy-btn.flash { color: var(--b-kv); border-color: var(--b-kv); }
+/* Disabled state — the compatibility validator greys the button when the
+   current (model × hw × precision) combo cannot run. Hover doesn't restore
+   colour; cursor signals not-clickable. */
+.copy-btn:disabled,
+.copy-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--rule);
+}
+.copy-btn:disabled:hover,
+.copy-btn[disabled]:hover { color: var(--muted); border-color: var(--rule); background: transparent; }
+
+/* Inline error block under the snippet, populated when the copy button is
+   gated. Mirrors .diag-line aesthetics but lives directly beneath the
+   <pre> so the disabled button has visible adjacent context. */
+.snippet-block {
+  border-top: 1px solid var(--danger);
+  background: rgba(248, 81, 73, 0.06);
+  padding: 10px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.snippet-block[hidden] { display: none; }
+.snippet-block-line { display: flex; gap: 10px; padding: 2px 0; }
+.snippet-block-line .glyph { width: 12px; text-align: center; color: var(--danger); }
+.snippet-block-line .msg { color: var(--text); flex: 1; }
 /* Two adjacent copy buttons — the more specific "EXP RUN" first
    (recommended for the lab handoff), then the full-snippet fallback. */
 .snippet-btns { display: inline-flex; gap: 6px; }

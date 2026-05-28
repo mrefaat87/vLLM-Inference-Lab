@@ -59,9 +59,10 @@ def test_output_is_single_file(html: str) -> None:
 def test_embedded_json_round_trips(html: str) -> None:
     """The embedded <script type=application/json> blocks must equal source JSON."""
     for tag, src_path in [
-        ("hardware-data", SRC / "data" / "hardware.json"),
-        ("models-data",   SRC / "data" / "models.json"),
-        ("formulas-data", SRC / "data" / "formulas.json"),
+        ("hardware-data",      SRC / "data" / "hardware.json"),
+        ("models-data",        SRC / "data" / "models.json"),
+        ("formulas-data",      SRC / "data" / "formulas.json"),
+        ("compatibility-data", SRC / "data" / "compatibility.json"),
     ]:
         m = re.search(rf'<script type="application/json" id="{tag}">(.*?)</script>',
                       html, re.DOTALL)
@@ -91,7 +92,7 @@ def test_required_form_ids_present(html: str) -> None:
         # Sparklines
         "spark-bcrit", "spark-bslo", "spark-bkv",
         # Chart + sweep + snippet + diagnostics
-        "patchbay", "snippet-body", "copy-btn", "diagnostics",
+        "patchbay", "snippet-body", "snippet-block", "copy-btn", "copy-exp-btn", "diagnostics",
         # Custom-mode fields
         "c-hbm-gb", "c-hbm-bw", "c-fp16", "c-fp8", "c-nvlink",
         "c-params-total", "c-params-active", "c-layers", "c-dmodel", "c-heads", "c-kvheads",
@@ -114,6 +115,8 @@ def test_calc_module_inlined_intact(html: str) -> None:
         "function recommendParallelism", "function recommendMaxBatchedTokens",
         "function pdRatio", "function sweepRanges", "function compute",
         "DTYPE_BYTES", "ACT_OVERHEAD",
+        # compatibility module must bundle in (ui.mjs calls validate()).
+        "function validate", "gateSnippetButtons",
     ]
     for name in must_have:
         assert name in html, f"missing inlined symbol: {name!r}"
@@ -129,10 +132,10 @@ def test_exactly_one_module_script_open_and_close(html: str) -> None:
     """
     # Opening <script tags in source-code strings inside the bundle don't fool
     # the HTML parser; closing </script> tags do. Only the close count matters
-    # for parser-correctness. 1 chart.js CDN + 1 katex CDN + 3 JSON blocks
-    # (hardware/models/formulas) + 1 module = 6.
+    # for parser-correctness. 1 chart.js CDN + 1 katex CDN + 4 JSON blocks
+    # (hardware/models/formulas/compatibility) + 1 module = 7.
     closes = len(re.findall(r"</script\s*>", html))
-    assert closes == 6, f"unexpected </script tag count: {closes} (a literal </script> probably leaked from a source comment)"
+    assert closes == 7, f"unexpected </script tag count: {closes} (a literal </script> probably leaked from a source comment)"
 
 
 def test_three_scope_canvases_no_duplicate_ids(html: str) -> None:
