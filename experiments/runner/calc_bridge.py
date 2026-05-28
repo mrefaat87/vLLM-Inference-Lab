@@ -93,6 +93,42 @@ class CalcBridge:
     def compute_cli_path(self) -> Path:
         return self._calc_root / "scripts" / "compute_cli.mjs"
 
+    @property
+    def hardware_data_path(self) -> Path:
+        return self._calc_root / "src" / "data" / "hardware.json"
+
+    @lru_cache(maxsize=1)
+    def _hw_price_table(self) -> dict[str, float | None]:
+        """Map hw `key` → ``price_per_hour_usd`` from the calc's hardware.json.
+
+        Used by the runner to enrich Prediction.inputs.price_per_hour_usd so
+        the lab carries the same default the calc would have applied. Falls
+        back to an empty table if the file is missing — the field is optional
+        and the run still completes.
+        """
+        try:
+            blob = json.loads(self.hardware_data_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        rows = blob.get("hardware") if isinstance(blob, dict) else None
+        if not isinstance(rows, list):
+            return {}
+        out: dict[str, float | None] = {}
+        for row in rows:
+            if isinstance(row, dict) and "key" in row:
+                v = row.get("price_per_hour_usd")
+                out[str(row["key"])] = float(v) if isinstance(v, (int, float)) else None
+        return out
+
+    def lookup_hw_price(self, hw_key: str) -> float | None:
+        """Return the calc's default ``price_per_hour_usd`` for an hw key.
+
+        Returns ``None`` if the key is unknown or the hardware table can't
+        be read (clone-only-the-lab). The lab uses this to populate the
+        Prediction.inputs.price_per_hour_usd field at run time.
+        """
+        return self._hw_price_table().get(hw_key)
+
     def predict(self, inputs: CalcInputs) -> Prediction | None:
         """Return a Prediction for the given inputs, or None if unavailable."""
         grid = self._load_grid()

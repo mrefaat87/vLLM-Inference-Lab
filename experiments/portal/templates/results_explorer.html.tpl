@@ -20,18 +20,21 @@
   </div>
   <nav class="bench-switcher" aria-label="bench selector">
     <span class="bs-label">BENCH</span>
-    <a href="../../calculators/sizing_calculator.html" class="bs-item">
+    <a href="/calculators/sizing_calculator.html" class="bs-item">
       <span class="bs-num">01</span><span class="bs-name">SIZING CALC</span>
     </a>
-    <a href="command_center.html" class="bs-item">
+    <a href="/experiments/_site/command_center.html" class="bs-item">
       <span class="bs-num">02</span><span class="bs-name">COMMAND</span>
     </a>
-    <a href="results_explorer.html" class="bs-item active">
+    <a href="/experiments/_site/results_explorer.html" class="bs-item active">
       <span class="bs-num">03</span><span class="bs-name">RESULTS</span>
+    </a>
+    <a id="open-in-calc" href="#" class="bs-item bs-open-in-calc" hidden>
+      <span class="bs-num">↗</span><span class="bs-name">OPEN THIS RUN IN CALC</span>
     </a>
   </nav>
   <div class="strip-right">
-    <a href="../../index.html">← ROOT</a>
+    <a href="/index.html">← ROOT</a>
   </div>
 </div>
 
@@ -100,6 +103,36 @@
 
     <section class="scope">
       <div class="scope-head">
+        <span class="scope-title">▣ COST · $ / M OUTPUT TOKENS</span>
+        <span class="scope-channels">
+          <span class="ch-pred"><span class="sw"></span>predicted</span>
+          <span class="ch-meas"><span class="sw"></span>measured</span>
+        </span>
+      </div>
+      <div class="scope-canvas-wrap"><canvas id="cost-chart"></canvas></div>
+      <div class="scope-foot">
+        <span>batch (log axis) · $ / 1M completion tokens</span>
+        <span id="cost-foot-right">—</span>
+      </div>
+    </section>
+
+    <section class="scope">
+      <div class="scope-head">
+        <span class="scope-title">▣ STEP TIME · MS / STEP</span>
+        <span class="scope-channels">
+          <span class="ch-pred"><span class="sw"></span>predicted</span>
+          <span class="ch-meas"><span class="sw"></span>measured</span>
+        </span>
+      </div>
+      <div class="scope-canvas-wrap"><canvas id="steptime-chart"></canvas></div>
+      <div class="scope-foot">
+        <span>batch (log axis) · ms / decode step</span>
+        <span id="steptime-foot-right">—</span>
+      </div>
+    </section>
+
+    <section class="scope">
+      <div class="scope-head">
         <span class="scope-title">▣ THROUGHPUT · STEADY STATE</span>
         <span class="scope-channels"><span class="ch-tps"><span class="sw"></span>tok/s</span></span>
       </div>
@@ -131,7 +164,7 @@
 
 <footer class="foot">
   <span>EMPIRICAL LAB · MIT</span>
-  <span><a href="../../calculators/sizing_calculator.html">↗ SIZING CALCULATOR (sibling bench)</a></span>
+  <span><a href="/calculators/sizing_calculator.html">↗ SIZING CALCULATOR (sibling bench)</a></span>
 </footer>
 
 <script>
@@ -202,8 +235,63 @@
     renderTTFT(mainBlob, cmpBlob);
     renderTBT(mainBlob, cmpBlob);
     renderRooflineOverlay(mainBlob);
+    renderCostOverlay(mainBlob);
+    renderStepTimeOverlay(mainBlob);
     renderThroughput(mainBlob, cmpBlob);
     renderTimeline(mainBlob);
+    updateOpenInCalcLink(mainBlob);
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Build the "Open this run in the sizing calculator" link from the
+  // currently-selected run's prediction.inputs. The calc reads the same
+  // field set out of window.location.search (see ui.mjs::prefillFromQueryString).
+  // Hidden when no prediction block exists (the link would have no inputs to seed).
+  // ────────────────────────────────────────────────────────────────────
+  function updateOpenInCalcLink(a) {
+    const el = document.getElementById('open-in-calc');
+    if (!el) return;
+    const inp = a.prediction && a.prediction.inputs;
+    if (!inp) { el.hidden = true; return; }
+    const qs = new URLSearchParams({
+      model:       inp.model_key || '',
+      hw:          inp.hw_key || '',
+      weight_prec: inp.weight_prec || '',
+      kv_prec:     inp.kv_prec || '',
+      act_prec:    inp.act_prec || '',
+      isl:         String(inp.isl ?? ''),
+      osl:         String(inp.osl ?? ''),
+      ngpus:       String(inp.ngpus ?? ''),
+      tbt_ms:      String(inp.tbt_ms ?? ''),
+    });
+    el.href = `/calculators/sizing_calculator.html?${qs.toString()}`;
+    el.hidden = false;
+  }
+
+  // Measured cost per Mtok and measured step time per (batch proxy) point.
+  // Surface these to the cost / step-time overlay renderers so they can
+  // drop a scatter point alongside the predicted curve. Returns null fields
+  // when the underlying analysis numbers aren't available — the panel then
+  // degrades to a predicted-only line, matching empty-prediction behavior.
+  function measuredPoint(a) {
+    const rps  = a.analysis?.throughput?.requests_per_sec_avg;
+    const ttft = a.analysis?.ttft_s?.p50;
+    const tps  = a.analysis?.throughput?.tok_per_sec_avg;
+    const tbt  = a.analysis?.tbt_s?.p50;
+    const dur  = a.workload?.duration_s;
+    const totTok = a.analysis?.throughput?.total_completion_tokens;
+    const price = a.prediction?.inputs?.price_per_hour_usd;
+    const ngpus = a.prediction?.inputs?.ngpus ?? a.hardware?.n_gpu;
+    let batchProxy = null;
+    if (rps != null && ttft != null) batchProxy = Math.max(1, rps * ttft + 1);
+    // Measured $/Mtok: fleet $/hr × duration_s / 3600 ÷ (totTok / 1e6).
+    let costMtok = null;
+    if (price != null && ngpus != null && dur != null && totTok > 0) {
+      const fleetUsd = price * ngpus * (dur / 3600.0);
+      costMtok = fleetUsd / (totTok / 1e6);
+    }
+    const stepMs = tbt != null ? tbt * 1000 : null;
+    return { batchProxy, tps, costMtok, stepMs };
   }
 
   function fmt(n, digits = 3) {
@@ -360,6 +448,95 @@
           y: { grid: { color: T.grid }, ticks: { color: T.muted }, title: axisTitle('tokens / sec') },
         },
       },
+    });
+  }
+
+  // Generic predicted-curve + measured-point overlay used by the cost and
+  // step-time panels. Mirrors the throughput overlay (line for predicted,
+  // scatter point for measured) but parameterized over which curve field
+  // and which measured scalar to plot. Empty / null inputs render an
+  // empty canvas at 35% opacity, matching renderRooflineOverlay.
+  function drawCurveOverlay({
+    id, curve, getY, measured, yTitle, footEl, footFormat,
+  }) {
+    destroy(id);
+    const datasets = [];
+    if (Array.isArray(curve) && curve.length > 0) {
+      const pts = curve
+        .map((p) => ({ x: p.batch, y: getY(p) }))
+        .filter((p) => p.y != null && isFinite(p.y));
+      if (pts.length > 0) {
+        datasets.push({
+          label: 'predicted',
+          type: 'line',
+          data: pts,
+          borderColor: T.accent,
+          backgroundColor: 'transparent',
+          pointBackgroundColor: T.accent,
+          pointBorderColor: T.accent,
+          pointRadius: 1.5,
+          pointHoverRadius: 4,
+          borderWidth: 1.5,
+          tension: 0.22,
+          showLine: true,
+        });
+      }
+    }
+    if (measured && measured.x != null && measured.y != null && isFinite(measured.y)) {
+      datasets.push({
+        label: 'measured',
+        type: 'scatter',
+        data: [{ x: measured.x, y: measured.y }],
+        backgroundColor: T.bSlo,
+        borderColor: T.bSlo,
+        pointRadius: 7,
+        pointHoverRadius: 9,
+      });
+    }
+    if (footEl) {
+      const el = document.getElementById(footEl);
+      if (el) el.textContent = measured && measured.y != null && isFinite(measured.y)
+        ? footFormat(measured.y) : '—';
+    }
+    const canvas = document.getElementById(id);
+    if (datasets.length === 0) { canvas.style.opacity = 0.35; return; }
+    canvas.style.opacity = 1;
+    charts[id] = new Chart(canvas, {
+      data: { datasets },
+      options: {
+        maintainAspectRatio: false, responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { type: 'logarithmic', grid: { color: T.grid }, ticks: { color: T.muted }, title: axisTitle('batch (log)') },
+          y: { grid: { color: T.grid }, ticks: { color: T.muted }, title: axisTitle(yTitle) },
+        },
+      },
+    });
+  }
+
+  function renderCostOverlay(a) {
+    const meas = measuredPoint(a);
+    drawCurveOverlay({
+      id: 'cost-chart',
+      curve: a.prediction?.curve || [],
+      getY: (p) => p.cost_per_mtok,
+      measured: { x: meas.batchProxy, y: meas.costMtok },
+      yTitle: '$ / M tokens',
+      footEl: 'cost-foot-right',
+      footFormat: (v) => `measured ≈ $${v.toFixed(2)} / Mtok`,
+    });
+  }
+
+  function renderStepTimeOverlay(a) {
+    const meas = measuredPoint(a);
+    drawCurveOverlay({
+      id: 'steptime-chart',
+      curve: a.prediction?.curve || [],
+      getY: (p) => p.step_ms,
+      measured: { x: meas.batchProxy, y: meas.stepMs },
+      yTitle: 'ms / step',
+      footEl: 'steptime-foot-right',
+      footFormat: (v) => `measured ≈ ${v.toFixed(1)} ms`,
     });
   }
 

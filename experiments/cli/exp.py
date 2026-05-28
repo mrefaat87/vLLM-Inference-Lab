@@ -317,14 +317,28 @@ def _port_in_use(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-def _start_portal_server(portal_dir: Path, port: int) -> ThreadingHTTPServer:
-    """Spin up a static file server rooted at ``portal_dir``.
+def _repo_root() -> Path:
+    """Resolve the repo root from this file's location.
 
-    Returns the server (caller is responsible for ``serve_forever`` or
-    ``shutdown``). Bound to 127.0.0.1 — this is dev ergonomics, not a
-    deployment target.
+    ``experiments/cli/exp.py`` → repo root is two parents up. Used to
+    root the static server broadly enough that the served `/calculators/…`
+    and `/experiments/_site/…` URLs resolve from a single port.
     """
-    handler = partial(SimpleHTTPRequestHandler, directory=str(portal_dir))
+    return Path(__file__).resolve().parents[2]
+
+
+def _start_portal_server(serve_root: Path, port: int) -> ThreadingHTTPServer:
+    """Spin up a static file server rooted at ``serve_root``.
+
+    Historically rooted at the portal dir (``_site``), which made the
+    bench-switcher's link to the sizing calc 404 because the calc HTML
+    lives outside that subtree. Rooted at the repo root, both
+    ``/calculators/sizing_calculator.html`` and
+    ``/experiments/_site/results_explorer.html`` resolve from the same
+    port. Bound to 127.0.0.1 — this is dev ergonomics, not a deployment
+    target.
+    """
+    handler = partial(SimpleHTTPRequestHandler, directory=str(serve_root))
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     return server
 
@@ -374,15 +388,28 @@ def launch_cmd(
         reused = True
         click.echo(f"port {chosen_port} already in use — reusing existing server")
 
-    url = f"http://127.0.0.1:{chosen_port}/results_explorer.html#{run_id}"
+    # Reroot at the repo so both /calculators/… and /experiments/_site/…
+    # resolve from one port. The portal_dir option still controls where
+    # the static build is *written*; only the *served* root has widened.
+    serve_root = _repo_root()
+    # Build the URL using the on-disk relative path of portal_dir vs the
+    # serve root so out-of-tree --portal-dir overrides still work.
+    try:
+        portal_rel = portal_dir.resolve().relative_to(serve_root).as_posix()
+    except ValueError:
+        # portal_dir lives outside the repo — fall back to absolute path
+        # and warn. Browser still gets a working URL via /<abs>/… because
+        # SimpleHTTPRequestHandler chroots to serve_root.
+        portal_rel = "experiments/_site"
+    url = f"http://127.0.0.1:{chosen_port}/{portal_rel}/results_explorer.html#{run_id}"
     click.echo(f"open: {url}")
 
     if open_browser:
         webbrowser.open(url)
 
     if serve and not reused:
-        server = _start_portal_server(portal_dir, chosen_port)
-        click.echo(f"serving {portal_dir} at http://127.0.0.1:{chosen_port}/ (Ctrl-C to stop)")
+        server = _start_portal_server(serve_root, chosen_port)
+        click.echo(f"serving {serve_root} at http://127.0.0.1:{chosen_port}/ (Ctrl-C to stop)")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -424,8 +451,18 @@ def serve_cmd(
             results_dir=results_dir, portal_dir=portal_dir, bridge=bridge
         )
 
-    server = _start_portal_server(portal_dir, port)
-    click.echo(f"serving {portal_dir} at http://127.0.0.1:{port}/ (Ctrl-C to stop)")
+    # Serve the repo root (not portal_dir) so the bench-switcher links to
+    # /calculators/sizing_calculator.html resolve. portal_dir still
+    # controls where the build is written.
+    serve_root = _repo_root()
+    server = _start_portal_server(serve_root, port)
+    try:
+        portal_rel = portal_dir.resolve().relative_to(serve_root).as_posix()
+    except ValueError:
+        portal_rel = "experiments/_site"
+    click.echo(f"serving {serve_root} at http://127.0.0.1:{port}/ (Ctrl-C to stop)")
+    click.echo(f"  results: http://127.0.0.1:{port}/{portal_rel}/results_explorer.html")
+    click.echo(f"  calc:    http://127.0.0.1:{port}/calculators/sizing_calculator.html")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -3306,24 +3306,31 @@ function mountFormulasDrawer() {
 
 /**
  * Recommend an arrival RPS via Little's Law: λ ≈ batch / per-request-time.
- * We proxy per-request-time with the per-token SLO (TBT in ms). The
- * approximation is rough — a long-output request takes many tokens —
- * but it lines up with how the lab's `exp plan` advises rates, so the
- * calc-emitted command and the lab-suggested grid agree on the formula.
+ *
+ * Per-request latency is TTFT (one-shot prefill cost) plus OSL × TBT
+ * (streaming the output tokens). Using only TBT here is wrong by a
+ * factor of OSL — for OSL=200 that pushes the emitted --rate ~200×
+ * past what the engine can actually drain, drowning the run.
  *
  * Returned value:
  *   - floored at 1 rps (a degraded prediction with batch=0 must not
  *     produce `--rate 0` or `--rate NaN`),
  *   - rounded to 2 decimals for paste readability.
  *
- * @param {number} batch  recommended in-flight batch size
- * @param {number} tbtMs  target inter-token latency in ms
+ * @param {number} batch       recommended in-flight batch size
+ * @param {number} tbtMs       target inter-token latency in ms
+ * @param {number} oslTokens   expected output sequence length in tokens
+ * @param {number} ttftMs      target time-to-first-token in ms
  * @returns {number}
  */
-function recommendedRate(batch, tbtMs) {
-  const tbtSec = Math.max(tbtMs / 1000, 1e-3);
+function recommendedRate(batch, tbtMs, oslTokens, ttftMs) {
+  const tbtSec = Number.isFinite(tbtMs) && tbtMs > 0 ? tbtMs / 1000 : 0;
+  const ttftSec = Number.isFinite(ttftMs) && ttftMs > 0 ? ttftMs / 1000 : 0;
+  const osl = Number.isFinite(oslTokens) && oslTokens > 0 ? oslTokens : 1;
+  // Floor at 1ms so a fully-degraded input (all zeros) still divides cleanly.
+  const perReqSec = Math.max(ttftSec + osl * tbtSec, 1e-3);
   const b = Number.isFinite(batch) && batch > 0 ? batch : 1;
-  return Math.max(1, +((b / tbtSec).toFixed(2)));
+  return Math.max(1, +((b / perReqSec).toFixed(2)));
 }
 
 // ===== validation.mjs =====
@@ -3988,7 +3995,7 @@ function paintSnippet(out, input) {
   // Recommended arrival rate for the lab. See lab_command.mjs for the
   // derivation — kept in a sibling module so it stays unit-testable.
   const recBatch = (m && (m.recommended_batch ?? m.b_crit)) || 1;
-  const rateRps = recommendedRate(recBatch, input.tbt_ms);
+  const rateRps = recommendedRate(recBatch, input.tbt_ms, input.osl, input.ttft_ms);
 
   const lines = [
     `# vLLM serve args — analytical recommendation; verify empirically below.`,
@@ -4018,7 +4025,7 @@ function paintSnippet(out, input) {
     labWorkload ? `  --rate ${rateRps}  --duration 300  --warmup 30 \\` : null,
     // Join keys — anchor the result back to this exact calc prediction.
     labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
-    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}` : null,
+    labWorkload ? `  --tbt-target-ms ${input.tbt_ms}  --ttft-target-ms ${input.ttft_ms}` : null,
     ``,
     `# Empirical sweep grid (vary one, hold others at recommended):`,
     `concurrency_list      = [${out.sweep.concurrency.join(", ")}]`,
@@ -4124,9 +4131,83 @@ function wireWorkloadPreset() {
   osl.addEventListener("input", revertToCustom);
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Query-string prefill (Flow B: lab → calc).
+//
+// When the calc is opened from the Results Explorer's "open this run in
+// calc" link, the URL carries the same input fields the lab's Prediction
+// snapshot was built from. We seed each <input>/<select> from the query
+// before the first `recompute()` so the first paint already reflects the
+// run. Unknown / malformed params are silently ignored — the form keeps
+// its built-in defaults, mirroring how unrecognized URLs degrade to a
+// "fresh calc" rather than blocking the page.
+//
+// Field map (query key → DOM id):
+//   model       → #model        (select; ignored if value isn't a known option)
+//   hw          → #hw
+//   weight_prec → #weight-prec
+//   kv_prec     → #kv-prec
+//   act_prec    → #act-prec
+//   isl, osl, ngpus → numeric inputs
+//   tbt_ms      → #tbt
+//
+// Returns a dict of {appliedKey: appliedValue} — useful for unit tests
+// asserting which fields actually round-tripped.
+// ──────────────────────────────────────────────────────────────────────────
+function prefillFromQueryString(search) {
+  // Accept an explicit search string for unit tests; default to the
+  // live URL when called without args (the bootstrap path).
+  const raw = search ?? (typeof window !== "undefined" ? window.location.search : "");
+  if (!raw) return {};
+  const params = new URLSearchParams(raw);
+  const applied = {};
+
+  // Setter for <select>: only write when the requested value is one of
+  // the offered <option>s. Assigning an unknown value would silently set
+  // the empty string and mask the form's preset default.
+  const setSelect = (id, key) => {
+    if (!params.has(key)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const want = params.get(key);
+    const ok = Array.from(el.options).some((o) => o.value === want);
+    if (!ok) return;
+    el.value = want;
+    applied[key] = want;
+  };
+  const setNumber = (id, key) => {
+    if (!params.has(key)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const n = Number(params.get(key));
+    if (!Number.isFinite(n)) return;          // ignore non-numeric
+    el.value = String(n);
+    applied[key] = n;
+  };
+
+  setSelect("model",       "model");
+  setSelect("hw",          "hw");
+  setSelect("weight-prec", "weight_prec");
+  setSelect("kv-prec",     "kv_prec");
+  setSelect("act-prec",    "act_prec");
+  setNumber("isl",         "isl");
+  setNumber("osl",         "osl");
+  setNumber("ngpus",       "ngpus");
+  setNumber("tbt",         "tbt_ms");
+  return applied;
+}
+
 function bootstrap() {
   populatePresets();
   wireWorkloadPreset();
+  // Prefill from ?model=…&hw=… before the first recompute so the initial
+  // paint reflects the deep link (e.g. "open this run in calc" from the
+  // Results Explorer). Must run AFTER populatePresets so the option lists
+  // exist; BEFORE recompute so the first chart uses the prefilled values.
+  // After a hw change we also re-sync the $/hr field so the cost tile
+  // matches the new row's default price.
+  const applied = prefillFromQueryString();
+  if (applied.hw) syncPriceToHardware();
   const form = document.getElementById("sizing-form");
   form.addEventListener("input", () => recompute());
   form.addEventListener("change", () => recompute());
@@ -4152,7 +4233,14 @@ function bootstrap() {
 // Bootstrap automatically when the script tag executes after DOM ready. The
 // build script places <script type="module">…bootstrap()…<\/script> at the end
 // of <body>, so the DOM is already parsed.
-bootstrap();
+//
+// Skip the auto-bootstrap when we're not in a browser (e.g. node --test
+// imports for unit tests). The presence of `window` is the canonical
+// real-DOM signal; `globalThis.Option` is undefined under bare Node so
+// even a stubbed document can't fully fake the form-bootstrap path.
+if (typeof window !== "undefined" && typeof Option !== "undefined") {
+  bootstrap();
+}
 
 </script>
 </body>
