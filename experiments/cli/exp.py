@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import socket
 import sys
 import threading
@@ -99,7 +100,16 @@ def _run_options(f):
             type=click.Choice(["chatbot", "agentic_coding", "rag", "multi_turn", "mix"]),
             required=True,
         ),
-        click.option("--rate", type=float, default=8.0, help="target arrival RPS"),
+        click.option(
+            "--rate",
+            type=str,
+            default="auto",
+            help=(
+                "target arrival RPS — either 'auto' (default: lab calibrates "
+                "against real engine capacity before measurement) or a positive "
+                "float for explicit override"
+            ),
+        ),
         click.option("--duration", type=float, default=300.0, help="run duration (s)"),
         click.option("--warmup", type=float, default=10.0),
         click.option("--seed", type=int, default=1),
@@ -142,11 +152,32 @@ def run_cmd(**kwargs) -> None:
     click.echo(f"wrote {path}")
 
 
+def _parse_rate(rate: str) -> float | None:
+    """Return None for 'auto' (lab calibrates) or a positive finite float.
+
+    Raises ``click.BadParameter`` on anything else — callers should let
+    Click surface the error to the user.
+    """
+    if isinstance(rate, str) and rate.strip().lower() == "auto":
+        return None
+    try:
+        f = float(rate)
+    except (TypeError, ValueError):
+        raise click.BadParameter(
+            f"--rate must be 'auto' or a positive float, got: {rate!r}"
+        )
+    if not (math.isfinite(f) and f > 0.0):
+        raise click.BadParameter(
+            f"--rate must be > 0 and finite, got: {f}"
+        )
+    return f
+
+
 def _do_run(
     *,
     engine: str,
     workload: str,
-    rate: float,
+    rate: str,
     duration: float,
     warmup: float,
     seed: int,
@@ -166,6 +197,8 @@ def _do_run(
     """Body of `exp run`, returning the result-JSON path so other
     subcommands (e.g. `exp launch`) can chain off it.
     """
+    parsed_rate = _parse_rate(rate)  # None ⇒ auto-calibrate
+
     driver_cls = DRIVERS[engine]
     driver = driver_cls()
     engine_cfg = EngineConfig(
@@ -178,8 +211,16 @@ def _do_run(
         gpu=gpu,
         n_gpu=n_gpu,
     )
+    # In the auto path the rate is overridden after calibration. Stamp a
+    # placeholder (1.0) that satisfies the schema's gt=0 constraint; the
+    # runner replaces it via WorkloadConfig.model_copy before persistence.
+    placeholder_rate = parsed_rate if parsed_rate is not None else 1.0
     workload_cfg = WorkloadConfig(
-        name=workload, rate_rps=rate, duration_s=duration, warmup_s=warmup, seed=seed
+        name=workload,
+        rate_rps=placeholder_rate,
+        duration_s=duration,
+        warmup_s=warmup,
+        seed=seed,
     )
     bridge = CalcBridge()
 
@@ -199,10 +240,24 @@ def _do_run(
     runner = SweepRunner(results_dir=results_dir, calc_bridge=bridge)
 
     async def _go() -> Path:
+        if parsed_rate is None:
+            # Auto-calibrate: hand the runner a factory so each probe
+            # gets a fresh workload at the probe rate.
+            return await runner.run_one(
+                engine=driver,
+                engine_cfg=engine_cfg,
+                workload_factory=lambda r, s: _workload(workload, seed=s, rate=r),
+                workload_cfg=workload_cfg,
+                model=ModelSpec(name=model, quant=quant, tp=tp),
+                hardware=HardwareSpec(instance=instance, gpu=gpu, n_gpu=n_gpu),
+                roofline_link=RooflineLink(model_ref=model_ref, hw_ref=hw_ref),
+                notes=notes,
+                tbt_target_ms=tbt_target_ms,
+            )
         return await runner.run_one(
             engine=driver,
             engine_cfg=engine_cfg,
-            workload=_workload(workload, seed=seed, rate=rate),
+            workload=_workload(workload, seed=seed, rate=parsed_rate),
             workload_cfg=workload_cfg,
             model=ModelSpec(name=model, quant=quant, tp=tp),
             hardware=HardwareSpec(instance=instance, gpu=gpu, n_gpu=n_gpu),

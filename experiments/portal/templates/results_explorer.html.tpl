@@ -316,8 +316,26 @@
   function renderPredictionBanner(a) {
     const banner = document.getElementById('prediction-banner');
     const pred = a.prediction;
+    const calib = a.calibration;
+
+    // Calibration chip — shown only for auto-calibrated runs so users can
+    // see what rate the lab picked and where the ceiling landed. Older
+    // result files without a calibration field skip this silently.
+    const calibChip = (calib && calib.method === 'auto') ? `
+      <span class="metric-chip calib">
+        <span class="k">rate (auto)</span>
+        <span class="v">${calib.selected_rate.toFixed(2)} rps</span>
+        <span class="sub">ceiling ~${calib.capacity_ceiling.toFixed(2)} rps · ${calib.probes.length} probes</span>
+      </span>` : '';
+
     if (!pred) {
-      banner.hidden = true;
+      // No baked prediction. Still surface calibration if present.
+      if (calibChip) {
+        banner.innerHTML = `<span class="ps-label">CALIBRATION</span>${calibChip}`;
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+      }
       document.getElementById('roofline-foot-right').textContent =
         'no prediction baked into result';
       return;
@@ -350,6 +368,7 @@
       <span class="metric-chip bs"><span class="k">B_slo</span><span class="v">${pred.b_slo ?? '—'}</span></span>
       <span class="metric-chip bk"><span class="k">B_kv</span><span class="v">${pred.b_kv ?? '—'}</span></span>
       <span class="metric-chip ratio ${ratioClass}"><span class="k">measured/predicted</span><span class="v">${ratioStr}</span></span>
+      ${calibChip}
     `;
     banner.hidden = false;
   }

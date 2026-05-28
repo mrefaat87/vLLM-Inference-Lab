@@ -7,7 +7,6 @@
 
 import { compute, DTYPE_BYTES } from "./calc.mjs";
 import { createScope } from "./chart.mjs";
-import { recommendedRate } from "./lab_command.mjs";
 // NOTE: the build script strips imports and relies on each export being a
 // free top-level identifier in the concatenated bundle. So we import by the
 // exact exported name (`validate`) without an alias — that lets both the
@@ -553,11 +552,6 @@ function paintSnippet(out, input) {
   const engineEl = document.getElementById("lab-engine");
   const labEngine = engineEl ? engineEl.value : "vllm";
 
-  // Recommended arrival rate for the lab. See lab_command.mjs for the
-  // derivation — kept in a sibling module so it stays unit-testable.
-  const recBatch = (m && (m.recommended_batch ?? m.b_crit)) || 1;
-  const rateRps = recommendedRate(recBatch, input.tbt_ms, input.osl, input.ttft_ms);
-
   const lines = [
     `# vLLM serve args — analytical recommendation; verify empirically below.`,
     `# Model     : ${input.model.label}   Hardware: ${input.hw.label} × ${input.ngpus}`,
@@ -582,8 +576,10 @@ function paintSnippet(out, input) {
     labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
-    // Workload knobs.
-    labWorkload ? `  --rate ${rateRps}  --duration 300  --warmup 30 \\` : null,
+    // Workload knobs. Rate is intentionally omitted — the lab calibrates against
+    // real engine capacity (analytical recommended_rate runs 5–10× over real
+    // ceiling for combos like INT8/T4 that fall back to slow kernels).
+    labWorkload ? `  --duration 300  --warmup 30 \\` : null,
     // Join keys — anchor the result back to this exact calc prediction.
     labWorkload ? `  --model-ref ${input.model.key}  --hw-ref ${input.hw.key} \\` : null,
     labWorkload ? `  --tbt-target-ms ${input.tbt_ms}  --ttft-target-ms ${input.ttft_ms}` : null,

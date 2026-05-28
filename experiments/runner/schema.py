@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -28,7 +28,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # / osl_tokens_p50 percentiles. Old v1.0.0 files load cleanly under this
 # schema; new v1.1.0 files MAY load in a v1.0.0 consumer that uses
 # extra="ignore" on the envelope (see RunResult below).
-SCHEMA_VERSION = "1.1.0"
+# 1.1.0 → 1.2.0: added optional Calibration block recording the rate-probe
+# sweep run before measurement. Additive — old files load cleanly (calibration
+# is None); old consumers ignore the field via _Envelope.
+SCHEMA_VERSION = "1.2.0"
 
 
 class _Strict(BaseModel):
@@ -241,6 +244,31 @@ class Prediction(_Envelope):
 
 
 # ---------------------------------------------------------------------------
+# Calibration block (rate probe sweep)
+# ---------------------------------------------------------------------------
+class CalibrationProbe(_Strict):
+    rate: float = Field(..., gt=0.0, description="probe arrival rate, requests/sec")
+    success_rate: float = Field(..., ge=0.0, le=1.0, description="completed / dispatched")
+    ttft_p95_ms: float = Field(..., ge=0.0)
+    achieved_rps: float = Field(..., ge=0.0, description="completed / probe duration")
+    saturated: bool
+
+
+class Calibration(_Envelope):
+    """Outcome of the auto-rate probe sweep.
+
+    Always written so downstream readers have a uniform shape:
+      - method="auto":     probes is non-empty, selected_rate = 0.8 × ceiling.
+      - method="explicit": probes is empty, selected_rate == ceiling == --rate.
+    """
+
+    method: Literal["auto", "explicit"]
+    probes: list[CalibrationProbe] = Field(default_factory=list)
+    selected_rate: float = Field(..., gt=0.0)
+    capacity_ceiling: float = Field(..., gt=0.0)
+
+
+# ---------------------------------------------------------------------------
 # Top-level run result
 # ---------------------------------------------------------------------------
 class RunResult(_Envelope):
@@ -259,6 +287,10 @@ class RunResult(_Envelope):
     # consumer can still load v1.1.0 files — the `prediction` field is
     # ignored rather than rejected on the older schema.
     prediction: Prediction | None = None
+    # Optional: present on runs from v1.2.0+. The auto-rate calibration
+    # block records the probe sweep that picked workload.rate_rps; for
+    # explicit --rate runs the probes list is empty.
+    calibration: Calibration | None = None
     raw_results: list[RequestRecord] = Field(default_factory=list)
     engine_metrics: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None

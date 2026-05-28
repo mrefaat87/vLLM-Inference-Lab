@@ -32,6 +32,18 @@ def test_launch_help_lists_orchestration_flags() -> None:
         assert flag in result.output, f"missing {flag} in launch --help"
 
 
+def test_run_help_documents_auto_rate() -> None:
+    """`exp run --help` must surface the auto-vs-explicit --rate contract,
+    so a user reading help text understands the default behavior is
+    engine-side calibration (not the prior 8.0 rps default)."""
+    result = CliRunner().invoke(cli, ["run", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "--rate" in result.output
+    assert "auto" in result.output
+    # The help must mention explicit-float behavior, not just "auto".
+    assert "float" in result.output
+
+
 def test_serve_help_lists_watch_flag() -> None:
     result = CliRunner().invoke(cli, ["serve", "--help"])
     assert result.exit_code == 0, result.output

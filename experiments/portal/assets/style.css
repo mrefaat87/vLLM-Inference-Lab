@@ -314,6 +314,12 @@ code, kbd, pre {
 .metric-chip code {
   font-size: 10.5px; color: var(--dim);
 }
+.metric-chip.calib      { border-color: var(--accent, var(--b-slo)); }
+.metric-chip.calib .k   { color: var(--accent, var(--b-slo)); }
+.metric-chip .sub {
+  font-size: 9.5px; color: var(--muted);
+  letter-spacing: 0.04em;
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Scope panels — same frame as the calculator. Each chart is a scope.

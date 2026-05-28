@@ -65,6 +65,47 @@ def test_v110_loads_with_unknown_top_level_fields_ignored() -> None:
     assert r.run_id == "v100-fixture"
 
 
+def test_v110_loads_under_v120_no_calibration_field() -> None:
+    """v1.1.0 result (no calibration block) loads cleanly under v1.2.0
+    code — the calibration field is optional, so old runs in
+    results/runs/ keep parsing after the schema bump.
+    """
+    blob = _v100_result_blob()
+    blob["schema_version"] = "1.1.0"
+    r = RunResult.model_validate(blob)
+    assert r.calibration is None
+
+
+def test_v120_with_calibration_roundtrips() -> None:
+    """A v1.2.0 result with a calibration block survives JSON round-trip
+    so the portal can read what the runner writes."""
+    blob = _v100_result_blob()
+    blob["schema_version"] = "1.2.0"
+    blob["calibration"] = {
+        "method": "auto",
+        "probes": [
+            {"rate": 1.0, "success_rate": 1.0, "ttft_p95_ms": 200.0,
+             "achieved_rps": 1.0, "saturated": False},
+            {"rate": 2.0, "success_rate": 0.4, "ttft_p95_ms": 2500.0,
+             "achieved_rps": 0.8, "saturated": True},
+            {"rate": 1.5, "success_rate": 1.0, "ttft_p95_ms": 280.0,
+             "achieved_rps": 1.5, "saturated": False},
+        ],
+        "selected_rate": 1.2,
+        "capacity_ceiling": 1.5,
+    }
+    r = RunResult.model_validate(blob)
+    assert r.calibration is not None
+    assert r.calibration.method == "auto"
+    assert r.calibration.selected_rate == pytest.approx(1.2)
+    assert len(r.calibration.probes) == 3
+    # Round-trip
+    re = RunResult.model_validate(json.loads(r.model_dump_json()))
+    assert re.calibration is not None
+    assert re.calibration.capacity_ceiling == pytest.approx(1.5)
+    assert re.calibration.probes[1].saturated is True
+
+
 def test_v110_with_prediction_roundtrips() -> None:
     """The prediction block survives a JSON round-trip without lossy
     transforms — the lab's portal builder relies on this for C2 byte
