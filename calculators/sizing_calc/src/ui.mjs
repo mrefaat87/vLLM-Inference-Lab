@@ -188,7 +188,9 @@ function recompute(skipPulse = false) {
   // and copy-button gating both see one consistent issue list.
   const compat = validate(input, COMPAT_RULES);
   // out.warnings already carry {level, msg}; compat issues carry the same
-  // shape (+ id, reason, suggest). Errors from either source gate the button.
+  // shape (+ id, reason, suggest). Errors from either source gate the button;
+  // compat warns surface inline beside the snippet (yellow, non-blocking) so
+  // the user sees them where the pasted command lives — not buried in the log.
   const allErrors = [
     ...out.warnings.filter((w) => w.level === "error"),
     ...compat.errors,
@@ -198,7 +200,7 @@ function recompute(skipPulse = false) {
   paintSweep(out, input);
   paintDiagnostics(out, compat);
   paintSnippet(out, input);
-  gateSnippetButtons(allErrors);
+  paintSnippetIssues(allErrors, compat.warns);
   // Lab runs: fire-and-forget against the bridge. Failures show an
   // empty-state card; they never block the calc render.
   paintLabRuns(input, out).catch((e) => {
@@ -421,38 +423,64 @@ function paintDiagnostics(out, compat = { errors: [], warns: [] }) {
   `).join("");
 }
 
-// Disable/enable the copy buttons based on the merged error list, and surface
-// the first error inline under the snippet so users don't have to scroll to
-// diagnostics to understand why the button is greyed.
-function gateSnippetButtons(errors) {
+// Gate the copy buttons on errors, surface compat warns inline (non-blocking).
+//
+// Errors → red block, buttons disabled. The user literally cannot run this
+//   combo (OOM, missing repo, no kernel).
+// Warns  → yellow block, buttons stay enabled. The combo runs but will
+//   underperform the calc's curve (slow kernel fallback, etc). The lab now
+//   auto-calibrates rate so launching is safe; we just want the user to know
+//   what to expect before they paste.
+//
+// We put compat warns RIGHT NEXT to the snippet (not just in the diagnostics
+// log) so the user sees them in the same eye-line as the [ COPY EXP RUN ]
+// button they're about to press.
+function paintSnippetIssues(errors, warns = []) {
   const block = document.getElementById("snippet-block");
   const copyBtn = document.getElementById("copy-btn");
   const expBtn = document.getElementById("copy-exp-btn");
   const blocked = errors.length > 0;
   if (copyBtn) {
     copyBtn.disabled = blocked;
-    copyBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)";
+    copyBtn.title = blocked
+      ? `Blocked: ${errors[0].msg}`
+      : (warns.length ? `Heads up: ${warns[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)");
   }
   if (expBtn) {
     expBtn.disabled = blocked;
-    expBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal";
+    expBtn.title = blocked
+      ? `Blocked: ${errors[0].msg}`
+      : (warns.length ? `Heads up: ${warns[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal");
   }
   if (!block) return;
-  if (!blocked) {
+  if (!blocked && warns.length === 0) {
     block.hidden = true;
     block.innerHTML = "";
+    block.classList.remove("warn");
     return;
   }
-  // Render every error so users see all blockers at once, not just the first.
-  // The button tooltip still shows the first; the inline block is the canonical
-  // place to read the full list.
   block.hidden = false;
-  block.innerHTML = errors.map((e) => `
-    <div class="snippet-block-line">
-      <span class="glyph error">■</span>
-      <span class="msg">${escapeHtml(e.msg)}</span>
-    </div>
-  `).join("");
+  // The block carries severity via a class so the styling key (red vs yellow)
+  // matches the worst issue on display. Errors trump warns visually.
+  block.classList.toggle("warn", !blocked);
+  const lines = [];
+  for (const e of errors) {
+    lines.push(`
+      <div class="snippet-block-line">
+        <span class="glyph error">■</span>
+        <span class="msg">${escapeHtml(e.msg)}</span>
+      </div>
+    `);
+  }
+  for (const w of warns) {
+    lines.push(`
+      <div class="snippet-block-line">
+        <span class="glyph warn">▲</span>
+        <span class="msg">${escapeHtml(w.msg)}</span>
+      </div>
+    `);
+  }
+  block.innerHTML = lines.join("");
 }
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>

@@ -219,45 +219,61 @@ test("copy exp button emits a launch command without --rate (lab calibrates)", a
   expect(clipboard).toContain("--tbt-target-ms");
 });
 
-// Compatibility validator gates the copy buttons when the current combo
-// cannot run. INT8 + T4 is the canonical case: bitsandbytes dequantizes
-// every forward pass, so the calc must refuse to emit the lab command.
-test("INT8 + A10G disables copy buttons and surfaces remediation inline", async ({ page }) => {
+// Slow-kernel combos (INT8 anywhere except Hopper; AWQ on Turing) are NOT
+// hard blocks — the lab auto-calibrates rate against the real engine and
+// produces clean telemetry even on a slow kernel. The calc surfaces these
+// as yellow warnings inline (right beside the [COPY EXP RUN] button) so the
+// user knows what to expect, but buttons stay enabled.
+test("INT8 + A10G surfaces a soft warn inline; copy buttons stay enabled", async ({ page }) => {
   await page.goto(pathToFileURL(HTML).href);
   await page.waitForFunction(() => window.__sizingChart != null);
-  // Pick a preset so a lab `exp launch` block would otherwise be emitted —
-  // the gating must work regardless of preset.
+  // Pick a preset so a lab `exp launch` block would otherwise be emitted.
   await page.locator("#workload-preset").selectOption("chatbot_turn1");
-  // A10G + Qwen2.5-7B at FP16 is a clean combo (no b_slo/HBM blockers).
-  // INT8 should be the *only* failing variable, so flipping it back to FP16
-  // re-enables the button — that's the contract we're testing.
   await page.locator("#hw").selectOption("A10G");
   await page.locator("#model").selectOption("qwen2.5-7b");
   await page.locator("#weight-prec").selectOption("INT8");
   await page.waitForTimeout(150); // let recompute settle
 
-  // Both copy buttons should be disabled by the int8-non-hopper rule.
-  await expect(page.locator("#copy-exp-btn")).toBeDisabled();
-  await expect(page.locator("#copy-btn")).toBeDisabled();
+  // Buttons stay enabled — the run is launchable; lab calibrates the slow rate.
+  await expect(page.locator("#copy-exp-btn")).toBeEnabled();
+  await expect(page.locator("#copy-btn")).toBeEnabled();
 
-  // Inline error block visible with the remediation hint.
+  // Inline warn block is visible with the soft-warn class and message.
   const block = page.locator("#snippet-block");
   await expect(block).toBeVisible();
+  await expect(block).toHaveClass(/warn/);
   const blockText = await block.textContent();
-  expect(blockText).toMatch(/INT8/);
-  expect(blockText).toMatch(/INT4|AWQ/i);  // suggest hint
+  expect(blockText).toMatch(/slower than the calc predicts/i);
+  expect(blockText).toMatch(/bitsandbytes/);
+  expect(blockText).toMatch(/auto-calibrate/i);
 
-  // Tooltip on the gated button carries the error reason.
+  // Tooltip is the friendly "Heads up:" prefix, not "Blocked:".
   const title = await page.locator("#copy-exp-btn").getAttribute("title");
-  expect(title).toMatch(/^Blocked:/);
+  expect(title).toMatch(/^Heads up:/);
 
-  // Switching to FP16 (the clean fallback for A10G + Qwen-7B) re-enables the
-  // buttons and clears the block.
+  // Switching to FP16 clears the block.
   await page.locator("#weight-prec").selectOption("FP16");
   await page.waitForTimeout(150);
   await expect(page.locator("#copy-exp-btn")).toBeEnabled();
   await expect(page.locator("#copy-btn")).toBeEnabled();
   await expect(page.locator("#snippet-block")).toBeHidden();
+});
+
+// Hard blockers (e.g. MoE without enough GPUs) still gate the copy buttons.
+// This guards the error-vs-warn split — if we ever accidentally downgrade a
+// true blocker to warn, this test catches it.
+test("hard error (DeepSeek-V3 + ngpus=1) still disables copy buttons", async ({ page }) => {
+  await page.goto(pathToFileURL(HTML).href);
+  await page.waitForFunction(() => window.__sizingChart != null);
+  await page.locator("#workload-preset").selectOption("chatbot_turn1");
+  await page.locator("#model").selectOption("deepseek-v3");
+  // Default ngpus is much lower than the 8 the rule requires; rule fires.
+  await page.waitForTimeout(150);
+
+  await expect(page.locator("#copy-exp-btn")).toBeDisabled();
+  await expect(page.locator("#copy-btn")).toBeDisabled();
+  const title = await page.locator("#copy-exp-btn").getAttribute("title");
+  expect(title).toMatch(/^Blocked:/);
 });
 
 // The lab supports vllm/sglang/trtllm; the calc must emit the selected

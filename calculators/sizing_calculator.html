@@ -492,9 +492,18 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   font-family: var(--font-mono);
   font-size: 12px;
 }
+/* Warn variant — non-blocking advisories (slow kernel fallback, etc).
+   Uses the same b_slo amber as diagnostics warnings so the visual language
+   is consistent: red ■ = blocked, yellow ▲ = launches but underperforms. */
+.snippet-block.warn {
+  border-top-color: var(--b-slo);
+  background: rgba(210, 153, 34, 0.06);
+}
 .snippet-block[hidden] { display: none; }
 .snippet-block-line { display: flex; gap: 10px; padding: 2px 0; }
 .snippet-block-line .glyph { width: 12px; text-align: center; color: var(--danger); }
+.snippet-block-line .glyph.warn { color: var(--b-slo); }
+.snippet-block-line .glyph.error { color: var(--danger); }
 .snippet-block-line .msg { color: var(--text); flex: 1; }
 /* Two adjacent copy buttons — the more specific "EXP RUN" first
    (recommended for the lab handoff), then the full-snippet fallback. */
@@ -2036,13 +2045,13 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
   "rules": [
     {
       "id": "int8-non-hopper",
-      "severity": "error",
+      "severity": "warn",
       "when": {
         "weight_prec": ["INT8"],
         "gpu_arch": ["turing", "ada", "ampere", "ampere_dc"]
       },
-      "reason": "INT8 via bitsandbytes dequantizes weights every forward pass on non-Hopper GPUs — there is no fast INT8 kernel. Expect TBT far above the predicted value.",
-      "suggest": { "weight_prec": "INT4", "note": "AWQ (INT4) has a Marlin kernel on Ampere+ and pre-quantized HF repos for most popular models." }
+      "reason": "Runs, but ~2–3× slower than the calc predicts. vLLM has no native INT8 kernel below Hopper; it falls back to bitsandbytes, which dequantizes INT8→FP16 on every matmul. The lab will auto-calibrate to the real rate, so safe to launch as a baseline. For the predicted curve, switch to AWQ (INT4) on Ampere+ or FP8 on Hopper.",
+      "suggest": { "note": "useful as a slow-baseline measurement; for the predicted curve switch to AWQ (INT4) on Ampere+ or FP8 on Hopper" }
     },
     {
       "id": "int8-hopper-suboptimal",
@@ -2051,8 +2060,8 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
         "weight_prec": ["INT8"],
         "gpu_arch": ["hopper"]
       },
-      "reason": "INT8 works on Hopper but FP8 is the faster native tensor-core path.",
-      "suggest": { "weight_prec": "FP8" }
+      "reason": "Runs, but slower than FP8 on H100 (and at similar accuracy). Hopper has a native FP8 tensor-core path; INT8 doesn't use it.",
+      "suggest": { "weight_prec": "FP8", "note": "FP8 is the fastest weight path on Hopper" }
     },
     {
       "id": "fp8-no-hardware",
@@ -2076,13 +2085,13 @@ h3 { font-size: 16px; margin: 24px 0 10px; color: var(--text); }
     },
     {
       "id": "awq-marlin-needs-ampere",
-      "severity": "error",
+      "severity": "warn",
       "when": {
         "weight_prec": ["INT4"],
         "gpu_arch": ["turing"]
       },
-      "reason": "AWQ Marlin kernel requires sm_80+ (Ampere or later). On Turing (T4) AWQ falls back to a slow dequant path.",
-      "suggest": { "weight_prec": "FP16" }
+      "reason": "Runs on T4 (Turing), but ~2× slower than the calc predicts. The fast AWQ kernel (Marlin) needs Ampere or newer; on Turing AWQ dequantizes INT4→FP16 every forward pass. The lab will auto-calibrate to the real rate, so safe to launch as a baseline. For the predicted curve, switch to an Ampere+ GPU (A10G, L4, A100, H100).",
+      "suggest": { "note": "useful as a slow-baseline measurement; for the predicted curve switch to an Ampere+ GPU (A10G, L4, A100, H100)" }
     },
     {
       "id": "fp8-kv-no-hardware",
@@ -4018,7 +4027,9 @@ function recompute(skipPulse = false) {
   // and copy-button gating both see one consistent issue list.
   const compat = validate(input, COMPAT_RULES);
   // out.warnings already carry {level, msg}; compat issues carry the same
-  // shape (+ id, reason, suggest). Errors from either source gate the button.
+  // shape (+ id, reason, suggest). Errors from either source gate the button;
+  // compat warns surface inline beside the snippet (yellow, non-blocking) so
+  // the user sees them where the pasted command lives — not buried in the log.
   const allErrors = [
     ...out.warnings.filter((w) => w.level === "error"),
     ...compat.errors,
@@ -4028,7 +4039,7 @@ function recompute(skipPulse = false) {
   paintSweep(out, input);
   paintDiagnostics(out, compat);
   paintSnippet(out, input);
-  gateSnippetButtons(allErrors);
+  paintSnippetIssues(allErrors, compat.warns);
   // Lab runs: fire-and-forget against the bridge. Failures show an
   // empty-state card; they never block the calc render.
   paintLabRuns(input, out).catch((e) => {
@@ -4251,38 +4262,64 @@ function paintDiagnostics(out, compat = { errors: [], warns: [] }) {
   `).join("");
 }
 
-// Disable/enable the copy buttons based on the merged error list, and surface
-// the first error inline under the snippet so users don't have to scroll to
-// diagnostics to understand why the button is greyed.
-function gateSnippetButtons(errors) {
+// Gate the copy buttons on errors, surface compat warns inline (non-blocking).
+//
+// Errors → red block, buttons disabled. The user literally cannot run this
+//   combo (OOM, missing repo, no kernel).
+// Warns  → yellow block, buttons stay enabled. The combo runs but will
+//   underperform the calc's curve (slow kernel fallback, etc). The lab now
+//   auto-calibrates rate so launching is safe; we just want the user to know
+//   what to expect before they paste.
+//
+// We put compat warns RIGHT NEXT to the snippet (not just in the diagnostics
+// log) so the user sees them in the same eye-line as the [ COPY EXP RUN ]
+// button they're about to press.
+function paintSnippetIssues(errors, warns = []) {
   const block = document.getElementById("snippet-block");
   const copyBtn = document.getElementById("copy-btn");
   const expBtn = document.getElementById("copy-exp-btn");
   const blocked = errors.length > 0;
   if (copyBtn) {
     copyBtn.disabled = blocked;
-    copyBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)";
+    copyBtn.title = blocked
+      ? `Blocked: ${errors[0].msg}`
+      : (warns.length ? `Heads up: ${warns[0].msg}` : "Copy the full snippet (serve args + exp run + sweep grid)");
   }
   if (expBtn) {
     expBtn.disabled = blocked;
-    expBtn.title = blocked ? `Blocked: ${errors[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal";
+    expBtn.title = blocked
+      ? `Blocked: ${errors[0].msg}`
+      : (warns.length ? `Heads up: ${warns[0].msg}` : "Copy only the `exp run …` lines so you can paste straight into the lab terminal");
   }
   if (!block) return;
-  if (!blocked) {
+  if (!blocked && warns.length === 0) {
     block.hidden = true;
     block.innerHTML = "";
+    block.classList.remove("warn");
     return;
   }
-  // Render every error so users see all blockers at once, not just the first.
-  // The button tooltip still shows the first; the inline block is the canonical
-  // place to read the full list.
   block.hidden = false;
-  block.innerHTML = errors.map((e) => `
-    <div class="snippet-block-line">
-      <span class="glyph error">■</span>
-      <span class="msg">${escapeHtml(e.msg)}</span>
-    </div>
-  `).join("");
+  // The block carries severity via a class so the styling key (red vs yellow)
+  // matches the worst issue on display. Errors trump warns visually.
+  block.classList.toggle("warn", !blocked);
+  const lines = [];
+  for (const e of errors) {
+    lines.push(`
+      <div class="snippet-block-line">
+        <span class="glyph error">■</span>
+        <span class="msg">${escapeHtml(e.msg)}</span>
+      </div>
+    `);
+  }
+  for (const w of warns) {
+    lines.push(`
+      <div class="snippet-block-line">
+        <span class="glyph warn">▲</span>
+        <span class="msg">${escapeHtml(w.msg)}</span>
+      </div>
+    `);
+  }
+  block.innerHTML = lines.join("");
 }
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
