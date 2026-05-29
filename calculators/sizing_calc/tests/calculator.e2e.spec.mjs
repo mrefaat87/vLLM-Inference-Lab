@@ -213,6 +213,10 @@ test("copy exp button emits a launch command without --rate (lab calibrates)", a
   // Duration / warmup still present so the run shape is fully specified.
   expect(clipboard).toContain("--duration");
   expect(clipboard).toContain("--warmup");
+  // The vLLM scheduler batch cap is wired through from recommended_batch —
+  // without it the lab silently rides vLLM's default of 256 and the
+  // measured curve can't be reconciled with the calc's recommendation.
+  expect(clipboard).toMatch(/--max-num-seqs\s+\d+/);
   // Join keys present so the lab result lines up with this prediction.
   expect(clipboard).toContain("--model-ref");
   expect(clipboard).toContain("--hw-ref");

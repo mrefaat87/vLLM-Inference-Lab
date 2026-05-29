@@ -120,6 +120,17 @@ def _run_options(f):
         click.option("--gpu", default="A10G"),
         click.option("--n-gpu", type=int, default=4),
         click.option(
+            "--max-num-seqs",
+            type=int,
+            default=256,
+            help=(
+                "vLLM --max-num-seqs (concurrent sequence cap in the scheduler). "
+                "Default 256 mirrors vLLM 0.7.x's built-in. The calc's "
+                "[COPY EXP RUN] snippet emits its recommended_batch here so the "
+                "measured run probes the calc-recommended operating point."
+            ),
+        ),
+        click.option(
             "--model-ref",
             default="llama-3-70b",
             help="join key into calculators/sizing_calc/src/data/models.json (the model's `key` field)",
@@ -193,6 +204,7 @@ def _do_run(
     instance: str,
     gpu: str,
     n_gpu: int,
+    max_num_seqs: int,
     model_ref: str,
     hw_ref: str,
     tbt_target_ms: float,
@@ -214,6 +226,7 @@ def _do_run(
         model=model,
         quantization=quant,
         tensor_parallel=tp,
+        max_num_seqs=max_num_seqs,
         instance=instance,
         gpu=gpu,
         n_gpu=n_gpu,

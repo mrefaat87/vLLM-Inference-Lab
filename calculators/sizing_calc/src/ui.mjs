@@ -604,6 +604,11 @@ function paintSnippet(out, input) {
     labWorkload ? `  --quant ${quantArg(input.weight_prec)} \\` : null,
     labWorkload ? `  --tp ${m.parallelism.tp}  --n-gpu ${input.ngpus} \\` : null,
     labWorkload ? `  --instance ${awsInstance(input.hw.key, input.ngpus)}  --gpu ${input.hw.key} \\` : null,
+    // vLLM scheduler batch cap = the calc's recommended_batch. Wiring this
+    // through means the lab probes the exact operating point the calc
+    // recommended, instead of riding vLLM's silent default of 256.
+    labWorkload && m.recommended_batch
+      ? `  --max-num-seqs ${Math.round(m.recommended_batch)} \\` : null,
     // Workload knobs. Rate is intentionally omitted — the lab calibrates against
     // real engine capacity (analytical recommended_rate runs 5–10× over real
     // ceiling for combos like INT8/T4 that fall back to slow kernels).

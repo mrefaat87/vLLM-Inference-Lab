@@ -80,6 +80,16 @@ class EngineConfig(_Strict):
     )
     tensor_parallel: int = Field(default=1, ge=1, le=16)
     max_model_len: int = Field(default=8192, ge=128, le=1_000_000)
+    # Cap on concurrent sequences vLLM schedules into a single forward pass.
+    # Default 256 mirrors vLLM 0.7.x's built-in default; the calc's
+    # recommended_batch overrides this when the snippet is pasted, so the
+    # measured run actually probes the calc-recommended operating point
+    # rather than running at a silent default. SGLang ignores this field
+    # (it uses --max-running-requests) — wiring is engine-specific.
+    max_num_seqs: int = Field(
+        default=256, ge=1, le=4096,
+        description="vLLM --max-num-seqs; defaults to vLLM 0.7.x built-in",
+    )
     # Karpenter scheduling hints. The K8s driver translates these to
     # node-affinity selectors so a request for g4dn.xlarge does not get
     # silently rescheduled onto a g4dn.12xlarge by the NodePool.

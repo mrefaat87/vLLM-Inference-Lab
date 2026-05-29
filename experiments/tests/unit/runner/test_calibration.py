@@ -13,12 +13,15 @@ import pytest
 
 from experiments.runner.calibration import (
     HEADROOM,
+    MAX_PROBE_RATE,
     PROBE_S,
-    PROBE_SCHEDULE,
+    PROBE_SCHEDULE_SEED,
+    _probe_schedule,
     calibrate,
     evaluate_probe,
     explicit_calibration,
 )
+PROBE_SCHEDULE = PROBE_SCHEDULE_SEED  # back-compat for tests below
 from experiments.runner.schema import RequestRecord
 
 pytestmark = pytest.mark.unit
@@ -209,6 +212,44 @@ class TestCalibrate:
         # Fallback rate is 0.5 rps; ceiling reports the lowest probed rate.
         assert cal.selected_rate == pytest.approx(0.5)
         assert cal.capacity_ceiling == pytest.approx(PROBE_SCHEDULE[0])
+
+    def test_schedule_extends_past_seed_when_nothing_saturates(self) -> None:
+        """Today's bug: AWQ-on-T4 ran 4 rps clean, never tripped, ceiling
+        reported as 4 — under-estimate. Fix: doubling keeps going past the
+        seed's last entry until either saturation OR budget exhaustion."""
+        # Capacity 50 rps; seed tops at 32 (all OK). New behavior probes 64
+        # (saturated). Bisection lands between 32 and 64 → ceiling ≈ 48.
+        cal = asyncio.run(calibrate(probe_fn=_make_probe_fn(capacity=50.0, ttft_slo_ms=500.0)))
+        assert cal.method == "auto"
+        rates = [p.rate for p in cal.probes]
+        # Seed entries plus 64 (the doubled probe past 32) must be present.
+        assert 32.0 in rates
+        assert 64.0 in rates
+        # Refinement probe (bisection) between 32 and 64 should land at 48.
+        assert 48.0 in rates
+        assert cal.capacity_ceiling == pytest.approx(48.0)
+
+    def test_schedule_caps_at_max_probe_rate(self) -> None:
+        """A misconfigured engine that never saturates can't chew the whole
+        budget — the doubling stops at MAX_PROBE_RATE."""
+        # Capacity 10000 rps (effectively infinite) — every probe will be OK.
+        # The schedule must stop at MAX_PROBE_RATE; without the cap calibrate
+        # would either burn time or run forever.
+        cal = asyncio.run(calibrate(probe_fn=_make_probe_fn(capacity=10_000.0, ttft_slo_ms=500.0)))
+        rates = [p.rate for p in cal.probes]
+        assert max(rates) <= MAX_PROBE_RATE
+        # When the cap is hit without saturation, capacity_ceiling reports the
+        # last probed rate but probes[-1].saturated is False — downstream can
+        # tell the ceiling is a lower bound.
+        assert cal.probes[-1].saturated is False
+
+    def test_probe_schedule_helper_extends_past_seed(self) -> None:
+        """Pure-function test for the helper that builds the rate list."""
+        rates = _probe_schedule((1.0, 2.0, 4.0), max_rate=16.0)
+        # Seed entries + doubling: 1, 2, 4, 8, 16.
+        assert rates == [1.0, 2.0, 4.0, 8.0, 16.0]
+        # Cap respected — last entry never exceeds max_rate.
+        assert rates[-1] == 16.0
 
     def test_explicit_calibration_shape(self) -> None:
         cal = explicit_calibration(5.0)

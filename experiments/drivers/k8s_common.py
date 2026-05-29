@@ -316,6 +316,7 @@ def _vars_for_cfg(cfg: EngineConfig, engine_name: str) -> dict[str, str]:
         "TENSOR_PARALLEL": str(cfg.tensor_parallel),
         "N_GPU": str(n_gpu),
         "MAX_MODEL_LEN": str(cfg.max_model_len),
+        "MAX_NUM_SEQS": str(cfg.max_num_seqs),
         "IMAGE": cfg.image,
         "INSTANCE_FAMILY": spec.family if spec else "",
         "INSTANCE_SIZE": spec.size if spec else "",

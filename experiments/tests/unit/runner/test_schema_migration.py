@@ -65,6 +65,16 @@ def test_v110_loads_with_unknown_top_level_fields_ignored() -> None:
     assert r.run_id == "v100-fixture"
 
 
+def test_old_result_without_max_num_seqs_still_loads() -> None:
+    """Old v1.0.0 / v1.1.0 results don't carry engine.max_num_seqs. The new
+    schema defaults it to 256 (vLLM 0.7.x default) so the field is always
+    present after parse — no consumer needs to branch on its absence."""
+    from experiments.runner.schema import RunResult
+    blob = _v100_result_blob()
+    r = RunResult.model_validate(blob)
+    assert r.engine.max_num_seqs == 256
+
+
 def test_v110_loads_under_v120_no_calibration_field() -> None:
     """v1.1.0 result (no calibration block) loads cleanly under v1.2.0
     code — the calibration field is optional, so old runs in

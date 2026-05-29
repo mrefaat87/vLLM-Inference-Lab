@@ -45,6 +45,15 @@ def test_run_help_documents_auto_rate() -> None:
     assert "float" in result.output
 
 
+def test_run_help_documents_max_num_seqs() -> None:
+    """The calc snippet emits --max-num-seqs from recommended_batch; the CLI
+    must accept it so the pasted command runs cleanly and the value flows
+    through to the vLLM args."""
+    result = CliRunner().invoke(cli, ["run", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "--max-num-seqs" in result.output
+
+
 def test_run_help_documents_ttft_target_ms() -> None:
     """The TTFT SLO knob is what the calc snippet emits; it must be wired
     to a real CLI flag so the pasted command runs and the value reaches
