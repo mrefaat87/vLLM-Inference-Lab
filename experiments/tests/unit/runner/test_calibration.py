@@ -120,6 +120,36 @@ class TestEvaluateProbe:
         assert p.saturated is True
         assert p.success_rate == 0.0
 
+    def test_ttft_slo_drives_signal2_trip_point(self) -> None:
+        """Tightening ttft_slo_ms turns a previously-safe probe into a saturated
+        one even with identical records. Guards the CLI wiring: the calc's
+        --ttft-target-ms must actually reach evaluate_probe to be useful."""
+        # Build records where TTFT is 1200ms, success+achieved are clean and
+        # over the floors. Two signals MUST trip for saturation under
+        # two-of-three rule, so this also doubles as a "load the other two
+        # so signal 2 makes or breaks it" setup.
+        records: list[RequestRecord] = []
+        for i in range(40):  # achieved 5 rps over 8s; target 12 → trips sig 3
+            records.append(RequestRecord(
+                request_id=f"ok-{i}", label="t", submit_offset_s=i * 0.2,
+                prompt_tokens=1, max_new_tokens=1, completion_tokens=1,
+                ttft_s=1.2, end_to_end_s=1.25,
+            ))
+        # Loose SLO (1500ms): signal 2 trips at >3000ms. TTFT=1200 < 3000 → safe.
+        # Signal 3 trips (5 < 0.85×12=10.2) but that's only one signal → not sat.
+        p_loose = evaluate_probe(
+            records=records, probe_s=PROBE_S,
+            target_rate=12.0, ttft_slo_ms=1500.0,
+        )
+        assert p_loose.saturated is False
+        # Tight SLO (500ms): signal 2 trips at >1000ms. TTFT=1200 > 1000 → trip.
+        # Now two signals (sig 2 + sig 3) → saturated.
+        p_tight = evaluate_probe(
+            records=records, probe_s=PROBE_S,
+            target_rate=12.0, ttft_slo_ms=500.0,
+        )
+        assert p_tight.saturated is True
+
     def test_single_signal_not_enough_with_clean_traffic(self) -> None:
         """One signal alone shouldn't trip — only TTFT slightly over SLO,
         success rate and achieved RPS clean. Demonstrates the two-of-three rule."""

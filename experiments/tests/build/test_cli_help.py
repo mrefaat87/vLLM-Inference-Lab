@@ -28,7 +28,8 @@ def test_launch_help_lists_orchestration_flags() -> None:
     result = CliRunner().invoke(cli, ["launch", "--help"])
     assert result.exit_code == 0, result.output
     for flag in ["--engine", "--workload", "--rate", "--serve", "--no-serve",
-                 "--open", "--no-open", "--port", "--calc-bridge", "--portal-dir"]:
+                 "--open", "--no-open", "--port", "--calc-bridge", "--portal-dir",
+                 "--tbt-target-ms", "--ttft-target-ms"]:
         assert flag in result.output, f"missing {flag} in launch --help"
 
 
@@ -42,6 +43,18 @@ def test_run_help_documents_auto_rate() -> None:
     assert "auto" in result.output
     # The help must mention explicit-float behavior, not just "auto".
     assert "float" in result.output
+
+
+def test_run_help_documents_ttft_target_ms() -> None:
+    """The TTFT SLO knob is what the calc snippet emits; it must be wired
+    to a real CLI flag so the pasted command runs and the value reaches
+    the calibration saturation rule."""
+    result = CliRunner().invoke(cli, ["run", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "--ttft-target-ms" in result.output
+    # Help text should mention calibration so the reader knows where this
+    # number actually shows up (signal 2 in the two-of-three rule).
+    assert "calibration" in result.output.lower()
 
 
 def test_serve_help_lists_watch_flag() -> None:
