@@ -54,7 +54,9 @@ async def test_mock_run_captures_prediction(tmp_path: Path, calc_root_available:
         tbt_target_ms=50.0,
     )
     blob = json.loads(Path(path).read_text())
-    assert blob["schema_version"].startswith("1.1.")
+    # Loose-check the schema minor of the current contract — bump alongside
+    # SCHEMA_VERSION when the runner is supposed to write a new minor.
+    assert blob["schema_version"].startswith("1.2.")
 
     pred = blob.get("prediction")
     assert pred is not None, "calc bridge should have populated a prediction"

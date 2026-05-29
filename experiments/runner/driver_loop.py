@@ -37,8 +37,17 @@ async def run_loop(
     requests: AsyncIterator[Request],
     cfg: LoopConfig,
     t0: float | None = None,
+    wall_clock_cap_s: float | None = None,
 ) -> list[RequestRecord]:
-    """Run the driver loop to completion and return the per-request records."""
+    """Run the driver loop to completion and return the per-request records.
+
+    When ``wall_clock_cap_s`` is set (calibration probes only), in-flight
+    requests that haven't completed by ``t0 + wall_clock_cap_s`` are cancelled
+    and recorded with ``error="ProbeCutoff"`` so the saturation rule can count
+    them as completion-lag without blocking the calibration phase on a slow
+    engine's residence time. The measurement window passes ``None`` and waits
+    for every request to finish normally.
+    """
     t0 = t0 if t0 is not None else time.monotonic()
     sem = asyncio.Semaphore(cfg.concurrency_cap)
     timeout = aiohttp.ClientTimeout(total=cfg.request_timeout_s)
@@ -46,7 +55,10 @@ async def run_loop(
     records: list[RequestRecord] = []
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        tasks: list[asyncio.Task[RequestRecord]] = []
+        # Track (request, task) pairs so we can build cutoff records for
+        # tasks we have to cancel — RequestRecord needs the originating
+        # Request's fields and the task itself doesn't carry them.
+        pairs: list[tuple[Request, asyncio.Task[RequestRecord]]] = []
         async for req in requests:
             # Sleep until the request's scheduled arrival time. Negative sleeps
             # are clamped to 0 — if we fell behind, fire immediately and let
@@ -56,11 +68,51 @@ async def run_loop(
             if delay > 0:
                 await asyncio.sleep(delay)
             task = asyncio.create_task(_dispatch_one(session, req, cfg, t0, sem))
-            tasks.append(task)
-        # Wait for in-flight requests to finish.
-        for t in tasks:
-            records.append(await t)
+            pairs.append((req, task))
+        if wall_clock_cap_s is None:
+            # Measurement path: wait for every in-flight request to finish.
+            for _, t in pairs:
+                records.append(await t)
+        else:
+            # Calibration path: bounded wait, then cancel + record cutoffs.
+            remaining = max(0.0, (t0 + wall_clock_cap_s) - time.monotonic())
+            task_to_req = {t: req for (req, t) in pairs}
+            done, pending = await asyncio.wait(
+                [t for (_, t) in pairs],
+                timeout=remaining,
+            )
+            for t in done:
+                try:
+                    records.append(t.result())
+                except Exception as exc:  # noqa: BLE001 — surface as error record
+                    req = task_to_req[t]
+                    records.append(_cutoff_record(req, f"{type(exc).__name__}: {exc}"))
+            for t in pending:
+                t.cancel()
+                req = task_to_req[t]
+                records.append(_cutoff_record(req, "ProbeCutoff: in-flight at probe wall-clock cap"))
+            # Let cancellations settle so the session can close cleanly.
+            for t in pending:
+                try:
+                    await t
+                except (asyncio.CancelledError, aiohttp.ClientError):
+                    pass
     return records
+
+
+def _cutoff_record(req: Request, error: str) -> RequestRecord:
+    """Synthetic record for a request still in-flight at the probe cutoff."""
+    return RequestRecord(
+        request_id=req.request_id,
+        label=req.label,
+        # Arrival offset is the closest thing to "when this entered the system"
+        # we have at this point; it's >= 0 and bounded by the probe window.
+        submit_offset_s=req.arrival_offset_s,
+        prompt_tokens=req.prompt_tokens,
+        max_new_tokens=req.max_new_tokens,
+        error=error,
+        conversation_id=req.conversation_id,
+    )
 
 
 async def _dispatch_one(
