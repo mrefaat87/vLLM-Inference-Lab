@@ -31,7 +31,15 @@ from collections.abc import Awaitable, Callable
 from experiments.runner.schema import Calibration, CalibrationProbe, RequestRecord
 
 PROBE_S: float = 8.0
-PROBE_SCHEDULE: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
+# The probe schedule is a *seed* — calibrate() keeps doubling past the last
+# entry until either saturation trips or the budget runs out. Fixed-length
+# schedules under-report the ceiling when no rate in the seed saturates
+# (today's case: AWQ-on-T4 ran 4 rps clean → seed exhausted → ceiling reported
+# as 4 even though the true ceiling is higher).
+PROBE_SCHEDULE_SEED: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
+# Cap on how far we'll double past the seed. Keeps a runaway probe (mis-
+# configured engine that never saturates) from chewing the whole budget.
+MAX_PROBE_RATE: float = 256.0
 HEADROOM: float = 0.8
 DEFAULT_BUDGET_S: float = 60.0
 DEFAULT_TTFT_SLO_MS: float = 1500.0
@@ -104,13 +112,34 @@ def evaluate_probe(
     )
 
 
+def _probe_schedule(
+    seed: tuple[float, ...],
+    *,
+    max_rate: float,
+) -> list[float]:
+    """Geometric probe rates: the seed, then keep doubling past it.
+
+    Calibration consumes this lazily and stops at the first saturated probe
+    or when the budget is exhausted, so the long tail isn't wasted work — it
+    only matters when the seed didn't saturate, in which case we want to keep
+    pushing instead of bailing with an under-reported ceiling.
+    """
+    rates = list(seed)
+    last = rates[-1] if rates else 1.0
+    while last * 2 <= max_rate:
+        last *= 2
+        rates.append(last)
+    return rates
+
+
 async def calibrate(
     *,
     probe_fn: ProbeFn,
     ttft_slo_ms: float = DEFAULT_TTFT_SLO_MS,
     probe_s: float = PROBE_S,
     budget_s: float = DEFAULT_BUDGET_S,
-    schedule: tuple[float, ...] = PROBE_SCHEDULE,
+    schedule: tuple[float, ...] = PROBE_SCHEDULE_SEED,
+    max_probe_rate: float = MAX_PROBE_RATE,
     seed_offset: int = 7919,  # large prime, won't collide with measurement seed
 ) -> Calibration:
     """Run the geometric sweep + one bisection probe; return a Calibration."""
@@ -120,7 +149,7 @@ async def calibrate(
     first_sat: float | None = None
     seed_step = 0
 
-    for r in schedule:
+    for r in _probe_schedule(schedule, max_rate=max_probe_rate):
         if time.monotonic() > deadline:
             break
         records = await probe_fn(r, seed_offset + seed_step)
@@ -167,6 +196,12 @@ async def calibrate(
             capacity_ceiling=floor_rate,
         )
 
+    # If we exhausted the schedule (or the budget) without ever saturating,
+    # last_safe is the highest probed rate but the real ceiling is unknown
+    # (it's at least last_safe, possibly much higher). selected_rate still
+    # uses the headroom factor so the measurement window is bounded — but
+    # any downstream reader can tell from `probes[-1].saturated == False`
+    # that the ceiling is a lower bound, not an exact value.
     return Calibration(
         method="auto", probes=probes,
         selected_rate=HEADROOM * last_safe,

@@ -96,7 +96,7 @@
       </div>
       <div class="scope-canvas-wrap"><canvas id="roofline-chart"></canvas></div>
       <div class="scope-foot">
-        <span>batch (log axis) · Little's-Law proxy · tokens/sec</span>
+        <span>batch (log axis) · Little's Law N = λ × E2E · tokens/sec</span>
         <span id="roofline-foot-right">—</span>
       </div>
     </section>
@@ -276,14 +276,25 @@
   function measuredPoint(a) {
     const rps  = a.analysis?.throughput?.requests_per_sec_avg;
     const ttft = a.analysis?.ttft_s?.p50;
+    const e2e  = a.analysis?.e2e_s?.p50;
     const tps  = a.analysis?.throughput?.tok_per_sec_avg;
     const tbt  = a.analysis?.tbt_s?.p50;
     const dur  = a.workload?.duration_s;
     const totTok = a.analysis?.throughput?.total_completion_tokens;
     const price = a.prediction?.inputs?.price_per_hour_usd;
     const ngpus = a.prediction?.inputs?.ngpus ?? a.hardware?.n_gpu;
+    // Little's Law: steady-state in-flight count N = arrival rate × residence
+    // time. Residence time is END-TO-END, not TTFT — using TTFT (prefill-only)
+    // under-counts the decode phase, which on slow kernels dominates the
+    // residence time. For OSL=47 / TBT=245ms the difference is ~12× and
+    // visibly mis-placed the measured point on the predicted curve.
     let batchProxy = null;
-    if (rps != null && ttft != null) batchProxy = Math.max(1, rps * ttft + 1);
+    if (rps != null && e2e != null) {
+      batchProxy = Math.max(1, rps * e2e);
+    } else if (rps != null && ttft != null) {
+      // Fallback for results without e2e_s (older runs / failed-tail-only).
+      batchProxy = Math.max(1, rps * ttft + 1);
+    }
     // Measured $/Mtok: fleet $/hr × duration_s / 3600 ÷ (totTok / 1e6).
     let costMtok = null;
     if (price != null && ngpus != null && dur != null && totTok > 0) {
@@ -343,10 +354,14 @@
 
     let ratio = null;
     const rps = a.analysis?.throughput?.requests_per_sec_avg;
+    const e2e = a.analysis?.e2e_s?.p50;
     const ttft = a.analysis?.ttft_s?.p50;
     const tps = a.analysis?.throughput?.tok_per_sec_avg;
-    if (tps != null && rps != null && ttft != null && pred.curve.length > 0) {
-      const batchProxy = Math.max(1, rps * ttft + 1);
+    // See measuredPoint() for the Little's Law N = λ × E2E rationale.
+    const batchProxy = (rps != null && e2e != null)
+      ? Math.max(1, rps * e2e)
+      : (rps != null && ttft != null) ? Math.max(1, rps * ttft + 1) : null;
+    if (tps != null && batchProxy != null && pred.curve.length > 0) {
       const nearest = pred.curve.reduce(
         (best, p) => Math.abs(p.batch - batchProxy) < Math.abs(best.batch - batchProxy) ? p : best,
         pred.curve[0],
@@ -440,10 +455,14 @@
       });
     }
     const rps = a.analysis?.throughput?.requests_per_sec_avg;
+    const e2e = a.analysis?.e2e_s?.p50;
     const ttft = a.analysis?.ttft_s?.p50;
     const tps = a.analysis?.throughput?.tok_per_sec_avg;
-    if (rps != null && ttft != null && tps != null) {
-      const batchProxy = Math.max(1, rps * ttft + 1);
+    // Little's Law: N = λ × E2E (residence time). See measuredPoint().
+    const batchProxy = (rps != null && e2e != null)
+      ? Math.max(1, rps * e2e)
+      : (rps != null && ttft != null) ? Math.max(1, rps * ttft + 1) : null;
+    if (batchProxy != null && tps != null) {
       datasets.push({
         label: 'measured',
         type: 'scatter',

@@ -57,6 +57,11 @@ spec:
             - "--quantization={{QUANTIZATION}}"
             - "--tensor-parallel-size={{TENSOR_PARALLEL}}"
             - "--max-model-len={{MAX_MODEL_LEN}}"
+            # --max-num-seqs caps the scheduler's batch dimension. The calc's
+            # recommended_batch flows into this via the [COPY EXP RUN] snippet,
+            # so the measured run actually probes the calc's recommended
+            # operating point rather than vLLM's silent default of 256.
+            - "--max-num-seqs={{MAX_NUM_SEQS}}"
             - "--host=0.0.0.0"
             - "--port=8000"
           ports:
