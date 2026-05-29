@@ -44,20 +44,26 @@ const has = (issues, id) => issues.some((i) => i.id === id);
 // Per-rule tests
 // ──────────────────────────────────────────────────────────────────────────
 
-test("int8-non-hopper: INT8 + T4 fires error", () => {
-  const { errors } = validate(buildInput({ hw: HW["T4"], weight_prec: "INT8" }), RULES);
-  assert.ok(has(errors, "int8-non-hopper"), "expected int8-non-hopper to fire");
+// int8-non-hopper and awq-marlin-needs-ampere are SOFT warnings — the combo
+// runs, just slowly, and the lab auto-calibrates rate. Validates that they
+// surface in `warns`, never in `errors` (which would gate the copy button).
+test("int8-non-hopper: INT8 + T4 fires warn (not error — runs but slow)", () => {
+  const { errors, warns } = validate(buildInput({ hw: HW["T4"], weight_prec: "INT8" }), RULES);
+  assert.ok(has(warns, "int8-non-hopper"), "expected int8-non-hopper to fire as warn");
+  assert.ok(!has(errors, "int8-non-hopper"), "must not gate the copy button");
 });
 
-test("int8-non-hopper: INT8 + A100-80GB fires error", () => {
-  const { errors } = validate(buildInput({ hw: HW["A100-80GB"], weight_prec: "INT8" }), RULES);
-  assert.ok(has(errors, "int8-non-hopper"));
+test("int8-non-hopper: INT8 + A100-80GB fires warn", () => {
+  const { errors, warns } = validate(buildInput({ hw: HW["A100-80GB"], weight_prec: "INT8" }), RULES);
+  assert.ok(has(warns, "int8-non-hopper"));
+  assert.ok(!has(errors, "int8-non-hopper"));
 });
 
-test("int8-hopper-suboptimal: INT8 + H100 fires warn, no error from int8-non-hopper", () => {
+test("int8-hopper-suboptimal: INT8 + H100 fires warn, non-hopper rule does not fire", () => {
   const { errors, warns } = validate(buildInput({ hw: HW["H100-80GB"], weight_prec: "INT8" }), RULES);
   assert.ok(has(warns, "int8-hopper-suboptimal"));
-  assert.ok(!has(errors, "int8-non-hopper"), "non-hopper rule should not fire on H100");
+  assert.ok(!has(warns, "int8-non-hopper"), "non-hopper rule should not fire on H100");
+  assert.ok(!has(errors, "int8-non-hopper"));
 });
 
 test("fp8-no-hardware: FP8 + A10G fires error", () => {
@@ -88,21 +94,23 @@ test("awq-no-repo: INT4 + qwen2.5-7b does NOT fire (Qwen has AWQ)", () => {
   assert.ok(!has(errors, "awq-no-repo"));
 });
 
-test("awq-marlin-needs-ampere: INT4 + T4 fires error", () => {
+test("awq-marlin-needs-ampere: INT4 + T4 fires warn (not error — runs but slow)", () => {
   // qwen2.5-7b has an AWQ variant, so awq-no-repo does not fire — isolates the Marlin rule.
-  const { errors } = validate(
+  const { errors, warns } = validate(
     buildInput({ hw: HW["T4"], model: MODEL["qwen2.5-7b"], weight_prec: "INT4" }),
     RULES,
   );
-  assert.ok(has(errors, "awq-marlin-needs-ampere"));
+  assert.ok(has(warns, "awq-marlin-needs-ampere"), "expected to fire as warn");
+  assert.ok(!has(errors, "awq-marlin-needs-ampere"), "must not gate the copy button");
 });
 
 test("awq-marlin-needs-ampere: INT4 + A10G does NOT fire", () => {
-  const { errors } = validate(
+  const { errors, warns } = validate(
     buildInput({ hw: HW["A10G"], model: MODEL["qwen2.5-7b"], weight_prec: "INT4" }),
     RULES,
   );
   assert.ok(!has(errors, "awq-marlin-needs-ampere"));
+  assert.ok(!has(warns, "awq-marlin-needs-ampere"));
 });
 
 test("fp8-kv-no-hardware: FP8 KV + T4 fires error", () => {
@@ -181,13 +189,16 @@ test("clean combo: FP16 + A10G + llama-3-8b + ngpus=1 produces no errors", () =>
 // Combinatorial / contract
 // ──────────────────────────────────────────────────────────────────────────
 
-test("combinatorial: INT8 + T4 + deepseek-v3 + ngpus=1 fires all three blockers", () => {
-  const { errors } = validate(
+test("combinatorial: INT8 + T4 + deepseek-v3 + ngpus=1 fires the hard blocker; INT8 surfaces as warn", () => {
+  const { errors, warns } = validate(
     buildInput({ hw: HW["T4"], model: MODEL["deepseek-v3"], weight_prec: "INT8", kv_prec: "FP16", act_prec: "FP16", ngpus: 1 }),
     RULES,
   );
-  assert.ok(has(errors, "int8-non-hopper"));
+  // moe-needs-many-gpus is a hard error (capacity issue, lab can't fix it).
   assert.ok(has(errors, "moe-needs-many-gpus"));
+  // int8-non-hopper is now a soft warn (lab calibrates the slow rate).
+  assert.ok(has(warns, "int8-non-hopper"));
+  assert.ok(!has(errors, "int8-non-hopper"));
   // awq-no-repo should NOT fire because weight_prec is INT8, not INT4.
   assert.ok(!has(errors, "awq-no-repo"));
 });
@@ -206,8 +217,8 @@ test("issue shape: every issue carries id, level, msg, reason", () => {
 });
 
 test("issue.msg includes 'Try:' suffix when a suggest block exists", () => {
-  const { errors } = validate(buildInput({ hw: HW["T4"], weight_prec: "INT8" }), RULES);
-  const issue = errors.find((e) => e.id === "int8-non-hopper");
+  const { warns } = validate(buildInput({ hw: HW["T4"], weight_prec: "INT8" }), RULES);
+  const issue = warns.find((e) => e.id === "int8-non-hopper");
   assert.ok(issue, "expected the rule to fire");
   assert.ok(/Try:/.test(issue.msg), `expected 'Try:' in msg: ${issue.msg}`);
 });

@@ -21,13 +21,13 @@
   "rules": [
     {
       "id": "int8-non-hopper",
-      "severity": "error",
+      "severity": "warn",
       "when": {
         "weight_prec": ["INT8"],
         "gpu_arch": ["turing", "ada", "ampere", "ampere_dc"]
       },
-      "reason": "INT8 via bitsandbytes dequantizes weights every forward pass on non-Hopper GPUs — there is no fast INT8 kernel. Expect TBT far above the predicted value.",
-      "suggest": { "weight_prec": "INT4", "note": "AWQ (INT4) has a Marlin kernel on Ampere+ and pre-quantized HF repos for most popular models." }
+      "reason": "Runs, but ~2–3× slower than the calc predicts. vLLM has no native INT8 kernel below Hopper; it falls back to bitsandbytes, which dequantizes INT8→FP16 on every matmul. The lab will auto-calibrate to the real rate, so safe to launch as a baseline. For the predicted curve, switch to AWQ (INT4) on Ampere+ or FP8 on Hopper.",
+      "suggest": { "note": "useful as a slow-baseline measurement; for the predicted curve switch to AWQ (INT4) on Ampere+ or FP8 on Hopper" }
     },
     {
       "id": "int8-hopper-suboptimal",
@@ -36,8 +36,8 @@
         "weight_prec": ["INT8"],
         "gpu_arch": ["hopper"]
       },
-      "reason": "INT8 works on Hopper but FP8 is the faster native tensor-core path.",
-      "suggest": { "weight_prec": "FP8" }
+      "reason": "Runs, but slower than FP8 on H100 (and at similar accuracy). Hopper has a native FP8 tensor-core path; INT8 doesn't use it.",
+      "suggest": { "weight_prec": "FP8", "note": "FP8 is the fastest weight path on Hopper" }
     },
     {
       "id": "fp8-no-hardware",
@@ -61,13 +61,13 @@
     },
     {
       "id": "awq-marlin-needs-ampere",
-      "severity": "error",
+      "severity": "warn",
       "when": {
         "weight_prec": ["INT4"],
         "gpu_arch": ["turing"]
       },
-      "reason": "AWQ Marlin kernel requires sm_80+ (Ampere or later). On Turing (T4) AWQ falls back to a slow dequant path.",
-      "suggest": { "weight_prec": "FP16" }
+      "reason": "Runs on T4 (Turing), but ~2× slower than the calc predicts. The fast AWQ kernel (Marlin) needs Ampere or newer; on Turing AWQ dequantizes INT4→FP16 every forward pass. The lab will auto-calibrate to the real rate, so safe to launch as a baseline. For the predicted curve, switch to an Ampere+ GPU (A10G, L4, A100, H100).",
+      "suggest": { "note": "useful as a slow-baseline measurement; for the predicted curve switch to an Ampere+ GPU (A10G, L4, A100, H100)" }
     },
     {
       "id": "fp8-kv-no-hardware",
