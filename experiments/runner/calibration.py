@@ -101,13 +101,22 @@ def evaluate_probe(
             ttft_p95_ms=0.0, achieved_rps=0.0, saturated=True,
         )
     completed = [r for r in records if r.error is None and r.ttft_s is not None]
-    failed = [r for r in records if r.error is not None]
+    # ProbeCutoff is a SOFT signal — the engine accepted the request but the
+    # probe's wall-clock cap fired before completion. It indicates in-flight
+    # overhang (a real saturation symptom) but is NOT an engine error like
+    # 5xx / network failure. The hard-fail short-circuit, intended for true
+    # engine misconfig, only counts hard errors; cutoffs flow into the
+    # two-of-three rule via signals 1 and 3 instead.
+    hard_errors = [
+        r for r in records
+        if r.error is not None and not r.error.startswith("ProbeCutoff")
+    ]
     success_rate = len(completed) / dispatched
     achieved_rps = len(completed) / probe_s
     ttft_ms_list = [r.ttft_s * 1000.0 for r in completed if r.ttft_s is not None]
     ttft_p95_ms = _percentile(ttft_ms_list, 0.95)
 
-    hard_fail = (len(failed) / dispatched) > HARD_FAIL_FRAC
+    hard_fail = (len(hard_errors) / dispatched) > HARD_FAIL_FRAC
     sig_lag = success_rate < SUCCESS_FLOOR
     sig_ttft = ttft_p95_ms > TTFT_MULTIPLIER * ttft_slo_ms
     sig_rps = achieved_rps < ACHIEVED_FLOOR * target_rate

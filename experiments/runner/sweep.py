@@ -66,6 +66,15 @@ def _precision_from_quant(quant: str) -> tuple[str, str, str]:
     return _QUANT_TO_PRECISION.get(quant.lower(), ("BF16", "FP16", "BF16"))
 
 
+# Warmup constants. Two requests at 1 rps over 4 seconds (Poisson) is enough
+# to capture vLLM's CUDA graph and warm the KV cache without making the
+# warmup a long, noticeable phase. The seed is distinct from both the
+# measurement seed and calibration's probe seed_offset.
+_WARMUP_RATE_RPS: float = 0.5
+_WARMUP_DURATION_S: float = 4.0
+_WARMUP_SEED: int = 31337
+
+
 class SweepRunner:
     """Single-run orchestrator.
 
@@ -253,6 +262,22 @@ class SweepRunner:
         calibration-phase RNG/conversation state is isolated from the
         measurement window).
         """
+        # Warmup phase: /health 200 only proves the HTTP server is up — it
+        # does NOT prove CUDA graphs are captured or the KV cache is warm.
+        # The first real request on a cold pod can pay a 30+ second startup
+        # tax that would blow probe(1)'s wall-clock cap and trigger a false
+        # saturation read. Dispatch a small warmup workload, wait for it to
+        # complete (no cap), and discard the records.
+        click.echo("calibration: warmup …", err=True)
+        warmup_workload = workload_factory(_WARMUP_RATE_RPS, _WARMUP_SEED)
+        warmup_t0 = time.monotonic()
+        await run_loop(
+            warmup_workload.requests(duration_s=_WARMUP_DURATION_S),
+            loop_cfg,
+            t0=warmup_t0,
+            wall_clock_cap_s=None,  # explicit: no cap during warmup
+        )
+
         async def _probe(rate: float, seed: int) -> list[RequestRecord]:
             # Each burst gets its own t0 so its arrival schedule starts
             # at offset 0 (driver_loop sleeps until req.arrival_offset_s).

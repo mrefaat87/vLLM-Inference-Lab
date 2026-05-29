@@ -101,8 +101,10 @@ class TestEvaluateProbe:
         assert p.saturated is True
         assert p.success_rate < 0.5
 
-    def test_hard_fail_short_circuit(self) -> None:
-        """> 10% errors trips saturation even if other signals look OK."""
+    def test_hard_fail_short_circuit_real_errors_only(self) -> None:
+        """> 10% REAL errors (5xx / network) trips the short-circuit.
+        Cutoffs are excluded so a slow engine's in-flight overhang doesn't
+        masquerade as engine misconfig."""
         records: list[RequestRecord] = []
         for i in range(80):
             records.append(RequestRecord(
@@ -110,13 +112,48 @@ class TestEvaluateProbe:
                 prompt_tokens=1, max_new_tokens=1, completion_tokens=1,
                 ttft_s=0.1, end_to_end_s=0.15,
             ))
-        for i in range(20):  # 20% error rate
+        for i in range(20):  # 20% real-error rate
             records.append(RequestRecord(
                 request_id=f"err-{i}", label="t", submit_offset_s=0.0,
                 prompt_tokens=1, max_new_tokens=1, error="HTTP 503",
             ))
         p = evaluate_probe(records=records, probe_s=PROBE_S, target_rate=12.5, ttft_slo_ms=1500.0)
         assert p.saturated is True
+
+    def test_cutoffs_do_not_trigger_hard_fail(self) -> None:
+        """A burst of ProbeCutoff records — even >10% — must NOT trip the
+        hard-fail short-circuit. Cutoffs are a SOFT saturation signal that
+        flows through signals 1 and 3; hard-fail is reserved for real
+        engine errors (5xx, network)."""
+        records: list[RequestRecord] = []
+        # 60 clean completions, 40 ProbeCutoffs. Hard-fail would fire on
+        # naive (cutoffs + errors > 10%); the corrected rule must not fire
+        # because there are no real errors.
+        for i in range(60):
+            records.append(RequestRecord(
+                request_id=f"ok-{i}", label="t", submit_offset_s=0.0,
+                prompt_tokens=1, max_new_tokens=1, completion_tokens=1,
+                ttft_s=0.1, end_to_end_s=0.15,
+            ))
+        for i in range(40):
+            records.append(RequestRecord(
+                request_id=f"cut-{i}", label="t", submit_offset_s=0.0,
+                prompt_tokens=1, max_new_tokens=1,
+                error="ProbeCutoff: in-flight at probe wall-clock cap",
+            ))
+        # Use a HIGH target rate so signal 3 (achieved < 0.85 × target)
+        # doesn't trip from low absolute rate. achieved = 60/5 = 12 → at
+        # target=12 that's clean. success_rate = 60/100 = 0.6 → signal 1
+        # trips. ttft signal doesn't. So only ONE signal trips and the
+        # probe is NOT saturated under the two-of-three rule.
+        p = evaluate_probe(
+            records=records, probe_s=PROBE_S,
+            target_rate=12.0, ttft_slo_ms=1500.0,
+        )
+        # Without the cutoff-exclusion fix, hard_fail would short-circuit
+        # to saturated=True even though only one signal trips and the
+        # cause is in-flight overhang, not engine error.
+        assert p.saturated is False
 
     def test_empty_records_treated_saturated(self) -> None:
         p = evaluate_probe(records=[], probe_s=PROBE_S, target_rate=8.0, ttft_slo_ms=500.0)
@@ -262,8 +299,9 @@ class TestCalibrate:
         )
         # success_rate = 0/5 = 0 → lag signal trips
         # achieved_rps = 0/probe_s = 0 < 0.85×1 → RPS signal trips
-        # Two of three → saturated. (Hard-fail short-circuit also trips since
-        # cutoff rate >>10%, which is itself a correct saturation signal.)
+        # Two of three → saturated. (Hard-fail does NOT trip because
+        # ProbeCutoff is excluded from hard_errors — the two-of-three rule
+        # carries the saturation signal here, not the short-circuit.)
         assert p.saturated is True
         assert p.success_rate == 0.0
 
