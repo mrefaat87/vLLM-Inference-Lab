@@ -131,6 +131,12 @@ def _run_options(f):
         ),
         click.option("--tbt-target-ms", type=float, default=50.0,
                      help="target inter-token latency (used by the calc bridge for predicted curves)"),
+        click.option("--ttft-target-ms", type=float, default=1500.0,
+                     help=(
+                         "target time-to-first-token (ms); fed to the lab's auto-rate "
+                         "calibration as the SLO for the TTFT saturation signal "
+                         "(probe is marked saturated when TTFT p95 > 2x this value)"
+                     )),
         click.option(
             "--preflight",
             type=click.Choice(["off", "advisory", "strict"]),
@@ -190,6 +196,7 @@ def _do_run(
     model_ref: str,
     hw_ref: str,
     tbt_target_ms: float,
+    ttft_target_ms: float,
     preflight: str,
     results_dir: Path,
     notes: str | None,
@@ -253,6 +260,7 @@ def _do_run(
                 roofline_link=RooflineLink(model_ref=model_ref, hw_ref=hw_ref),
                 notes=notes,
                 tbt_target_ms=tbt_target_ms,
+                ttft_slo_ms=ttft_target_ms,
             )
         return await runner.run_one(
             engine=driver,
