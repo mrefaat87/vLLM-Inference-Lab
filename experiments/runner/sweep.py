@@ -25,6 +25,7 @@ from experiments.runner.calc_bridge import CalcBridge, CalcInputs
 from experiments.runner.calibration import (
     DEFAULT_TTFT_SLO_MS,
     PROBE_S,
+    PROBE_WALL_CLOCK_FACTOR,
     calibrate,
     explicit_calibration,
 )
@@ -255,12 +256,16 @@ class SweepRunner:
         async def _probe(rate: float, seed: int) -> list[RequestRecord]:
             # Each burst gets its own t0 so its arrival schedule starts
             # at offset 0 (driver_loop sleeps until req.arrival_offset_s).
+            # The wall-clock cap bounds the probe at PROBE_S × factor so
+            # slow engines (e.g. AWQ-on-T4, residence ~12s) don't burn the
+            # full budget on three probes' worth of drain time.
             probe_workload = workload_factory(rate, seed)
             t0_probe = time.monotonic()
             return await run_loop(
                 probe_workload.requests(duration_s=PROBE_S),
                 loop_cfg,
                 t0=t0_probe,
+                wall_clock_cap_s=PROBE_S * PROBE_WALL_CLOCK_FACTOR,
             )
 
         result = await calibrate(probe_fn=_probe, ttft_slo_ms=ttft_slo_ms)

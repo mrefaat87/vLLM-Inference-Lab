@@ -243,6 +243,30 @@ class TestCalibrate:
         # tell the ceiling is a lower bound.
         assert cal.probes[-1].saturated is False
 
+    def test_cutoff_records_count_as_completion_lag(self) -> None:
+        """When run_loop hits the wall-clock cap and synthesises
+        ProbeCutoff records, evaluate_probe must count them as failures
+        (lag signal trips), not as completions. Without this, calibration
+        can't tell saturation from a long drain."""
+        records: list[RequestRecord] = []
+        # 5 records all "ProbeCutoff" — engine accepted but didn't deliver.
+        for i in range(5):
+            records.append(RequestRecord(
+                request_id=f"cut-{i}", label="t", submit_offset_s=0.0,
+                prompt_tokens=1, max_new_tokens=1,
+                error="ProbeCutoff: in-flight at probe wall-clock cap",
+            ))
+        p = evaluate_probe(
+            records=records, probe_s=PROBE_S,
+            target_rate=1.0, ttft_slo_ms=1500.0,
+        )
+        # success_rate = 0/5 = 0 → lag signal trips
+        # achieved_rps = 0/probe_s = 0 < 0.85×1 → RPS signal trips
+        # Two of three → saturated. (Hard-fail short-circuit also trips since
+        # cutoff rate >>10%, which is itself a correct saturation signal.)
+        assert p.saturated is True
+        assert p.success_rate == 0.0
+
     def test_probe_schedule_helper_extends_past_seed(self) -> None:
         """Pure-function test for the helper that builds the rate list."""
         rates = _probe_schedule((1.0, 2.0, 4.0), max_rate=16.0)

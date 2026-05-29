@@ -30,18 +30,29 @@ from collections.abc import Awaitable, Callable
 
 from experiments.runner.schema import Calibration, CalibrationProbe, RequestRecord
 
-PROBE_S: float = 8.0
+PROBE_S: float = 5.0
+# Per-probe wall-clock cap: PROBE_S × this factor. Calibrates the
+# patience/throughput tradeoff:
+#   - too tight (×2): slow engines like AWQ-on-T4 (12s residence) get false
+#     "saturated" reads at probe(1) when one of the 5 requests doesn't drain.
+#   - too loose (×10): on truly broken engines a single probe burns 50s and
+#     the budget runs out before saturation is found.
+# Factor 4 (20s cap) gives ~8s drain headroom on top of typical 12s residence.
+# In-flight requests at the cap are cancelled and recorded with error
+# "ProbeCutoff", which the saturation rule counts as completion lag.
+PROBE_WALL_CLOCK_FACTOR: float = 4.0
 # The probe schedule is a *seed* — calibrate() keeps doubling past the last
 # entry until either saturation trips or the budget runs out. Fixed-length
-# schedules under-report the ceiling when no rate in the seed saturates
-# (today's case: AWQ-on-T4 ran 4 rps clean → seed exhausted → ceiling reported
-# as 4 even though the true ceiling is higher).
+# schedules under-report the ceiling when no rate in the seed saturates.
 PROBE_SCHEDULE_SEED: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
 # Cap on how far we'll double past the seed. Keeps a runaway probe (mis-
 # configured engine that never saturates) from chewing the whole budget.
 MAX_PROBE_RATE: float = 256.0
 HEADROOM: float = 0.8
-DEFAULT_BUDGET_S: float = 60.0
+# Budget covers the worst case: ~9 probes (seed + doubled past 32 up to 256)
+# at PROBE_S × PROBE_WALL_CLOCK_FACTOR = 10s each → 90s nominal. Reserve the
+# rest as headroom for engine warm-up bias on the first probe.
+DEFAULT_BUDGET_S: float = 240.0
 DEFAULT_TTFT_SLO_MS: float = 1500.0
 TTFT_MULTIPLIER: float = 2.0
 SUCCESS_FLOOR: float = 0.90
