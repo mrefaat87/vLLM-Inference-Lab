@@ -32,6 +32,12 @@ from experiments.runner.schema import EngineConfig
 
 logger = logging.getLogger(__name__)
 
+# How long to wait for `kubectl port-forward` to start carrying traffic
+# before considering the spawn dead. 15s comfortably covers the typical
+# few-hundred-ms bind plus a tolerance for API-server hiccups; longer
+# would mostly slow down the failure path on actually-broken forwards.
+_PORT_FORWARD_WAIT_S: float = 15.0
+
 
 class TemplateRenderer(Protocol):
     def render(self, cfg: EngineConfig) -> str:
@@ -294,11 +300,39 @@ class K8sEngineDriver(EngineDriver):
         return r.stdout.strip() or None
 
     def _start_port_forward(self) -> None:
-        """Spawn ``kubectl port-forward`` to expose the engine on localhost.
+        """Spawn ``kubectl port-forward`` and verify it carries traffic.
 
         Held on the driver so ``stop()`` can terminate it cleanly. The
         load driver hits ``endpoint_url()`` which resolves to localhost.
+
+        Verifies the forward by polling /health through the local port —
+        ``kubectl port-forward`` can fail silently (Service not yet ready,
+        stale local port, transient API server hiccup) and we'd otherwise
+        only notice when every measurement request comes back as a
+        ServerDisconnectedError after the engine has been chewing budget
+        for minutes. One restart is attempted on first-spawn failure
+        before we give up with a clear error.
         """
+        self._spawn_port_forward()
+        if self._wait_for_port_forward(timeout_s=_PORT_FORWARD_WAIT_S):
+            return
+        logger.warning(
+            "port-forward did not respond within %.0fs; restarting once",
+            _PORT_FORWARD_WAIT_S,
+        )
+        self._stop_port_forward()
+        self._spawn_port_forward()
+        if self._wait_for_port_forward(timeout_s=_PORT_FORWARD_WAIT_S):
+            return
+        stderr_tail = self._port_forward_stderr_tail()
+        # Stop the now-broken forward so cleanup is consistent.
+        self._stop_port_forward()
+        raise RuntimeError(
+            "kubectl port-forward never responded after one restart. "
+            f"kubectl stderr: {stderr_tail or '<none>'}"
+        )
+
+    def _spawn_port_forward(self) -> None:
         args = [
             *self._kubectl.base_args(),
             "port-forward",
@@ -312,11 +346,41 @@ class K8sEngineDriver(EngineDriver):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
-        # Give the forward a beat to bind the local port before the load
-        # driver fires its first request. 2s is conservative for an
-        # already-Ready Service; a slower path will surface as a healthcheck
-        # retry loop, not a hard failure here.
-        time.sleep(2.0)
+
+    def _wait_for_port_forward(self, *, timeout_s: float) -> bool:
+        """Poll the local-side health endpoint until 200 OK or timeout.
+
+        Returns True on the first 200 — the forward is now known to carry
+        traffic to the pod. Returns False if (a) the subprocess died, or
+        (b) we never got a 200 within the budget. A False return is the
+        signal for ``_start_port_forward`` to restart and retry.
+        """
+        deadline = time.monotonic() + timeout_s
+        url = f"http://127.0.0.1:{self.service_port}{self.health_path}"
+        while time.monotonic() < deadline:
+            proc = self._port_forward_proc
+            if proc is None or proc.poll() is not None:
+                return False
+            try:
+                with urllib.request.urlopen(url, timeout=1.0) as resp:
+                    if 200 <= resp.status < 300:
+                        return True
+            except Exception:  # noqa: BLE001 — any failure means "not ready yet"
+                pass
+            time.sleep(0.5)
+        return False
+
+    def _port_forward_stderr_tail(self) -> str:
+        proc = self._port_forward_proc
+        if proc is None or proc.stderr is None:
+            return ""
+        try:
+            # Non-blocking-ish read of whatever kubectl has surfaced so far.
+            # The subprocess is already dead by the time we hit the error
+            # path, so a small read won't block.
+            return proc.stderr.read(2048).decode("utf-8", "ignore").strip()
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _stop_port_forward(self) -> None:
         proc = self._port_forward_proc
