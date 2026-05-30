@@ -41,14 +41,21 @@ PROBE_S: float = 5.0
 # In-flight requests at the cap are cancelled and recorded with error
 # "ProbeCutoff", which the saturation rule counts as completion lag.
 PROBE_WALL_CLOCK_FACTOR: float = 4.0
-# The probe schedule is a *seed* — calibrate() keeps doubling past the last
-# entry until either saturation trips or the budget runs out. Fixed-length
-# schedules under-report the ceiling when no rate in the seed saturates.
-PROBE_SCHEDULE_SEED: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
-# Cap on how far we'll double past the seed. Keeps a runaway probe (mis-
-# configured engine that never saturates) from chewing the whole budget.
+# The probe schedule starts at ``start_rate`` (default 1.0) and doubles
+# geometrically until either saturation trips or the budget runs out.
+# Fixed-length schedules under-report the ceiling when nothing saturates.
+DEFAULT_START_RATE: float = 1.0
+# Cap on how far we'll double. Keeps a runaway probe (misconfigured engine
+# that never saturates) from chewing the whole budget.
 MAX_PROBE_RATE: float = 256.0
 HEADROOM: float = 0.8
+# Number of bisection refinements after the coarse sweep. K=3 narrows the
+# ceiling window by 2^3 = 8× — for a [4, 8] coarse window, the final
+# uncertainty is ~0.5 rps (≈ 12% precision relative to the ceiling).
+K_BISECTIONS: int = 3
+# If last_safe and first_sat are already within this gap, additional
+# bisections add no useful precision — skip remaining iterations.
+MIN_BISECT_GAP: float = 0.25
 # Budget covers the worst case: ~9 probes (seed + doubled past 32 up to 256)
 # at PROBE_S × PROBE_WALL_CLOCK_FACTOR = 10s each → 90s nominal. Reserve the
 # rest as headroom for engine warm-up bias on the first probe.
@@ -133,22 +140,26 @@ def evaluate_probe(
 
 
 def _probe_schedule(
-    seed: tuple[float, ...],
+    start_rate: float,
     *,
     max_rate: float,
 ) -> list[float]:
-    """Geometric probe rates: the seed, then keep doubling past it.
+    """Geometric probe rates starting at ``start_rate`` and doubling up.
 
     Calibration consumes this lazily and stops at the first saturated probe
     or when the budget is exhausted, so the long tail isn't wasted work — it
-    only matters when the seed didn't saturate, in which case we want to keep
-    pushing instead of bailing with an under-reported ceiling.
+    only matters when the schedule didn't saturate, in which case we want
+    to keep pushing instead of bailing with an under-reported ceiling.
+
+    When ``start_rate > 1.0`` callers can skip the cheap low probes
+    (~17 s each) if they already know the engine handles them — e.g. a
+    re-run on a calibrated config.
     """
-    rates = list(seed)
-    last = rates[-1] if rates else 1.0
-    while last * 2 <= max_rate:
-        last *= 2
-        rates.append(last)
+    if start_rate <= 0:
+        start_rate = DEFAULT_START_RATE
+    rates = [start_rate]
+    while rates[-1] * 2 <= max_rate:
+        rates.append(rates[-1] * 2)
     return rates
 
 
@@ -158,18 +169,19 @@ async def calibrate(
     ttft_slo_ms: float = DEFAULT_TTFT_SLO_MS,
     probe_s: float = PROBE_S,
     budget_s: float = DEFAULT_BUDGET_S,
-    schedule: tuple[float, ...] = PROBE_SCHEDULE_SEED,
+    start_rate: float = DEFAULT_START_RATE,
     max_probe_rate: float = MAX_PROBE_RATE,
     seed_offset: int = 7919,  # large prime, won't collide with measurement seed
+    k_bisections: int = K_BISECTIONS,
 ) -> Calibration:
-    """Run the geometric sweep + one bisection probe; return a Calibration."""
+    """Run the geometric sweep + K bisection probes; return a Calibration."""
     deadline = time.monotonic() + budget_s
     probes: list[CalibrationProbe] = []
     last_safe: float | None = None
     first_sat: float | None = None
     seed_step = 0
 
-    for r in _probe_schedule(schedule, max_rate=max_probe_rate):
+    for r in _probe_schedule(start_rate, max_rate=max_probe_rate):
         if time.monotonic() > deadline:
             break
         records = await probe_fn(r, seed_offset + seed_step)
@@ -184,24 +196,30 @@ async def calibrate(
             break
         last_safe = r
 
-    # One bisection refinement between last_safe and first_sat — cheap
-    # and meaningfully tightens the ceiling (e.g. coarse says 1≤cap<2,
-    # bisect at 1.5 says 1.5≤cap<2 → selected jumps from 0.8 to 1.2 rps).
-    if (
-        last_safe is not None
-        and first_sat is not None
-        and time.monotonic() <= deadline
-    ):
+    # K-bisection refinement: each bisection halves the [last_safe, first_sat]
+    # window, so K=3 narrows by 8× — e.g. a coarse [4, 8] window settles to
+    # ~0.5 rps precision. The loop respects both the budget and a minimum-
+    # gap floor: once the window is below MIN_BISECT_GAP, additional probes
+    # don't move the ceiling meaningfully.
+    for _ in range(k_bisections):
+        if last_safe is None or first_sat is None:
+            break
+        if first_sat - last_safe < MIN_BISECT_GAP:
+            break
+        if time.monotonic() > deadline:
+            break
         mid = (last_safe + first_sat) / 2.0
-        if mid > last_safe + 1e-6:
-            records = await probe_fn(mid, seed_offset + seed_step)
-            probe = evaluate_probe(
-                records=records, probe_s=probe_s,
-                target_rate=mid, ttft_slo_ms=ttft_slo_ms,
-            )
-            probes.append(probe)
-            if not probe.saturated:
-                last_safe = mid
+        records = await probe_fn(mid, seed_offset + seed_step)
+        seed_step += 1
+        probe = evaluate_probe(
+            records=records, probe_s=probe_s,
+            target_rate=mid, ttft_slo_ms=ttft_slo_ms,
+        )
+        probes.append(probe)
+        if probe.saturated:
+            first_sat = mid
+        else:
+            last_safe = mid
 
     if last_safe is None:
         # Even the lowest probe saturated. Selected_rate falls back to a
@@ -209,7 +227,7 @@ async def calibrate(
         # (the only thing we know is "ceiling is at or below this"). The
         # explicit FALLBACK_RATE_RPS keeps the measurement run viable
         # rather than aborting on a hard floor.
-        floor_rate = schedule[0] if schedule else 1.0
+        floor_rate = probes[0].rate if probes else start_rate
         return Calibration(
             method="auto", probes=probes,
             selected_rate=FALLBACK_RATE_RPS,

@@ -66,6 +66,15 @@ def test_run_help_documents_ttft_target_ms() -> None:
     assert "calibration" in result.output.lower()
 
 
+def test_run_help_documents_probe_start_rate() -> None:
+    """`exp run --help` must surface the calibration-v2 --probe-start-rate
+    knob so users know how to skip cheap low probes when re-running a
+    configuration they've already calibrated."""
+    result = CliRunner().invoke(cli, ["run", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "--probe-start-rate" in result.output
+
+
 def test_serve_help_lists_watch_flag() -> None:
     result = CliRunner().invoke(cli, ["serve", "--help"])
     assert result.exit_code == 0, result.output

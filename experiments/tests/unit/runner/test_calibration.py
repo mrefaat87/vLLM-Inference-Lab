@@ -12,16 +12,22 @@ import asyncio
 import pytest
 
 from experiments.runner.calibration import (
+    DEFAULT_START_RATE,
     HEADROOM,
+    K_BISECTIONS,
     MAX_PROBE_RATE,
+    MIN_BISECT_GAP,
     PROBE_S,
-    PROBE_SCHEDULE_SEED,
     _probe_schedule,
     calibrate,
     evaluate_probe,
     explicit_calibration,
 )
-PROBE_SCHEDULE = PROBE_SCHEDULE_SEED  # back-compat for tests below
+# The coarse-sweep schedule the default start_rate produces, used by the
+# monotonicity test below as a sampling grid.
+PROBE_SCHEDULE: tuple[float, ...] = tuple(
+    _probe_schedule(DEFAULT_START_RATE, max_rate=MAX_PROBE_RATE)
+)
 from experiments.runner.schema import RequestRecord
 
 pytestmark = pytest.mark.unit
@@ -213,34 +219,42 @@ class TestEvaluateProbe:
 # ──────────────────────────────────────────────────────────────────────────
 class TestCalibrate:
     def test_low_capacity_calibrates_below_first_saturated(self) -> None:
-        # Capacity = 1.3 rps. Probes: 1=ok, 2=sat. Bisect at 1.5: 1.5>1.3 → sat.
-        # last_safe stays at 1 → selected = 0.8 × 1.0 = 0.8.
+        # Capacity = 1.3 rps. Coarse: 1=ok, 2=sat. K-bisection refines:
+        # bisect1 at 1.5 (>1.3 → sat, first_sat=1.5);
+        # bisect2 at 1.25 (<1.3 → ok, last_safe=1.25);
+        # bisect3 at 1.375 (>1.3 → sat, first_sat=1.375).
+        # Final ceiling = last_safe = 1.25 → selected = 0.8 × 1.25 = 1.0.
         cal = asyncio.run(calibrate(probe_fn=_make_probe_fn(capacity=1.3, ttft_slo_ms=500.0)))
         assert cal.method == "auto"
-        assert cal.selected_rate == pytest.approx(HEADROOM * 1.0)
-        assert cal.capacity_ceiling == pytest.approx(1.0)
-        # Probes contain the coarse sweep up to first saturation + one bisection.
+        assert cal.capacity_ceiling == pytest.approx(1.25)
+        assert cal.selected_rate == pytest.approx(HEADROOM * 1.25)
+        # Probes contain the coarse sweep up to first saturation + K bisections.
         rates = [p.rate for p in cal.probes]
         assert rates[:2] == [1.0, 2.0]
-        assert 1.5 in rates  # bisection probe ran
+        assert 1.5 in rates  # first bisection probe ran
 
     def test_high_capacity_bisection_refines_ceiling(self) -> None:
-        # Capacity = 20 rps. Probes: 1, 2, 4, 8, 16 all OK; 32 saturated.
-        # Bisect at 24: still > 20 → saturated. last_safe stays at 16,
-        # selected = 0.8 × 16 = 12.8.
+        # Capacity = 20 rps. Coarse: 1,2,4,8,16=ok; 32=sat. K-bisection
+        # narrows the [16, 32] window: 24 → sat, 20 → ok, 22 → ok (close to
+        # cap, only TTFT signal trips — not two-of-three). Final ceiling=22.
+        # Without K-bisection the ceiling would be reported as 16 — a major
+        # under-estimate; with K=3 it tightens to within ~10% of the truth.
         cal = asyncio.run(calibrate(probe_fn=_make_probe_fn(capacity=20.0, ttft_slo_ms=500.0)))
         assert cal.method == "auto"
-        assert cal.capacity_ceiling == pytest.approx(16.0)
-        assert cal.selected_rate == pytest.approx(HEADROOM * 16.0)
+        assert cal.capacity_ceiling == pytest.approx(22.0)
+        assert cal.selected_rate == pytest.approx(HEADROOM * 22.0)
 
     def test_bisection_can_advance_ceiling(self) -> None:
-        # Capacity = 7 rps. 1, 2, 4 OK; 8 saturated. Bisect at 6 → still OK.
-        # last_safe advances to 6, selected = 0.8 × 6 = 4.8.
+        # Capacity = 7 rps. Coarse: 1,2,4=ok; 8=sat. K-bisection narrows
+        # the [4, 8] window: 6 → ok, 7 → ok, 7.5 → ok (the close-to-cap
+        # probes only trip the TTFT signal alone — not two-of-three).
+        # Final ceiling = 7.5; without K-bisection it would be 4 — a 50%
+        # under-estimate.
         cal = asyncio.run(calibrate(probe_fn=_make_probe_fn(capacity=7.0, ttft_slo_ms=500.0)))
-        assert cal.capacity_ceiling == pytest.approx(6.0)
-        assert cal.selected_rate == pytest.approx(HEADROOM * 6.0)
+        assert cal.capacity_ceiling == pytest.approx(7.5)
+        assert cal.selected_rate == pytest.approx(HEADROOM * 7.5)
         rates = [p.rate for p in cal.probes]
-        assert 6.0 in rates
+        assert 6.0 in rates and 7.0 in rates and 7.5 in rates
 
     def test_floor_saturation_falls_back_to_safe_rate(self) -> None:
         # Capacity = 0.3 rps. Even R=1 saturates → no last_safe, fallback path.
@@ -262,9 +276,12 @@ class TestCalibrate:
         # Seed entries plus 64 (the doubled probe past 32) must be present.
         assert 32.0 in rates
         assert 64.0 in rates
-        # Refinement probe (bisection) between 32 and 64 should land at 48.
+        # Refinement probes (K-bisection) between 32 and 64 land at 48, 56, 52.
+        # 48 is OK, 56 saturates (rate well above cap → multiple signals),
+        # 52 is OK (only TTFT signal trips alone — not two-of-three).
+        # Final ceiling = 52 (last_safe after K=3 bisections).
         assert 48.0 in rates
-        assert cal.capacity_ceiling == pytest.approx(48.0)
+        assert cal.capacity_ceiling == pytest.approx(52.0)
 
     def test_schedule_caps_at_max_probe_rate(self) -> None:
         """A misconfigured engine that never saturates can't chew the whole
@@ -305,13 +322,72 @@ class TestCalibrate:
         assert p.saturated is True
         assert p.success_rate == 0.0
 
-    def test_probe_schedule_helper_extends_past_seed(self) -> None:
+    def test_probe_schedule_helper_doubles_from_start_rate(self) -> None:
         """Pure-function test for the helper that builds the rate list."""
-        rates = _probe_schedule((1.0, 2.0, 4.0), max_rate=16.0)
-        # Seed entries + doubling: 1, 2, 4, 8, 16.
+        rates = _probe_schedule(1.0, max_rate=16.0)
+        # Start at 1.0 and double: 1, 2, 4, 8, 16.
         assert rates == [1.0, 2.0, 4.0, 8.0, 16.0]
         # Cap respected — last entry never exceeds max_rate.
         assert rates[-1] == 16.0
+
+    def test_probe_schedule_helper_respects_custom_start_rate(self) -> None:
+        """With start_rate=4 the schedule skips the low cheap probes
+        (~17s each) and begins doubling from 4."""
+        rates = _probe_schedule(4.0, max_rate=32.0)
+        assert rates == [4.0, 8.0, 16.0, 32.0]
+
+    def test_calibrate_honors_custom_start_rate(self) -> None:
+        """Custom start_rate skips low probes and begins doubling there.
+        Capacity = 30, start_rate = 4 → coarse: 4=ok, 8=ok, 16=ok, 32=sat."""
+        cal = asyncio.run(
+            calibrate(
+                probe_fn=_make_probe_fn(capacity=30.0, ttft_slo_ms=500.0),
+                start_rate=4.0,
+            )
+        )
+        rates = [p.rate for p in cal.probes]
+        # No probes below the requested start_rate.
+        assert min(rates) == pytest.approx(4.0)
+        assert 8.0 in rates and 16.0 in rates and 32.0 in rates
+
+    def test_k_bisection_refines_window(self) -> None:
+        """K=3 bisections narrow a [4, 8] coarse window meaningfully.
+        Capacity = 6.0. Coarse (start_rate=4): 4=ok, 8=sat → window [4, 8].
+        bisect1 at 6 (ok, last_safe=6); bisect2 at 7 (sat — well above cap,
+        two signals trip, first_sat=7); bisect3 at 6.5 (only TTFT signal
+        trips alone → ok, last_safe=6.5). Final ceiling=6.5; without
+        K-bisection the ceiling would be reported as 4 — a 33% under-estimate."""
+        cal = asyncio.run(
+            calibrate(
+                probe_fn=_make_probe_fn(capacity=6.0, ttft_slo_ms=500.0),
+                start_rate=4.0,
+            )
+        )
+        assert cal.capacity_ceiling == pytest.approx(6.5)
+        rates = [p.rate for p in cal.probes]
+        # The three bisection probes must all be present.
+        assert 6.0 in rates and 7.0 in rates and 6.5 in rates
+
+    def test_k_bisection_stops_at_min_gap(self) -> None:
+        """Once the [last_safe, first_sat] window is below MIN_BISECT_GAP,
+        further bisections add no useful precision and are skipped — the
+        loop should not blindly run all requested rounds."""
+        # capacity≈4.01, start_rate=4, k_bisections=10: coarse 4=ok, 8=sat
+        # → window=[4, 8]. Bisections shrink the window by ~½ each round.
+        # By round 5 the window is [4.625, 4.75] gap=0.125 < 0.25 → STOP,
+        # well before the 10-round budget is exhausted.
+        cal = asyncio.run(
+            calibrate(
+                probe_fn=_make_probe_fn(capacity=4.01, ttft_slo_ms=500.0),
+                start_rate=4.0,
+                k_bisections=10,
+            )
+        )
+        rates = [p.rate for p in cal.probes]
+        # Coarse (2 probes) + at most 10 bisections = 12; we should see far
+        # fewer thanks to the MIN_BISECT_GAP short-circuit.
+        assert len(rates) < 2 + 10
+        assert MIN_BISECT_GAP == 0.25  # guard the constant the test depends on
 
     def test_explicit_calibration_shape(self) -> None:
         cal = explicit_calibration(5.0)

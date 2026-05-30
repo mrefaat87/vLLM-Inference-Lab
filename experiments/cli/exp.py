@@ -140,6 +140,16 @@ def _run_options(f):
             default="A10G",
             help="join key into calculators/sizing_calc/src/data/hardware.json (the hardware's `key` field)",
         ),
+        click.option(
+            "--probe-start-rate",
+            type=float,
+            default=1.0,
+            help=(
+                "First rate (rps) the calibration probe sweep tries. Default 1.0. "
+                "Bump (e.g. 4) to skip low probes when you have prior knowledge of "
+                "the engine's ceiling — saves ~17s per skipped probe."
+            ),
+        ),
         click.option("--tbt-target-ms", type=float, default=50.0,
                      help="target inter-token latency (used by the calc bridge for predicted curves)"),
         click.option("--ttft-target-ms", type=float, default=1500.0,
@@ -209,6 +219,7 @@ def _do_run(
     hw_ref: str,
     tbt_target_ms: float,
     ttft_target_ms: float,
+    probe_start_rate: float,
     preflight: str,
     results_dir: Path,
     notes: str | None,
@@ -274,6 +285,7 @@ def _do_run(
                 notes=notes,
                 tbt_target_ms=tbt_target_ms,
                 ttft_slo_ms=ttft_target_ms,
+                probe_start_rate=probe_start_rate,
             )
         return await runner.run_one(
             engine=driver,

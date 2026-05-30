@@ -23,6 +23,7 @@ from experiments.drivers.base import EngineDriver
 from experiments.runner.analysis import analyze
 from experiments.runner.calc_bridge import CalcBridge, CalcInputs
 from experiments.runner.calibration import (
+    DEFAULT_START_RATE,
     DEFAULT_TTFT_SLO_MS,
     PROBE_S,
     PROBE_WALL_CLOCK_FACTOR,
@@ -44,7 +45,7 @@ from experiments.runner.schema import (
     RunStatus,
     WorkloadConfig,
 )
-from experiments.workloads.base import WorkloadGenerator
+from experiments.workloads.base import Request, WorkloadGenerator
 
 # Quantization → calc precision-tuple. Anything not in the table falls
 # back to BF16 and emits a warning on the resulting Prediction so the
@@ -66,13 +67,34 @@ def _precision_from_quant(quant: str) -> tuple[str, str, str]:
     return _QUANT_TO_PRECISION.get(quant.lower(), ("BF16", "FP16", "BF16"))
 
 
-# Warmup constants. Two requests at 1 rps over 4 seconds (Poisson) is enough
-# to capture vLLM's CUDA graph and warm the KV cache without making the
-# warmup a long, noticeable phase. The seed is distinct from both the
-# measurement seed and calibration's probe seed_offset.
-_WARMUP_RATE_RPS: float = 0.5
-_WARMUP_DURATION_S: float = 4.0
-_WARMUP_SEED: int = 31337
+# Warmup constants. vLLM captures CUDA graphs lazily per-batch-size: the
+# first request at batch=1 triggers a ~30s compile, batch=2 triggers another,
+# etc. A single Poisson-sampled request only warms batch=1, so the first
+# probe at rate>1 still pays the compile tax mid-probe and false-positives
+# saturation. Instead we dispatch _WARMUP_CONCURRENCY requests all at
+# arrival_offset_s=0 so vLLM compiles the batch={1..N} graphs the probe
+# sweep will exercise. Records are discarded.
+_WARMUP_CONCURRENCY: int = 8
+_WARMUP_PROMPT_TOKENS: int = 64
+_WARMUP_MAX_NEW_TOKENS: int = 32
+
+
+async def _warmup_requests():
+    """Yield ``_WARMUP_CONCURRENCY`` requests all at arrival_offset_s=0.
+
+    Forces vLLM to compile CUDA graphs for batch={1..N} before the probe
+    sweep starts. Prompt + OSL are kept small so warmup stays fast.
+    """
+    prompt = "say hi"
+    for i in range(_WARMUP_CONCURRENCY):
+        yield Request(
+            request_id=f"warmup-{i}",
+            prompt=prompt,
+            prompt_tokens=_WARMUP_PROMPT_TOKENS,
+            max_new_tokens=_WARMUP_MAX_NEW_TOKENS,
+            arrival_offset_s=0.0,
+            label="warmup",
+        )
 
 
 class SweepRunner:
@@ -112,6 +134,7 @@ class SweepRunner:
         tbt_target_ms: float = 50.0,
         ttft_slo_ms: float = DEFAULT_TTFT_SLO_MS,
         workload_factory: Callable[[float, int], WorkloadGenerator] | None = None,
+        probe_start_rate: float = DEFAULT_START_RATE,
     ) -> Path:
         """Execute one run end-to-end and return the result JSON path."""
         run_id = run_id or _new_run_id(engine_cfg.name, workload_cfg.name)
@@ -144,6 +167,7 @@ class SweepRunner:
                     workload_factory=workload_factory,
                     workload_cfg=workload_cfg,
                     ttft_slo_ms=ttft_slo_ms,
+                    probe_start_rate=probe_start_rate,
                 )
                 workload_cfg = workload_cfg.model_copy(
                     update={"rate_rps": calibration_block.selected_rate}
@@ -255,6 +279,7 @@ class SweepRunner:
         workload_factory: Callable[[float, int], WorkloadGenerator],
         workload_cfg: WorkloadConfig,
         ttft_slo_ms: float,
+        probe_start_rate: float = DEFAULT_START_RATE,
     ) -> Calibration:
         """Run the probe sweep and emit a stdout summary.
 
@@ -264,15 +289,19 @@ class SweepRunner:
         """
         # Warmup phase: /health 200 only proves the HTTP server is up — it
         # does NOT prove CUDA graphs are captured or the KV cache is warm.
-        # The first real request on a cold pod can pay a 30+ second startup
-        # tax that would blow probe(1)'s wall-clock cap and trigger a false
-        # saturation read. Dispatch a small warmup workload, wait for it to
-        # complete (no cap), and discard the records.
-        click.echo("calibration: warmup …", err=True)
-        warmup_workload = workload_factory(_WARMUP_RATE_RPS, _WARMUP_SEED)
+        # vLLM captures CUDA graphs lazily per-batch-size: a single warmup
+        # request only compiles batch=1, leaving probe(1) at rate=2 to pay
+        # the batch=2 compile tax mid-probe (~30s) and false-positive
+        # saturation. Dispatch _WARMUP_CONCURRENCY requests all at offset 0
+        # so vLLM compiles batch={1..N} up front. No wall-clock cap — we
+        # wait for all warmup requests to finish, then discard the records.
+        click.echo(
+            "calibration: warmup (8 concurrent, compiling CUDA graphs) ...",
+            err=True,
+        )
         warmup_t0 = time.monotonic()
         await run_loop(
-            warmup_workload.requests(duration_s=_WARMUP_DURATION_S),
+            _warmup_requests(),
             loop_cfg,
             t0=warmup_t0,
             wall_clock_cap_s=None,  # explicit: no cap during warmup
@@ -293,7 +322,11 @@ class SweepRunner:
                 wall_clock_cap_s=PROBE_S * PROBE_WALL_CLOCK_FACTOR,
             )
 
-        result = await calibrate(probe_fn=_probe, ttft_slo_ms=ttft_slo_ms)
+        result = await calibrate(
+            probe_fn=_probe,
+            ttft_slo_ms=ttft_slo_ms,
+            start_rate=probe_start_rate,
+        )
         # Echo to stdout so paste-and-go users see what rate was picked.
         probe_summary = ", ".join(
             f"{p.rate:g}={'sat' if p.saturated else 'ok'}" for p in result.probes
