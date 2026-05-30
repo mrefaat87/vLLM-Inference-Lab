@@ -217,13 +217,23 @@ class SweepRunner:
                 prediction=prediction,
                 calibration=calibration_block,
                 raw_results=records,
-                engine_metrics=engine.metrics(),
+                engine_metrics=self._engine_metrics_with_diagnostics(
+                    engine, run_id=run_id,
+                ),
                 notes=notes,
             )
             path = self._write_result(result)
             self._manifests.mark_done(run_id, result_path=str(path))
             return path
         except Exception as exc:  # noqa: BLE001 — top-level orchestrator catches everything
+            # Capture diagnostics even on failure paths so we can debug why
+            # the engine died. The driver's dump_diagnostics is best-effort
+            # and writes stub files on its own errors, so this can't mask
+            # the original exception.
+            try:
+                self._engine_metrics_with_diagnostics(engine, run_id=run_id)
+            except Exception:  # noqa: BLE001
+                pass
             self._manifests.mark_failed(run_id, error=f"{type(exc).__name__}: {exc}")
             raise
         finally:
@@ -345,6 +355,23 @@ class SweepRunner:
                 return
             time.sleep(0.1)
         raise TimeoutError("engine never became healthy")
+
+    def _engine_metrics_with_diagnostics(
+        self, engine: EngineDriver, *, run_id: str,
+    ) -> dict:
+        """Scrape engine /metrics and (for K8s drivers) snapshot pod logs +
+        events to per-run files. Paths are merged into the metrics dict so
+        the result JSON points to the diagnostic files on disk."""
+        metrics = engine.metrics()
+        dump = getattr(engine, "dump_diagnostics", None)
+        if callable(dump):
+            try:
+                paths = dump(self._results_dir / "runs", run_id)
+                if isinstance(paths, dict):
+                    metrics.update(paths)
+            except Exception as exc:  # noqa: BLE001 — best effort
+                metrics["diagnostics_error"] = f"{type(exc).__name__}: {exc}"
+        return metrics
 
     def _write_result(self, result: RunResult) -> Path:
         out_dir = self._results_dir / "runs"
