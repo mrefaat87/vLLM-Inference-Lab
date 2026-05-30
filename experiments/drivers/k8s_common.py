@@ -142,6 +142,63 @@ class K8sEngineDriver(EngineDriver):
             self._cfg = None
             self._endpoint = None
 
+    def dump_diagnostics(self, target_dir: Path, basename: str) -> dict[str, str]:
+        """Snapshot the engine pod's logs and recent K8s events to files.
+
+        Must be called BEFORE ``stop()`` — once the Deployment is deleted,
+        the pod and its logs are gone. Returns a dict suitable for merging
+        into ``engine_metrics`` so the on-disk paths travel inside the
+        result JSON. Best-effort: each capture writes a stub file with the
+        error message on failure rather than raising — diagnostics must not
+        block run finalization.
+        """
+        if self._cfg is None or self._release_name is None:
+            return {}
+        target_dir.mkdir(parents=True, exist_ok=True)
+        paths: dict[str, str] = {}
+
+        log_path = target_dir / f"{basename}.engine.log"
+        self._capture_to_file(
+            args=[
+                *self._kubectl.base_args(),
+                "logs",
+                f"deployment/{self._release_name}",
+                "--tail=10000",
+                "--all-containers=true",
+            ],
+            out_path=log_path,
+            label="logs",
+        )
+        paths["log_path"] = str(log_path)
+
+        events_path = target_dir / f"{basename}.events.txt"
+        self._capture_to_file(
+            args=[
+                *self._kubectl.base_args(),
+                "get", "events",
+                "--field-selector", f"involvedObject.name={self._release_name}",
+                "--sort-by", ".lastTimestamp",
+            ],
+            out_path=events_path,
+            label="events",
+        )
+        paths["events_path"] = str(events_path)
+        return paths
+
+    def _capture_to_file(
+        self, *, args: list[str], out_path: Path, label: str,
+    ) -> None:
+        try:
+            r = subprocess.run(  # noqa: S603 — internal args, no user input
+                args, capture_output=True, text=True, check=False, timeout=30,
+            )
+            out = r.stdout
+            if r.stderr:
+                out = (out or "") + "\n--- stderr ---\n" + r.stderr
+            out_path.write_text(out or f"[no {label} captured]\n")
+        except Exception as exc:  # noqa: BLE001 — diagnostics best-effort
+            out_path.write_text(f"[diagnostics] {label} capture failed: {exc}\n")
+
     # ----- internals -----
     def _kubectl_apply(self, manifest: str) -> None:
         args = [*self._kubectl.base_args(), "apply", "-f", "-"]
